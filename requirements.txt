@@ -1,0 +1,15 @@
+networkx==3.4.2
+numpy==2.3.1
+pandas==2.2.3
+py2cfg==1.0.5
+pyvis==0.3.2
+sentence-transformers==4.1.0
+torch==2.6.0+cu126
+torch-geometric==2.6.1
+torchaudio==2.6.0+cu126
+torchvision==0.21.0+cu126
+tqdm==4.67.1
+transformers==4.51.3
+tree-sitter==0.24.0
+tree-sitter-c==0.23.5
+tree-sitter-python==0.23.6
