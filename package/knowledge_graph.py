@@ -188,6 +188,9 @@ class KnowledgeGraphBuilder():
         :param num_of_PRs: Number of pull requests to retrieve. Defaults to 5. 0 means all PRs.
         :return: DataFrame with PR file change details.
         """
+
+        # ---------------- Open Pull Requests ----------------
+
         pulls = repo.get_pulls(state='open', sort='created', direction='desc')
 
         print("Pulls done")
@@ -206,6 +209,7 @@ class KnowledgeGraphBuilder():
                 data.append({
                     "pr_number": pr_number,
                     "pr_title": pr_title,
+                    "pr_open": True,
                     "filename": f.filename,
                     "status": f.status,        # 'modified', 'added', 'removed', etc.
                     "additions": f.additions,
@@ -217,7 +221,48 @@ class KnowledgeGraphBuilder():
                 if num_pulls >= num_of_PRs:  # Limit to the specified number of PRs
                     break
 
-        df = pd.DataFrame(data)
+        df_open = pd.DataFrame(data)
+
+
+
+
+        # ---------------- Closed Pull Requests ----------------
+
+        pulls_closed = repo.get_pulls(state='closed', sort='created', direction='desc')
+
+        print("Closed pulls done")
+        data = []
+
+        num_pulls = 0
+
+        for pull in pulls_closed:
+            print(f"Processing PR # {num_pulls}")
+            pr = repo.get_pull(pull.number)
+            pr_number = pr.number
+            pr_title = pr.title
+
+            files = pr.get_files()
+            for f in files:
+                data.append({
+                    "pr_number": pr_number,
+                    "pr_title": pr_title,
+                    "pr_open": False,
+                    "filename": f.filename,
+                    "status": f.status,        # 'modified', 'added', 'removed', etc.
+                    "additions": f.additions,
+                    "deletions": f.deletions
+                })
+            
+            num_pulls += 1
+            if num_of_PRs > 0:
+                if num_pulls >= num_of_PRs:  # Limit to the specified number of PRs
+                    break
+
+        df_closed = pd.DataFrame(data)
+
+        # Combine open and closed PRs
+        df = pd.concat([df_open, df_closed], ignore_index=True).reset_index(drop=True)
+        
         return df
 
 
@@ -274,7 +319,7 @@ class KnowledgeGraphBuilder():
         :param cg_nodes: DataFrame containing call graph nodes.
         :return: DataFrame with PR edges.
         """
-        pr_edges = pulls[['pr_number', 'pr_title', 'status', 'additions', 'deletions', 'file_id']].copy()
+        pr_edges = pulls[['pr_number', 'pr_title', 'pr_open', 'status', 'additions', 'deletions', 'file_id']].copy()
         pr_edges = pr_edges.loc[pr_edges['file_id'].notna()]
         pr_edges = pr_edges.merge(cg_nodes[['file_id', 'func_id']], on='file_id', how='left')[['pr_number', 'func_id', 'status', 'additions', 'deletions']]
         return pr_edges
