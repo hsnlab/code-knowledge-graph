@@ -3,8 +3,13 @@ from github import Github
 import pandas as pd
 import networkx as nx
 from pyvis.network import Network
-from .hierarchical_graph import HierarchicalGraphBuilder
+from itertools import combinations
+import yaml
+import re
 
+from .hierarchical_graph import HierarchicalGraphBuilder
+from .pr_function_collector import extract_changed_functions_from_pr
+from .semantic_clustering import SemanticClustering
 
 class KnowledgeGraphBuilder():
 
@@ -32,15 +37,38 @@ class KnowledgeGraphBuilder():
         issues = self.__get_repo_issues(self.repository)
         pulls = self.__get_repo_PRs(self.repository, num_of_PRs=num_of_PRs)
         artifacts = self.__get_repo_CI_artifacts(self.repository)
+        actions = self.__get_repo_actions()
 
         hg = HierarchicalGraphBuilder()
         cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type)
 
         pulls = self.__set_PR_file_ids(pulls, cg_nodes)
 
-        pr_edges = self.__create_PR_edges(pulls, cg_nodes)
+        pr_node_edges = self.__create_PR_node_edges(cg_nodes)
+
+        pr_edges = self.__create_PR_edges(pr_node_edges)
 
         imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
+
+        # Issue to PR edges
+        linked_issues = []
+
+        for pr_number in pulls['pr_number'].drop_duplicates().tolist():
+            linked_issue_nums = self.__get_linked_issues(pr_number)
+            linked_issues.append({
+                'pr_number': pr_number,
+                'linked_issues': linked_issue_nums
+            })
+
+        issue_to_pr_edges = self.__validated_linked_issues_to_dataframe(
+            linked_issues,
+            issues['issue_number'].tolist()
+        )
+
+        issue_to_pr_function_edges = issue_to_pr_edges.merge(pr_node_edges[['pr_number', 'func_id']], on='pr_number', how='left')
+        issue_to_pr_function_edges = issue_to_pr_function_edges.dropna().reset_index(drop=True)
+
+        cluster_edges = self.__cluster_function_nodes(cg_nodes)
 
         self.knowledge_graph = {
             "cg_nodes": cg_nodes,
@@ -54,14 +82,18 @@ class KnowledgeGraphBuilder():
             "issues": issues,
             "prs": pulls,
             "pr_edges": pr_edges,
-            "artifacts": artifacts
+            "issue_to_pr_edges": issue_to_pr_edges,
+            "issue_to_pr_function_edges": issue_to_pr_function_edges,
+            "artifacts": artifacts,
+            "actions": actions,
+            "cluster_edges": cluster_edges
         }
-        
+
         return self.knowledge_graph
 
 
 
-    def visualize_graph(self, knowledge_graph=None):
+    def visualize_graph(self, knowledge_graph=None, show_subgraph_nodes=False):
 
         if knowledge_graph is None:
             knowledge_graph = self.knowledge_graph
@@ -77,10 +109,11 @@ class KnowledgeGraphBuilder():
             G.add_node(node_id, label=label, title=label, color="#1a70aa")  # blue
 
         # Add structure graph nodes
-        for _, row in knowledge_graph['sg_nodes'].iterrows():
-            node_id = f"S_{row['node_id']}"
-            label = f"[S] {row['code'][:25]}..." if len(row['code']) > 25 else f"[S] {row['code']}"
-            G.add_node(node_id, label=label, title=label, color="#33a02c")  # green
+        if show_subgraph_nodes:
+            for _, row in knowledge_graph['sg_nodes'].iterrows():
+                node_id = f"S_{row['node_id']}"
+                label = f"[S] {row['code'][:25]}..." if len(row['code']) > 25 else f"[S] {row['code']}"
+                G.add_node(node_id, label=label, title=label, color="#33a02c")  # green
 
         # Add import nodes
         for _, row in knowledge_graph['imports'].iterrows():
@@ -89,9 +122,9 @@ class KnowledgeGraphBuilder():
             G.add_node(node_id, label=label, title=label, color="#b12ad3")  # green
 
         # Add PR nodes
-        for _, row in knowledge_graph['prs'].iterrows():
-            node_id = f"PR_{row['pr_number']}"
-            label = f"[PR] {row['pr_title'][:25]}..." if len(row['pr_title']) > 25 else f"[PR] {row['pr_title']}"
+        for _, row in knowledge_graph['issues'].iterrows():
+            node_id = f"ISSUE_{row['issue_number']}"
+            label = f"[IS] {row['issue_title'][:25]}..." if len(row['issue_title']) > 25 else f"[IS] {row['issue_title']}"
             G.add_node(node_id, label=label, title=label, color="#e31a1c")
 
 
@@ -99,44 +132,52 @@ class KnowledgeGraphBuilder():
 
         # Add call edges
         for _, row in knowledge_graph['cg_edges'].iterrows():
-            source = f"F_{row['source_id']}"
-            target = f"F_{row['target_id']}"
+            source = f"F_{row['source_id'].astype(int)}"
+            target = f"F_{row['target_id'].astype(int)}"
             if source in G.nodes and target in G.nodes:
                 G.add_edge(source, target, color="#a6cee3")  # light blue
 
-        # Add structure edges
-        for _, row in knowledge_graph['sg_edges'].iterrows():
-            source = f"S_{row['source_id']}"
-            target = f"S_{row['target_id']}"
-            if source in G.nodes and target in G.nodes:
-                G.add_edge(source, target, color="#b2df8a")  # light green
+        if show_subgraph_nodes:
+            # Add structure edges
+            for _, row in knowledge_graph['sg_edges'].iterrows():
+                source = f"S_{row['source_id'].astype(int)}"
+                target = f"S_{row['target_id'].astype(int)}"
+                if source in G.nodes and target in G.nodes:
+                    G.add_edge(source, target, color="#b2df8a")  # light green
 
-        # Add hierarchy edges (function -> structure)
-        for _, row in knowledge_graph['hier_1'].iterrows():
-            source = f"S_{row['source_id']}"
-            target = f"F_{row['target_id']}"
-            if source in G.nodes and target in G.nodes:
-                G.add_edge(source, target, color="#21c795", dashes=True)
+            # Add hierarchy edges (function -> structure)
+            for _, row in knowledge_graph['hier_1'].iterrows():
+                source = f"S_{row['source_id'].astype(int)}"
+                target = f"F_{row['target_id'].astype(int)}"
+                if source in G.nodes and target in G.nodes:
+                    G.add_edge(source, target, color="#21c795", dashes=True)
 
-        for _, row in knowledge_graph['hier_2'].iterrows():
-            source = f"F_{row['source_id']}"
-            target = f"S_{row['target_id']}"
-            if source in G.nodes and target in G.nodes:
-                G.add_edge(source, target, color="#21c795", dashes=True)
+            for _, row in knowledge_graph['hier_2'].iterrows():
+                source = f"F_{row['source_id'].astype(int)}"
+                target = f"S_{row['target_id'].astype(int)}"
+                if source in G.nodes and target in G.nodes:
+                    G.add_edge(source, target, color="#21c795", dashes=True)
 
         # Add import edges
         for _, row in knowledge_graph['imp_edges'].iterrows():
-            source = f"I_{row['import_id']}"
+            source = f"I_{row['import_id'].astype(int)}"
             target = f"F_{row['func_id'].astype(int)}"
             if source in G.nodes and target in G.nodes:
                 G.add_edge(source, target, color="#bd75cf", dashes=True)
 
         # Add PR edges
         for _, row in knowledge_graph['pr_edges'].iterrows():
-            source = f"PR_{row['pr_number']}"
-            target = f"F_{row['func_id']}"
+            source = f"F_{int(round(row['func_id_1']))}"
+            target = f"F_{int(round(row['func_id_2']))}"
             if source in G.nodes and target in G.nodes:
-                G.add_edge(source, target, color="#e07375", dashes=True)
+                G.add_edge(source, target, color="#02096b", dashes=True, label= f"PR#{row['pr_number']} - {row['pr_title'][:25]}...")
+
+        # Add issue to PR function edges
+        for _, row in knowledge_graph['issue_to_pr_function_edges'].iterrows():
+            source = f"ISSUE_{int(row['issue_number'])}"
+            target = f"F_{int(row['func_id'])}"
+            if source in G.nodes and target in G.nodes:
+                G.add_edge(source, target, color="#860000", dashes=True, label=f"Linked to PR#{row['pr_number']}")
 
         # Visualize with pyvis
         net = Network(height='1000px', width='100%', notebook=False, directed=False)
@@ -150,18 +191,18 @@ class KnowledgeGraphBuilder():
 
 
 
-    def __get_repo_issues(self, repo):
+    def __get_repo_issues(self, repo, labels=["bug"]):
         """
         Retrieves issues from the repository.
         
         :param repo: The repository object.
         :return: A list of issues.
         """
-        issues = repo.get_issues(state='open', sort='created', direction='desc', labels=["bug"])
+        open_issues = repo.get_issues(state='open', sort='created', direction='desc', labels=labels)
 
         data = []
 
-        for issue in issues:
+        for issue in open_issues:
             issue_number = issue.number
             issue_title = issue.title
             issue_body = issue.body if issue.body else ""
@@ -176,7 +217,31 @@ class KnowledgeGraphBuilder():
                 "issue_state": issue_state
             })
 
-        issues_df = pd.DataFrame(data)
+        open_issues_df = pd.DataFrame(data)
+
+        closed_issues = repo.get_issues(state='closed', sort='created', direction='desc', labels=["bug"])
+
+        data = []
+
+        for issue in closed_issues:
+            issue_number = issue.number
+            issue_title = issue.title
+            issue_body = issue.body if issue.body else ""
+            issue_labels = [label.name for label in issue.labels]
+            issue_state = issue.state
+
+            data.append({
+                "issue_number": issue_number,
+                "issue_title": issue_title,
+                "issue_body": issue_body,
+                "issue_labels": issue_labels,
+                "issue_state": issue_state
+            })
+
+        closed_issues_df = pd.DataFrame(data)
+
+        issues_df = pd.concat([open_issues_df, closed_issues_df], ignore_index=True)
+
         return issues_df
     
 
@@ -192,6 +257,7 @@ class KnowledgeGraphBuilder():
         # ---------------- Open Pull Requests ----------------
 
         pulls = repo.get_pulls(state='open', sort='created', direction='desc')
+        changed_functions = []
 
         print("Pulls done")
         data = []
@@ -203,6 +269,21 @@ class KnowledgeGraphBuilder():
             pr = repo.get_pull(pull.number)
             pr_number = pr.number
             pr_title = pr.title
+
+            try:
+                changed = extract_changed_functions_from_pr(pr)
+                for fn in changed:
+                    file_path, class_and_function = fn.split(":", 1) if fn else ("", "")
+                    changed_functions.append({
+                        "pr_number": pr_number,
+                        "pr_title": pr_title,
+                        "pr_open": True,
+                        "file_path": file_path,
+                        "class_and_function": class_and_function
+                    })
+            except:
+                print("Warning: Could not extract changed functions from PR #", pr_number)
+                continue
 
             files = pr.get_files()
             for f in files:
@@ -241,6 +322,21 @@ class KnowledgeGraphBuilder():
             pr_number = pr.number
             pr_title = pr.title
 
+            try:
+                changed = extract_changed_functions_from_pr(pr)
+                for fn in changed:
+                    file_path, class_and_function = fn.split(":", 1) if fn else ("", "")
+                    changed_functions.append({
+                        "pr_number": pr_number,
+                        "pr_title": pr_title,
+                        "pr_open": True,
+                        "file_path": file_path,
+                        "class_and_function": class_and_function
+                    })
+            except:
+                print("Warning: Could not extract changed functions from PR #", pr_number)
+                continue
+
             files = pr.get_files()
             for f in files:
                 data.append({
@@ -262,6 +358,8 @@ class KnowledgeGraphBuilder():
 
         # Combine open and closed PRs
         df = pd.concat([df_open, df_closed], ignore_index=True).reset_index(drop=True)
+
+        self.changed_functions = pd.DataFrame(changed_functions)
         
         return df
 
@@ -287,6 +385,56 @@ class KnowledgeGraphBuilder():
 
         artifacts_df = pd.DataFrame(data)
         return artifacts_df
+    
+
+    def __get_repo_actions(self):
+        
+        workflow_data = []
+
+        for wf in self.repository.get_workflows():
+            try:
+                content = self.repository.get_contents(wf.path)
+                yaml_text = content.decoded_content.decode()
+                wf_yaml = yaml.safe_load(yaml_text)
+
+                name = wf.name
+                path = wf.path
+                trigger = list(wf_yaml.get("on", {}).keys()) if isinstance(wf_yaml.get("on"), dict) else wf_yaml.get("on")
+                jobs = wf_yaml.get("jobs", {})
+
+                used_actions = set()
+                platforms = set()
+
+                for job_id, job_data in jobs.items():
+                    if isinstance(job_data, dict):
+                        runs_on = job_data.get("runs-on")
+                        if runs_on:
+                            if isinstance(runs_on, list):
+                                platforms.update(runs_on)
+                            else:
+                                platforms.add(runs_on)
+
+                        steps = job_data.get("steps", [])
+                        for step in steps:
+                            if isinstance(step, dict):
+                                uses = step.get("uses")
+                                if uses:
+                                    used_actions.add(uses)
+
+                workflow_data.append({
+                    "name": name,
+                    "path": path,
+                    "triggers": trigger,
+                    "platforms": list(platforms),
+                    "actions_used": list(used_actions)
+                })
+
+            except Exception as e:
+                print(f"Hiba a(z) {wf.name} feldolgozásakor: {e}")
+
+        actions_df = pd.DataFrame(workflow_data)
+
+        return actions_df
 
 
     def __set_PR_file_ids(self, pulls, nodes):
@@ -311,7 +459,49 @@ class KnowledgeGraphBuilder():
         return pulls
 
 
-    def __create_PR_edges(self, pulls, cg_nodes):
+    def __create_PR_node_edges(self, cg_nodes):
+        """
+        Creates edges between pull requests and call graph nodes.
+        
+        :param pulls: DataFrame containing pull request details.
+        :param cg_nodes: DataFrame containing call graph nodes.
+        :return: DataFrame with PR edges.
+        """
+        temp_nodes = cg_nodes[['function_location', 'combinedName', 'func_id']].drop_duplicates()
+        temp_nodes['function_location'] = temp_nodes['function_location'].str.replace('./sklearn/', '', regex=False)
+        temp_changed_functions = self.changed_functions.copy()
+        temp_changed_functions = temp_changed_functions.merge(temp_nodes, left_on='class_and_function', right_on='combinedName', how='left')
+
+        pr_edges = temp_changed_functions[['pr_number', 'func_id', 'pr_title', 'pr_open', 'file_path']].copy().dropna()
+        return pr_edges
+
+
+    def __create_PR_edges(self, pr_node_edges):
+
+        # Groupby pr_number, majd generáljuk a func_id párosításokat
+        pair_results = []
+
+        for pr_number, group in pr_node_edges.groupby('pr_number'):
+            func_ids = group['func_id'].tolist()
+            
+            if len(func_ids) == 1:
+                # Csak egy func_id van, tehát az önmagával párban van
+                pair_results.append((pr_number, func_ids[0], func_ids[0]))
+            else:
+                # Minden lehetséges párosítás
+                for pair in combinations(func_ids, 2):
+                    pair_results.append((pr_number, pair[0], pair[1]))
+                    pair_results.append((pr_number, pair[1], pair[0]))
+
+        # Az eredmény egy új DataFrame
+        pairs_df = pd.DataFrame(pair_results, columns=['pr_number', 'func_id_1', 'func_id_2'])
+
+        pairs_df = pairs_df.merge(pr_node_edges[['pr_number', 'pr_title']], on='pr_number', how='left')
+
+        return pairs_df
+    
+
+    def __create_PR_edges_files(self, pulls, cg_nodes):
         """
         Creates edges between pull requests and call graph nodes.
         
@@ -349,3 +539,58 @@ class KnowledgeGraphBuilder():
         imp_edges = imp_edges[['import_id', 'func_id']].dropna().reset_index(drop=True)
 
         return imports, imp_edges
+
+
+    def __cluster_function_nodes(self, cg_nodes):
+        """
+        Clusters function nodes based on their names using semantic clustering.
+        
+        :param cg_nodes: DataFrame containing call graph nodes.
+        :return: DataFrame with clustered function nodes.
+        """
+        sc = SemanticClustering()
+        cluster_df = sc.cluster_text(cg_nodes, 'combinedName', max_clusters=50)
+
+        # Create edges for the clusters
+        cluster_df = cluster_df.merge(cg_nodes[['func_id', 'combinedName']], left_on='original', right_on='combinedName', how='left')
+
+        return cluster_df[['cluster', 'func_id']]
+
+
+    def __extract_issue_references(self, text):
+        """
+        Extract issue numbers from a text like #123
+        """
+        return list(set(map(int, re.findall(r'#(\d+)', text or ""))))
+
+    def __get_linked_issues(self, pr_number):
+        """
+        Get all issues mentioned in the pull request body or comments
+        """
+        pr = self.repository.get_pull(pr_number)
+        linked_issue_numbers = set()
+
+        # PR leírásban keres issue hivatkozásokat
+        linked_issue_numbers.update(self.__extract_issue_references(pr.body))
+
+        # PR kommentjeiben is keres
+        for comment in pr.get_issue_comments():
+            linked_issue_numbers.update(self.__extract_issue_references(comment.body))
+        
+        return list(linked_issue_numbers)
+
+    def __validated_linked_issues_to_dataframe(self, linked_issues_data, existing_issue_numbers):
+        existing_set = set(existing_issue_numbers)
+        records = []
+
+        for item in linked_issues_data:
+            pr_number = item['pr_number']
+
+            for issue_number in item['linked_issues']:
+                if issue_number in existing_set:
+                    records.append({
+                        'issue_number': issue_number,
+                        'pr_number': pr_number,
+                    })
+
+        return pd.DataFrame(records)
