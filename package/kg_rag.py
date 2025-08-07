@@ -5,8 +5,8 @@ from pyvis.network import Network
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 import sys
-sys.path.append("./package")
-from retrieval import Retrieval  # Assuming you saved the new Retrieval class in retrieval.py
+sys.path.append("../package")
+from retrieval import Retrieval
 
 
 class RepositoryRAG():
@@ -46,10 +46,9 @@ class RepositoryRAG():
                 prs_df = self.retrieve_prs(question, top_n=top_n)
 
                 reranked_functions = self.rerank_functions(functions_df, issues_df, prs_df, top_n=top_n)
-                function_ids = reranked_functions['func_id'].tolist()
-
+                
                 print("\nBuilding enriched knowledge graph...")
-                subgraph = self._filter_knowledge_graph(function_ids)
+                subgraph = self._filter_knowledge_graph(reranked_functions, issues_df, prs_df)
 
                 print("\nGenerating answer...")
                 answer = self._generate_answer(question, subgraph)
@@ -61,22 +60,22 @@ class RepositoryRAG():
 
     def retrieve_code_functions(self, question, top_n=5):
         df = self.data_dict['cg_nodes']
-        results = self.retriever.retrieve(question, df, column_name='summary', threshold=top_n)
-        merged = results.merge(df, on='summary', how='left')
-        return merged
+        results = self.retriever.retrieve(question, df, column_name='combinedName', threshold=top_n)
+        #merged = results.merge(df, on='combinedName', how='left')
+        return results
 
     def retrieve_issues(self, question, top_n=5):
         df = self.data_dict['issues'].copy()
-        df['combined'] = df['issue_title'].fillna('') + " " + df['issue_body'].fillna('')
-        results = self.retriever.retrieve(question, df, column_name='combined', threshold=top_n)
-        merged = results.merge(df, on='combined', how='left')
-        return merged
+        df['problem_statement'] = df['issue_title'].fillna('') + " " + df['issue_body'].fillna('')
+        results = self.retriever.retrieve(question, df, column_name='problem_statement', threshold=top_n)
+        #merged = results.merge(df, on='problem_statement', how='left')
+        return results
 
     def retrieve_prs(self, question, top_n=5):
         df = self.data_dict['prs']
         results = self.retriever.retrieve(question, df, column_name='pr_title', threshold=top_n)
-        merged = results.merge(df, on='pr_title', how='left')
-        return merged
+        #merged = results.merge(df, on='pr_title', how='left')
+        return results
 
     def rerank_functions(self, functions_df, issues_df, prs_df, top_n=10):
         """
@@ -97,6 +96,7 @@ class RepositoryRAG():
         
         issue_sim = issues_df[['issue_number', 'similarity']]
         issue_links = issue_links.merge(issue_sim, on='issue_number', how='left')
+        issue_links['similarity'] = issue_links['similarity'].fillna(0.0)
         
         issue_funcs = issue_links['func_id'].tolist()
 
@@ -106,7 +106,15 @@ class RepositoryRAG():
 
         pr_sim = prs_df[['pr_number', 'similarity']]
         pr_edges = pr_edges.merge(pr_sim, on='pr_number', how='left')
-        pr_funcs = pd.concat([pr_edges['func_id_1'], pr_edges['func_id_2']]).tolist()
+        pr_edges['similarity'] = pr_edges['similarity'].fillna(0.0)
+        pr_func_pairs = pd.concat([
+            pr_edges[['pr_number', 'func_id_1']].rename(columns={'func_id_1': 'func_id'}),
+            pr_edges[['pr_number', 'func_id_2']].rename(columns={'func_id_2': 'func_id'})
+        ])
+
+        # Drop duplicates
+        pr_func_pairs = pr_func_pairs.drop_duplicates().reset_index(drop=True)
+        pr_funcs = pr_func_pairs["func_id"].tolist()
 
         # 3. From same cluster
         func_cluster_map = data['cg_nodes'].set_index('func_id')['cluster_id'].to_dict()
@@ -119,106 +127,142 @@ class RepositoryRAG():
         # Score initialization
         scores = {}
         for fid in all_func_ids:
-            scores[fid] = 0.0
+            scores[int(fid)] = 0.0
 
         # Add base similarity scores
         for _, row in functions_df.iterrows():
-            scores[row['func_id']] += row.get('similarity', 0.0)
+            val = row.get('similarity', 0.0)
+            scores[int(row['func_id'])] += val
 
         # Add issue links
         for fid in issue_funcs:
-            scores[fid] += issue_links[issue_links['func_id'] == fid]['similarity'].sum()
+            val = issue_links[issue_links['func_id'] == fid]['similarity'].values[0]
+            scores[int(fid)] += val
 
-        # Add PR links
-        for fid in pr_funcs:
-            scores[fid] += pr_edges[(pr_edges['func_id_1'] == fid) | (pr_edges['func_id_2'] == fid)]['similarity'].sum()
+        for fid in set(pr_funcs):  # or use np.unique(pr_funcs) if it's a NumPy array
+            val = pr_edges[(pr_edges['func_id_1'] == fid) | (pr_edges['func_id_2'] == fid)].drop_duplicates().reset_index(drop=True)['similarity'].values[0]
+            scores[int(fid)] += val
 
         # Add cluster membership
         for fid in cluster_funcs:
-            scores[fid] += 0.5  # Arbitrary score for cluster membership
+            scores[fid] += 0.15  # Arbitrary score for cluster membership
 
         # Create new ranked dataframe
         all_nodes = data['cg_nodes']
         scored_df = all_nodes[all_nodes['func_id'].isin(all_func_ids)].copy()
-        scored_df['relevance_score'] = scored_df['func_id'].map(scores)
+        scored_df['relevance_score'] = scored_df['func_id'].map(scores)      
         scored_df = scored_df.sort_values(by='relevance_score', ascending=False).head(top_n)
 
         return scored_df
 
 
-    def _filter_knowledge_graph(self, function_ids):
+    def _filter_knowledge_graph(self, functions_df, issues_df, prs_df):
         data = self.data_dict
-        G = nx.Graph()
+        
 
+        # --- Inputs ---
+        func_ids = set(functions_df['func_id'])
+        issue_nums = set(issues_df['issue_number'])
+        pr_nums = set(prs_df['pr_number'])
+
+        # --- Filter nodes ---
         cgn = data['cg_nodes']
         cge = data['cg_edges']
         sgn = data['sg_nodes']
         sge = data['sg_edges']
         h1e = data['hier_1']
-        h2e = data['hier_2']
+        h2e = data['hier_1']
         issues = data['issues']
+        prs = data['prs']
         issue_edges = data['issue_to_pr_function_edges']
         pr_edges = data['pr_edges']
-        prs = data['prs']
 
-        # Filter relevant functions
-        cgn = cgn[cgn['func_id'].isin(function_ids)].copy()
+        # Filter function nodes based on top functions
+        cgn = cgn[cgn['func_id'].isin(func_ids)].reset_index(drop=True)
+        cge = cge[cge['source_id'].isin(cgn['func_id'].tolist()) & cge['target_id'].isin(cgn['func_id'].tolist())].reset_index(drop=True)
 
-        # Call graph
-        func_ids = set(cgn['func_id'])
-        cge = cge[cge['source_id'].isin(func_ids) & cge['target_id'].isin(func_ids)]
+        sgn = sgn[sgn['func_id'].isin(cgn['func_id'].tolist())].reset_index(drop=True)
+        sge = sge[sge['source_id'].isin(sgn['node_id'].tolist()) & sge['target_id'].isin(sgn['node_id'].tolist())].reset_index(drop=True)
 
-        # Structure graph
-        sgn = sgn[sgn['func_id'].isin(func_ids)]
-        sge = sge[sge['source_id'].isin(sgn['node_id']) & sge['target_id'].isin(sgn['node_id'])]
+        h1e = h1e[h1e['source_id'].isin(sgn['node_id'].tolist()) & h1e['target_id'].isin(cgn['func_id'].tolist())].reset_index(drop=True)
+        h2e = h2e[h2e['source_id'].isin(cgn['func_id'].tolist()) & h2e['target_id'].isin(sgn['node_id'].tolist())].reset_index(drop=True)
 
-        # Hierarchy
-        h1e = h1e[h1e['target_id'].isin(func_ids)]
-        h2e = h2e[h2e['source_id'].isin(func_ids)]
+        # Filter issue nodes
+        issues = issues[issues['issue_number'].isin(issue_nums)].reset_index(drop=True)
 
-        # Issues
-        issue_edges = issue_edges[issue_edges['func_id'].isin(func_ids)]
-        relevant_issues = issue_edges['issue_number'].unique()
-        issues = issues[issues['issue_number'].isin(relevant_issues)]
+        # Filter PRs and PR edges
+        prs = prs[prs['pr_number'].isin(pr_nums)].copy()
+        pr_edges = pr_edges[pr_edges['pr_number'].isin(prs['pr_number'].tolist())].reset_index(drop=True)
 
-        # PRs
-        relevant_prs = issue_edges['pr_number'].unique()
-        prs = prs[prs['pr_number'].isin(relevant_prs)]
-        pr_edges = pr_edges[pr_edges['pr_number'].isin(relevant_prs)]
 
-        # Add function nodes
+        # Filter issue → function links (only those involving current funcs and issues)
+        issue_edges = issue_edges[issue_edges['func_id'].isin(cgn['func_id'].tolist()) & issue_edges['issue_number'].isin(issues['issue_number'].tolist())].reset_index(drop=True)
+
+
+        G = nx.Graph()
+        # Add call graph nodes (functions)
         for _, row in cgn.iterrows():
             node_id = f"F_{row['func_id']}"
             label = f"[F] {row['combinedName']}"
-            G.add_node(node_id, label=label, title=row['summary'], color="#1f78b4")
+            G.add_node(node_id, label=label, title=label, color="#1f78b4")  # blue
 
-        # Add issue nodes
+        # Add structure graph nodes
+        for _, row in sgn.iterrows():
+            node_id = f"S_{row['node_id']}"
+            label = f"[S] {row['code'][:25]}..." if len(row['code']) > 25 else f"[S] {row['code']}"
+            G.add_node(node_id, label=label, title=label, color="#33a02c")  # green
+
+        # Add call edges
+        for _, row in cge.iterrows():
+            source = f"F_{row['source_id']}"
+            target = f"F_{row['target_id']}"
+            if source in G.nodes and target in G.nodes:
+                G.add_edge(source, target, color="#a6cee3")  # light blue
+
+        # Add structure edges
+        for _, row in sge.iterrows():
+            source = f"S_{row['source_id']}"
+            target = f"S_{row['target_id']}"
+            if source in G.nodes and target in G.nodes:
+                G.add_edge(source, target, color="#b2df8a")  # light green
+
+        # Add hierarchy edges (function -> structure)
+        for _, row in h1e.iterrows():
+            source = f"S_{row['source_id']}"
+            target = f"F_{row['target_id']}"
+            if source in G.nodes and target in G.nodes:
+                G.add_edge(source, target, color="#ff7f00")
+
+        for _, row in h2e.iterrows():
+            source = f"F_{row['source_id']}"
+            target = f"S_{row['target_id']}"
+            if source in G.nodes and target in G.nodes:
+                G.add_edge(source, target, color="#ff7f00")
+
+        # --- Add issue nodes ---
         for _, row in issues.iterrows():
             node_id = f"I_{row['issue_number']}"
             label = f"[I] {row['issue_title'][:40]}"
             G.add_node(node_id, label=label, title=row['issue_body'], color="#e31a1c")
 
-        # Add PR edges as dashed blue
+        # --- Add PR edges (function–function) ---
         for _, row in pr_edges.iterrows():
             src = f"F_{row['func_id_1']}"
             tgt = f"F_{row['func_id_2']}"
             label = f"[PR] {row['pr_number']}"
-            if src != tgt:
-                G.add_edge(src, tgt, color="#1f78b4", dashes=True, label=label, title=row['pr_title'])
+            G.add_edge(src, tgt, color="#1f78b4", dashes=True, label=label, title=row['pr_title'])
 
-        # Add issue → function edges
+        # --- Add issue → function edges via PR ---
         for _, row in issue_edges.iterrows():
             issue_node = f"I_{row['issue_number']}"
             func_node = f"F_{row['func_id']}"
             label = f"[PR] {row['pr_number']}"
-            G.add_edge(issue_node, func_node, color="#fb9a99", dashes=True, label=label, title=row['pr_title'])
+            pr_row = prs[prs['pr_number'] == row['pr_number']]
+            pr_title = pr_row['pr_title'].values[0] if not pr_row.empty else ""
+            G.add_edge(issue_node, func_node, color="#fb9a99", dashes=True, label=label, title=pr_title)
 
-        # Add call graph edges
-        for _, row in cge.iterrows():
-            src = f"F_{row['source_id']}"
-            tgt = f"F_{row['target_id']}"
-            G.add_edge(src, tgt, color="#a6cee3", title=row['call'])
-        # Visualize
+
+        # --- Visualization (optional) ---
         net = Network(height='1000px', width='100%', notebook=False, directed=False)
         net.from_nx(G)
         net.force_atlas_2based()
@@ -228,64 +272,59 @@ class RepositoryRAG():
         return G
 
 
-    def _generate_answer(self, question: str, subgraph: nx.Graph):
+    def _generate_answer(self, question: str, subgraph: nx.Graph, max_items_per_section:int=10):
         """
         Generate an answer to the user's question based on the filtered subgraph.
         Includes enriched context: functions, issues, PRs, and edge summaries.
         """
-        function_nodes = []
-        issue_nodes = []
+        def truncate(text, max_len=80):
+            return text[:max_len] + "..." if len(text) > max_len else text
+    
+        function_nodes = set()
+        issue_nodes = set()
         pr_datas = set()
-
-        # Parse nodes
+        pr_edge_summary = set()
+        call_edge_summary = set()
+    
+        # --- Parse nodes ---
         for node_id, data in subgraph.nodes(data=True):
-            label = data.get("label", node_id)
-            
-
+            label = truncate(data.get("label", node_id))
             if node_id.startswith("F_"):
                 func_id = node_id[2:]
-                function_nodes.append(f"{label}(func_id: {func_id})")
+                function_nodes.add(f"{label} (func_id: {func_id})")
             elif node_id.startswith("I_"):
                 issue_num = node_id[2:]
-                body = data.get("title", "")
-                issue_nodes.append(f"issue: {issue_num}, title: {label}, body: {body}")
-
-        # Parse edges
-        pr_edge_summary = []
-        call_edge_summary = []
-
+                body = truncate(data.get("title", ""))
+                issue_nodes.add(f"Issue #{issue_num}: {label} | {body}")
+    
+        # --- Parse edges ---
         for u, v, data in subgraph.edges(data=True):
             if data.get("dashes", True):
-                pr_label = data.get("label", "")
-                pr_title = data.get("title", "")
-                pr_datas.add(f"pr: {pr_label}, title: {pr_title}")
-                pr_edge_summary.append(
-                    f"{pr_number}: connects {u}, {v} | {issue_str}"
-                )
-
+                pr_number = data.get("label", "")
+                pr_title = truncate(data.get("title", ""))
+                pr_datas.add(f"PR #{pr_number}: {pr_title}")
+                pr_edge_summary.add(f"PR #{pr_number}: connects {u} ↔ {v}")
             elif u.startswith("F_") and v.startswith("F_"):
-                label = data.get("label", "No label")
-                call_edge_summary.append(f"{u},{v}")
-
-        # Create context blocks
+                call_edge_summary.add(f"{u} ↔ {v}")
+    
+        # --- Helper to limit output ---
+        def limit(section):
+            return sorted(section)[:max_items_per_section]
+    
+        # --- Build context blocks ---
         context_parts = []
-
+    
         if function_nodes:
-            context_parts.append("### Relevant Functions\n" + ";".join(function_nodes))
-
+            context_parts.append("### Relevant Functions\n" + "\n".join(limit(function_nodes)))
         if issue_nodes:
-            context_parts.append("### Related Issues\n" + ";".join(issue_nodes))
-
-        if pr_titles:
-            context_parts.append("### Pull Requests (from edges)\n" + ";".join(list(pr_titles)))
-
+            context_parts.append("### Related Issues\n" + "\n".join(limit(issue_nodes)))
+        if pr_datas:
+            context_parts.append("### Pull Requests\n" + "\n".join(limit(pr_datas)))
         if pr_edge_summary:
-            context_parts.append("### PR-Based Function Links\n" + ";".join(pr_edge_summary))
-
+            context_parts.append("### PR-Based Function Links\n" + "\n".join(limit(pr_edge_summary)))
         if call_edge_summary:
-            context_parts.append("### Function Call Edges\n" + ";".join(call_edge_summary))
-
-        # Combine context
+            context_parts.append("### Function Call Edges\n" + "\n".join(limit(call_edge_summary)))
+    
         context = "\n\n".join(context_parts)
 
         # Prompt
@@ -308,8 +347,12 @@ If you're unsure, say so.
         # Generate output
         response = self.generation_pipeline(
             prompt,
-            max_new_tokens=512,
+            max_new_tokens=100,
             return_full_text=False,
         )
         return response[0]['generated_text'].strip()
 
+if __name__ == "__main__":
+    sklearn_hier_json = pd.read_pickle("../graph/sklearn/sklearn_with_summaries.pkl")
+    tool = RepositoryRAG(data_dict=sklearn_hier_json)
+    tool.search(top_n=10)

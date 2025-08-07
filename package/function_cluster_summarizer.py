@@ -63,3 +63,20 @@ The summary should be understandable and helpful for someone trying to understan
 
         llm_chain = prompt | llm
         return llm_chain
+
+def main():
+    function_cluster_summarizer = FunctionClusterSummarizer(model_id="meta-llama/Meta-Llama-3-8B-Instruct", quantize=True)
+    sklearn_hier_json = pd.read_pickle("./graph/sklearn/sklearn.pkl")
+
+    sklearn_hier_df = sklearn_hier_json["cg_nodes"].copy()
+    sklearn_hier_df = sklearn_hier_df.merge(sklearn_hier_json["cluster_edges"], on="func_id", how="left")
+    
+    cluster_sum_df = function_cluster_summarizer.generate_summaries(sklearn_hier_df, label_col="cluster", fn_name_col="combinedName")
+    cluster_sum_df = cluster_sum_df.rename(columns={"cluster":"cluster_id"})
+    sklearn_hier_json["cg_nodes"] = cluster_sum_df
+
+    # save the updated json
+    pd.to_pickle(sklearn_hier_json, "./graph/sklearn/sklearn_with_summaries.pkl")
+
+if __name__ == "__main__":
+    main()

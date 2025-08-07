@@ -10,7 +10,7 @@ from pyvis.network import Network
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
-from sklearn import metrics
+from sklearn.metrics.pairwise import cosine_similarity
 
 import spacy
 
@@ -38,7 +38,7 @@ class Retrieval():
 
 
         # Extract keywords from the input text
-        keywords = self._extract_keywords(text)
+        keyword_embeddings = self._extract_keywords(text)
 
         search_text = df[column_name].astype(str).tolist()
 
@@ -46,21 +46,23 @@ class Retrieval():
         search_embeddings = self.model.encode(search_text, convert_to_tensor=True).cpu().tolist()
 
         # Compute cosine similarities between the query and search text
-        cosine_similarities = metrics.pairwise.cosine_similarity(keywords, search_embeddings)
+        cosine_similarities = cosine_similarity([keyword_embeddings], search_embeddings)[0]
 
-        cos_dict = dict(zip(search_text, cosine_similarities))
+        df_result = df.copy()
+        df_result['similarity'] = cosine_similarities
+
+        df_result = df_result.sort_values(by='similarity', ascending=False)
 
         if isinstance(threshold, int):
-            # If threshold is an integer, return the top k results
-            top_k = sorted(cos_dict.items(), key=lambda x: x[1], reverse=True)[:threshold]
-            top_k_df = pd.DataFrame(top_k, columns=[column_name, 'similarity'])
-            return top_k_df
-
-        elif isinstance(threshold, float):
-            # If threshold is a float, return results above the threshold similarity
-            filtered = {k: v for k, v in cos_dict.items() if v > threshold}
-            filtered_df = pd.DataFrame(filtered.items(), columns=[column_name, 'similarity'])
-            return filtered_df
+            # If threshold is an integer, return top k results
+            df_result = df_result.head(threshold).reset_index(drop=True)
+        elif isinstance(threshold, float) and 0 < threshold < 1:
+            # If threshold is a float, filter results based on similarity score
+            df_result = df_result[df_result['similarity'] >= threshold].reset_index(drop=True)
+        else:
+            raise ValueError("Threshold must be an integer (top k results) or a float (between 0 and 1).")
+            
+        return df_result
         
 
         
