@@ -353,6 +353,6 @@ If you're unsure, say so.
         return response[0]['generated_text'].strip()
 
 if __name__ == "__main__":
-    sklearn_hier_json = pd.read_pickle("../graph/sklearn/sklearn_with_summaries.pkl")
+    sklearn_hier_json = pd.read_pickle("../graph/sklearn/sklearn.pkl")
     tool = RepositoryRAG(data_dict=sklearn_hier_json)
     tool.search(top_n=10)

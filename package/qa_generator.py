@@ -119,6 +119,7 @@ Answer: <Your accurate and concise answer.>
             }
 
     def generate_batch(self, issues: pd.DataFrame, batch_size: int = 4) -> List[Dict[str, str]]:
+        # TODO: Solve gpu ram issues with batch processing
         results = []
 
         for i in range(0, len(issues), batch_size):
