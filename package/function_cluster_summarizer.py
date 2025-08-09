@@ -1,3 +1,4 @@
+import pickle
 import pandas as pd
 import torch
 from typing import List, Optional, Dict
@@ -8,7 +9,7 @@ from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer, BitsAndB
 
 
 class FunctionClusterSummarizer:
-    def __init__(self, model_id: str = "meta-llama/Meta-Llama-3-8B-Instruct", quantize:bool=False, huggingface_token: Optional[str] = None):
+    def __init__(self, model_id: str = "mistralai/Mistral-7B-Instruct-v0.3", quantize:bool=False, huggingface_token: Optional[str] = None):
         self.llm_chain = self._load_chain(model_id, quantize, huggingface_token)
 
     def generate_summaries(self, df: pd.DataFrame, label_col:str = "label", fn_name_col:str = "combinedName") -> pd.DataFrame:
@@ -65,8 +66,10 @@ The summary should be understandable and helpful for someone trying to understan
         return llm_chain
 
 def main():
-    function_cluster_summarizer = FunctionClusterSummarizer(model_id="meta-llama/Meta-Llama-3-8B-Instruct", quantize=True)
-    sklearn_hier_json = pd.read_pickle("./graph/sklearn/sklearn.pkl")
+    function_cluster_summarizer = FunctionClusterSummarizer(model_id="mistralai/Mistral-7B-Instruct-v0.3", quantize=True)
+
+    with open('sklearn.pkl', 'rb') as f:
+        sklearn_hier_json = pickle.load(f)
 
     sklearn_hier_df = sklearn_hier_json["cg_nodes"].copy()
     sklearn_hier_df = sklearn_hier_df.merge(sklearn_hier_json["cluster_edges"], on="func_id", how="left")
@@ -76,7 +79,8 @@ def main():
     sklearn_hier_json["cg_nodes"] = cluster_sum_df
 
     # save the updated json
-    pd.to_pickle(sklearn_hier_json, "./graph/sklearn/sklearn_with_summaries.pkl")
+    with open('sklearn_with_summaries.pkl', 'wb') as f:
+        pickle.dump(sklearn_hier_json, f)
 
 if __name__ == "__main__":
     main()

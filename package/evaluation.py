@@ -1,8 +1,7 @@
 import pandas as pd
 from ast import literal_eval
-import sys
-sys.path.append("../POC2 App")
-from kg_rag_new import RepositoryRAG
+
+from .kg_rag import RepositoryRAG
 
 
 def calculate_precision_at_k(retrieved, relevant, k):

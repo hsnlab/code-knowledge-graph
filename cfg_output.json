@@ -1,5 +1,5 @@
 {
-  "name": "cluster10096example",
+  "name": "cluster759example",
   "directed": true,
   "strict": false,
   "_draw_": 
@@ -16,7 +16,7 @@
     },
     {
       "op": "P",
-      "points": [[0.000,0.000],[0.000,1050.800],[1938.120,1050.800],[1938.120,0.000]]
+      "points": [[0.000,0.000],[0.000,967.500],[2238.750,967.500],[2238.750,0.000]]
     }
   ],
   "_ldraw_": 
@@ -33,27 +33,27 @@
     },
     {
       "op": "T",
-      "pt": [969.060,7.950],
+      "pt": [1119.380,7.950],
       "align": "c",
       "width": 51.750,
       "text": "example"
     }
   ],
-  "bb": "0,0,1938.1,1050.8",
+  "bb": "0,0,2238.8,967.5",
   "compound": "True",
   "fontname": "DejaVu Sans Mono",
   "label": "example",
   "lheight": "0.24",
-  "lp": "969.06,12.625",
+  "lp": "1119.4,12.625",
   "lwidth": "0.72",
   "pack": "False",
   "rankdir": "TB",
   "ranksep": "0.02",
   "xdotversion": "1.7",
-  "_subgraph_cnt": 6,
+  "_subgraph_cnt": 8,
   "objects": [
     {
-      "name": "cluster0raise_build_error",
+      "name": "cluster0test_plot_roc_curve_despine",
       "_draw_": 
       [
         {
@@ -63,7 +63,7 @@
         },
         {
           "op": "p",
-          "points": [[188.120,33.250],[188.120,1042.800],[1588.120,1042.800],[1588.120,33.250]]
+          "points": [[349.750,33.250],[349.750,959.500],[1888.750,959.500],[1888.750,33.250]]
         }
       ],
       "_ldraw_": 
@@ -80,19 +80,19 @@
         },
         {
           "op": "T",
-          "pt": [888.120,1025.500],
+          "pt": [1119.250,942.200],
           "align": "c",
-          "width": 103.500,
-          "text": "raise_build_error"
+          "width": 174.750,
+          "text": "test_plot_roc_curve_despine"
         }
       ],
-      "bb": "188.12,33.25,1588.1,1042.8",
+      "bb": "349.75,33.25,1888.8,959.5",
       "compound": "True",
       "fontname": "DejaVu Sans Mono",
-      "label": "raise_build_error",
+      "label": "test_plot_roc_curve_despine",
       "lheight": "0.24",
-      "lp": "888.12,1030.2",
-      "lwidth": "1.44",
+      "lp": "1119.2,946.88",
+      "lwidth": "2.43",
       "pack": "False",
       "rankdir": "TB",
       "ranksep": "0.02",
@@ -101,17 +101,19 @@
         1,
 2,
 3,
-4
+4,
+5,
+6
       ],
       "nodes": [
-        7,8,9,10,11,12,13,14,15,16,17,18,19,20,21
+        9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36
       ],
       "edges": [
-        4,6,9,13,14,12,10,16,15,11,7,8,5,3,1,2,0
+        0,1,2,3,5,8,12,15,14,13,10,20,23,22,21,18,24,19,16,17,11,9,6,27,29,28,25,31,30,26,7,4
       ]
     },
     {
-      "name": "cluster_6",
+      "name": "cluster_3",
       "_draw_": 
       [
         {
@@ -126,10 +128,10 @@
         },
         {
           "op": "P",
-          "points": [[494.120,705.050],[494.120,757.050],[564.120,757.050],[564.120,705.050]]
+          "points": [[357.750,643.000],[357.750,764.250],[857.750,764.250],[857.750,643.000]]
         }
       ],
-      "bb": "494.12,705.05,564.12,757.05",
+      "bb": "357.75,643,857.75,764.25",
       "color": "purple",
       "compound": "true",
       "fontname": "DejaVu Sans Mono",
@@ -141,11 +143,14 @@
       "style": "filled",
       "_gvid": 1,
       "nodes": [
-        11
+        10,11,12,13,14
+      ],
+      "edges": [
+        5
       ]
     },
     {
-      "name": "cluster_8",
+      "name": "cluster_11",
       "_draw_": 
       [
         {
@@ -160,10 +165,10 @@
         },
         {
           "op": "P",
-          "points": [[196.120,187.500],[196.120,495.900],[294.120,495.900],[294.120,187.500]]
+          "points": [[645.750,557.750],[645.750,609.750],[875.750,609.750],[875.750,557.750]]
         }
       ],
-      "bb": "196.12,187.5,294.12,495.9",
+      "bb": "645.75,557.75,875.75,609.75",
       "color": "purple",
       "compound": "true",
       "fontname": "DejaVu Sans Mono",
@@ -175,14 +180,11 @@
       "style": "filled",
       "_gvid": 2,
       "nodes": [
-        13,14
-      ],
-      "edges": [
-        9
+        17
       ]
     },
     {
-      "name": "cluster_13",
+      "name": "cluster_23",
       "_draw_": 
       [
         {
@@ -197,10 +199,10 @@
         },
         {
           "op": "P",
-          "points": [[741.120,41.250],[741.120,154.250],[891.120,154.250],[891.120,41.250]]
+          "points": [[705.750,195.750],[705.750,247.750],[913.750,247.750],[913.750,195.750]]
         }
       ],
-      "bb": "741.12,41.25,891.12,154.25",
+      "bb": "705.75,195.75,913.75,247.75",
       "color": "purple",
       "compound": "true",
       "fontname": "DejaVu Sans Mono",
@@ -212,14 +214,11 @@
       "style": "filled",
       "_gvid": 3,
       "nodes": [
-        17,18
-      ],
-      "edges": [
-        14
+        22
       ]
     },
     {
-      "name": "cluster_15",
+      "name": "cluster_30",
       "_draw_": 
       [
         {
@@ -234,10 +233,10 @@
         },
         {
           "op": "P",
-          "points": [[1394.120,102.250],[1394.120,154.250],[1544.120,154.250],[1544.120,102.250]]
+          "points": [[828.750,41.250],[828.750,93.250],[1044.750,93.250],[1044.750,41.250]]
         }
       ],
-      "bb": "1394.1,102.25,1544.1,154.25",
+      "bb": "828.75,41.25,1044.8,93.25",
       "color": "purple",
       "compound": "true",
       "fontname": "DejaVu Sans Mono",
@@ -249,7 +248,75 @@
       "style": "filled",
       "_gvid": 4,
       "nodes": [
-        20
+        28
+      ]
+    },
+    {
+      "name": "cluster_14",
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#a020f0"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#a020f0"
+        },
+        {
+          "op": "P",
+          "points": [[954.750,472.500],[954.750,524.500],[1194.750,524.500],[1194.750,472.500]]
+        }
+      ],
+      "bb": "954.75,472.5,1194.8,524.5",
+      "color": "purple",
+      "compound": "true",
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pack": "False",
+      "rankdir": "TB",
+      "ranksep": "0.02",
+      "shape": "tab",
+      "style": "filled",
+      "_gvid": 5,
+      "nodes": [
+        33
+      ]
+    },
+    {
+      "name": "cluster_16",
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#a020f0"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#a020f0"
+        },
+        {
+          "op": "P",
+          "points": [[1516.750,472.500],[1516.750,524.500],[1750.750,524.500],[1750.750,472.500]]
+        }
+      ],
+      "bb": "1516.8,472.5,1750.8,524.5",
+      "color": "purple",
+      "compound": "true",
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pack": "False",
+      "rankdir": "TB",
+      "ranksep": "0.02",
+      "shape": "tab",
+      "style": "filled",
+      "_gvid": 6,
+      "nodes": [
+        36
       ]
     },
     {
@@ -263,7 +330,7 @@
         },
         {
           "op": "p",
-          "points": [[1596.120,843.300],[1596.120,1042.800],[1930.120,1042.800],[1930.120,843.300]]
+          "points": [[1896.750,643.000],[1896.750,913.120],[2230.750,913.120],[2230.750,643.000]]
         }
       ],
       "_ldraw_": 
@@ -280,32 +347,32 @@
         },
         {
           "op": "T",
-          "pt": [1763.120,1025.500],
+          "pt": [2063.750,895.830],
           "align": "c",
           "width": 24.000,
           "text": "KEY"
         }
       ],
-      "bb": "1596.1,843.3,1930.1,1042.8",
+      "bb": "1896.8,643,2230.8,913.12",
       "compound": "True",
       "fontname": "DejaVu Sans Mono",
       "label": "KEY",
       "lheight": "0.24",
-      "lp": "1763.1,1030.2",
+      "lp": "2063.8,900.5",
       "lwidth": "0.33",
       "pack": "False",
       "rankdir": "TB",
       "ranksep": "0.02",
-      "_gvid": 5,
+      "_gvid": 7,
       "nodes": [
-        22,23,24,25,26,27,28,29,30
+        37,38,39,40,41,42,43,44,45
       ],
       "edges": [
-        18,17,19,20,21
+        33,32,34,35,36
       ]
     },
     {
-      "_gvid": 6,
+      "_gvid": 8,
       "name": "1",
       "_draw_": 
       [
@@ -325,7 +392,7 @@
         },
         {
           "op": "P",
-          "points": [[180.250,1009.550],[0.000,1009.550],[0.000,973.550],[180.250,973.550]]
+          "points": [[341.500,879.880],[0.000,879.880],[0.000,843.880],[341.500,843.880]]
         }
       ],
       "_ldraw_": 
@@ -342,23 +409,23 @@
         },
         {
           "op": "T",
-          "pt": [8.000,986.880],
+          "pt": [8.000,857.200],
           "align": "l",
-          "width": 164.250,
-          "text": "def raise_build_error(e):..."
+          "width": 325.500,
+          "text": "@pytest.mark.parametrize('despine', [True, False])..."
         }
       ],
       "fillcolor": "#FFFB81",
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
-      "label": "def raise_build_error(e):...\\l",
-      "pos": "90.125,991.55",
+      "label": "@pytest.mark.parametrize('despine', [True, False])...\\l",
+      "pos": "170.75,861.88",
       "shape": "rectangle",
       "style": "filled,solid",
-      "width": "2.5035"
+      "width": "4.7431"
     },
     {
-      "_gvid": 7,
+      "_gvid": 9,
       "name": "3",
       "_draw_": 
       [
@@ -378,7 +445,7 @@
         },
         {
           "op": "P",
-          "points": [[574.380,1009.550],[409.880,1009.550],[409.880,973.550],[574.380,973.550]]
+          "points": [[910.620,926.250],[494.880,926.250],[494.880,797.500],[910.620,797.500]]
         }
       ],
       "_ldraw_": 
@@ -395,24 +462,416 @@
         },
         {
           "op": "T",
-          "pt": [417.880,986.880],
+          "pt": [502.880,908.950],
           "align": "l",
-          "width": 148.500,
-          "text": "msg = STANDARD_MSG"
+          "width": 200.250,
+          "text": "lr = LogisticRegression().fit(X, y)"
+        },
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [502.880,891.700],
+          "align": "l",
+          "width": 56.250,
+          "text": "lr.fit(X, y)"
+        },
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [502.880,874.450],
+          "align": "l",
+          "width": 369.750,
+          "text": "cv_results = cross_validate(LogisticRegression(), X, y, cv=3,"
+        },
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [502.880,857.200],
+          "align": "l",
+          "width": 296.250,
+          "text": "    return_estimator=True, return_indices=True)"
+        },
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [502.880,839.950],
+          "align": "l",
+          "width": 195.000,
+          "text": "y_pred = lr.decision_function(X)"
+        },
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [502.880,822.700],
+          "align": "l",
+          "width": 399.750,
+          "text": "assert constructor_name in ('from_estimator', 'from_predictions',"
+        },
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [502.880,805.450],
+          "align": "l",
+          "width": 126.750,
+          "text": "    'from_cv_results')"
         }
       ],
       "fillcolor": "#FFFB81",
       "fontname": "DejaVu Sans Mono",
-      "height": "0.5",
-      "label": "msg = STANDARD_MSG\\l",
-      "pos": "492.12,991.55",
+      "height": "1.7882",
+      "label": "lr = LogisticRegression().fit(X, y)\\llr.fit(X, y)\\lcv_results = cross_validate(LogisticRegression(), X, y, cv=3,\\l    return_estimator=True, return_indices=True)\\ly_pred = lr.decision_function(X)\\lassert constructor_name in ('from_estimator', 'from_predictions',\\l    'from_cv_results')\\l",
+      "pos": "702.75,861.88",
       "shape": "rectangle",
       "style": "filled,solid",
-      "width": "2.2847"
+      "width": "5.7743"
     },
     {
-      "_gvid": 8,
+      "_gvid": 10,
       "name": "4",
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "P",
+          "points": [[657.500,756.250],[526.000,756.250],[526.000,760.250],[514.000,760.250],[514.000,720.250],[657.500,720.250]]
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "L",
+          "points": [[514.000,756.250],[526.000,756.250]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [585.750,733.580],
+          "align": "c",
+          "width": 127.500,
+          "text": "LogisticRegression.fit"
+        }
+      ],
+      "color": "#E552FF",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "LogisticRegression.fit",
+      "pos": "585.75,738.25",
+      "shape": "tab",
+      "style": "filled",
+      "width": "1.9931"
+    },
+    {
+      "_gvid": 11,
+      "name": "5",
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "P",
+          "points": [[729.750,756.250],[687.750,756.250],[687.750,760.250],[675.750,760.250],[675.750,720.250],[729.750,720.250]]
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "L",
+          "points": [[675.750,756.250],[687.750,756.250]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [702.750,733.580],
+          "align": "c",
+          "width": 21.750,
+          "text": "lr.fit"
+        }
+      ],
+      "color": "#E552FF",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "lr.fit",
+      "pos": "702.75,738.25",
+      "shape": "tab",
+      "style": "filled",
+      "width": "0.75"
+    },
+    {
+      "_gvid": 12,
+      "name": "6",
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "P",
+          "points": [[849.880,756.250],[759.620,756.250],[759.620,760.250],[747.620,760.250],[747.620,720.250],[849.880,720.250]]
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "L",
+          "points": [[747.620,756.250],[759.620,756.250]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [798.750,733.580],
+          "align": "c",
+          "width": 86.250,
+          "text": "cross_validate"
+        }
+      ],
+      "color": "#E552FF",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "cross_validate",
+      "pos": "798.75,738.25",
+      "shape": "tab",
+      "style": "filled",
+      "width": "1.4201"
+    },
+    {
+      "_gvid": 13,
+      "name": "8",
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "P",
+          "points": [[496.120,756.250],[377.380,756.250],[377.380,760.250],[365.380,760.250],[365.380,720.250],[496.120,720.250]]
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "L",
+          "points": [[365.380,756.250],[377.380,756.250]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [430.750,733.580],
+          "align": "c",
+          "width": 114.750,
+          "text": "lr.decision_function"
+        }
+      ],
+      "color": "#E552FF",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "lr.decision_function",
+      "pos": "430.75,738.25",
+      "shape": "tab",
+      "style": "filled",
+      "width": "1.816"
+    },
+    {
+      "_gvid": 14,
+      "name": "7",
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "P",
+          "points": [[848.250,687.000],[733.250,687.000],[733.250,691.000],[721.250,691.000],[721.250,651.000],[848.250,651.000]]
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "L",
+          "points": [[721.250,687.000],[733.250,687.000]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [784.750,664.330],
+          "align": "c",
+          "width": 111.000,
+          "text": "LogisticRegression"
+        }
+      ],
+      "color": "#E552FF",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "LogisticRegression",
+      "pos": "784.75,669",
+      "shape": "tab",
+      "style": "filled",
+      "width": "1.7639"
+    },
+    {
+      "_gvid": 15,
+      "name": "10",
       "_draw_": 
       [
         {
@@ -431,7 +890,7 @@
         },
         {
           "op": "P",
-          "points": [[492.120,956.550],[232.950,938.550],[492.120,920.550],[751.300,938.550]]
+          "points": [[1140.750,756.250],[868.190,738.250],[1140.750,720.250],[1413.310,738.250]]
         }
       ],
       "_ldraw_": 
@@ -448,24 +907,24 @@
         },
         {
           "op": "T",
-          "pt": [315.390,933.880],
+          "pt": [954.470,733.580],
           "align": "l",
-          "width": 245.250,
-          "text": "if local_dir == 'sklearn\/__check_buil...':"
+          "width": 258.750,
+          "text": "if constructor_name == 'from_estimator':"
         }
       ],
       "fillcolor": "#FF6752",
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
-      "label": "if local_dir == 'sklearn\/__check_buil...':\\l",
-      "pos": "492.12,938.55",
+      "label": "if constructor_name == 'from_estimator':\\l",
+      "pos": "1140.8,738.25",
       "shape": "diamond",
       "style": "filled,solid",
-      "width": "7.1992"
+      "width": "7.5712"
     },
     {
-      "_gvid": 9,
-      "name": "5",
+      "_gvid": 16,
+      "name": "11",
       "_draw_": 
       [
         {
@@ -484,7 +943,7 @@
         },
         {
           "op": "P",
-          "points": [[594.120,887.300],[446.120,887.300],[446.120,851.300],[594.120,851.300]]
+          "points": [[1301.380,687.000],[866.120,687.000],[866.120,651.000],[1301.380,651.000]]
         }
       ],
       "_ldraw_": 
@@ -501,77 +960,24 @@
         },
         {
           "op": "T",
-          "pt": [454.120,864.630],
+          "pt": [874.120,664.330],
           "align": "l",
-          "width": 132.000,
-          "text": "msg = INPLACE_MSG"
+          "width": 419.250,
+          "text": "display = RocCurveDisplay.from_estimator(lr, X, y, despine=despine)"
         }
       ],
       "fillcolor": "#FFFB81",
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
-      "label": "msg = INPLACE_MSG\\l",
-      "pos": "520.12,869.3",
+      "label": "display = RocCurveDisplay.from_estimator(lr, X, y, despine=despine)\\l",
+      "pos": "1083.8,669",
       "shape": "rectangle",
       "style": "filled,solid",
-      "width": "2.0556"
+      "width": "6.0451"
     },
     {
-      "_gvid": 10,
-      "name": "6",
-      "_draw_": 
-      [
-        {
-          "op": "S",
-          "style": "solid"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#fffb81"
-        },
-        {
-          "op": "P",
-          "points": [[723.880,826.300],[592.380,826.300],[592.380,790.300],[723.880,790.300]]
-        }
-      ],
-      "_ldraw_": 
-      [
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [600.380,803.630],
-          "align": "l",
-          "width": 115.500,
-          "text": "dir_content = list()"
-        }
-      ],
-      "fillcolor": "#FFFB81",
-      "fontname": "DejaVu Sans Mono",
-      "height": "0.5",
-      "label": "dir_content = list()\\l",
-      "pos": "658.12,808.3",
-      "shape": "rectangle",
-      "style": "filled,solid",
-      "width": "1.8264"
-    },
-    {
-      "_gvid": 11,
-      "name": "7",
+      "_gvid": 17,
+      "name": "19",
       "_draw_": 
       [
         {
@@ -586,7 +992,7 @@
         },
         {
           "op": "P",
-          "points": [[556.120,749.050],[514.120,749.050],[514.120,753.050],[502.120,753.050],[502.120,713.050],[556.120,713.050]]
+          "points": [[868.120,601.750],[665.380,601.750],[665.380,605.750],[653.380,605.750],[653.380,565.750],[868.120,565.750]]
         },
         {
           "op": "c",
@@ -595,7 +1001,7 @@
         },
         {
           "op": "L",
-          "points": [[502.120,749.050],[514.120,749.050]]
+          "points": [[653.380,601.750],[665.380,601.750]]
         }
       ],
       "_ldraw_": 
@@ -612,24 +1018,24 @@
         },
         {
           "op": "T",
-          "pt": [529.120,726.380],
+          "pt": [760.750,579.080],
           "align": "c",
-          "width": 16.500,
-          "text": "list"
+          "width": 198.750,
+          "text": "RocCurveDisplay.from_estimator"
         }
       ],
       "color": "#E552FF",
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
-      "label": "list",
-      "pos": "529.12,731.05",
+      "label": "RocCurveDisplay.from_estimator",
+      "pos": "760.75,583.75",
       "shape": "tab",
       "style": "filled",
-      "width": "0.75"
+      "width": "2.9826"
     },
     {
-      "_gvid": 12,
-      "name": "8",
+      "_gvid": 18,
+      "name": "12",
       "_draw_": 
       [
         {
@@ -648,7 +1054,7 @@
         },
         {
           "op": "P",
-          "points": [[1086.080,731.050],[958.100,749.050],[702.150,749.050],[574.170,731.050],[702.150,713.050],[958.100,713.050]]
+          "points": [[1243.020,437.500],[1183.390,455.500],[1064.110,455.500],[1004.480,437.500],[1064.110,419.500],[1183.390,419.500]]
         }
       ],
       "_ldraw_": 
@@ -665,193 +1071,24 @@
         },
         {
           "op": "T",
-          "pt": [655.680,726.380],
+          "pt": [1046.740,432.820],
           "align": "l",
-          "width": 300.000,
-          "text": "for i, filename in enumerate(os.listdir(local_dir)):"
+          "width": 131.250,
+          "text": "for s in ['top', 'right']:"
         }
       ],
       "fillcolor": "#FFBE52",
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
-      "label": "for i, filename in enumerate(os.listdir(local_dir)):\\l",
-      "pos": "830.12,731.05",
+      "label": "for s in ['top', 'right']:\\l",
+      "pos": "1123.8,437.5",
       "shape": "hexagon",
       "style": "filled,solid",
-      "width": "7.11"
+      "width": "3.3131"
     },
     {
-      "_gvid": 13,
-      "name": "9",
-      "_draw_": 
-      [
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#e552ff"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#e552ff"
-        },
-        {
-          "op": "P",
-          "points": [[286.500,487.900],[215.750,487.900],[215.750,491.900],[203.750,491.900],[203.750,451.900],[286.500,451.900]]
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#e552ff"
-        },
-        {
-          "op": "L",
-          "points": [[203.750,487.900],[215.750,487.900]]
-        }
-      ],
-      "_ldraw_": 
-      [
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [245.120,465.230],
-          "align": "c",
-          "width": 66.750,
-          "text": "enumerate"
-        }
-      ],
-      "color": "#E552FF",
-      "fontname": "DejaVu Sans Mono",
-      "height": "0.5",
-      "label": "enumerate",
-      "pos": "245.12,469.9",
-      "shape": "tab",
-      "style": "filled",
-      "width": "1.1493"
-    },
-    {
-      "_gvid": 14,
-      "name": "10",
-      "_draw_": 
-      [
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#e552ff"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#e552ff"
-        },
-        {
-          "op": "P",
-          "points": [[278.250,231.500],[224.000,231.500],[224.000,235.500],[212.000,235.500],[212.000,195.500],[278.250,195.500]]
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#e552ff"
-        },
-        {
-          "op": "L",
-          "points": [[212.000,231.500],[224.000,231.500]]
-        }
-      ],
-      "_ldraw_": 
-      [
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [245.120,208.820],
-          "align": "c",
-          "width": 50.250,
-          "text": "os.listdir"
-        }
-      ],
-      "color": "#E552FF",
-      "fontname": "DejaVu Sans Mono",
-      "height": "0.5",
-      "label": "os.listdir",
-      "pos": "245.12,213.5",
-      "shape": "tab",
-      "style": "filled",
-      "width": "0.92014"
-    },
-    {
-      "_gvid": 15,
-      "name": "11",
-      "_draw_": 
-      [
-        {
-          "op": "S",
-          "style": "solid"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#ff6752"
-        },
-        {
-          "op": "P",
-          "points": [[1457.120,487.900],[1354.200,469.900],[1457.120,451.900],[1560.050,469.900]]
-        }
-      ],
-      "_ldraw_": 
-      [
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [1391.760,465.230],
-          "align": "l",
-          "width": 87.750,
-          "text": "if (i + 1) % 3:"
-        }
-      ],
-      "fillcolor": "#FF6752",
-      "fontname": "DejaVu Sans Mono",
-      "height": "0.5",
-      "label": "if (i + 1) % 3:\\l",
-      "pos": "1457.1,469.9",
-      "shape": "diamond",
-      "style": "filled,solid",
-      "width": "2.859"
-    },
-    {
-      "_gvid": 16,
-      "name": "13",
+      "_gvid": 19,
+      "name": "20",
       "_draw_": 
       [
         {
@@ -870,7 +1107,7 @@
         },
         {
           "op": "P",
-          "points": [[942.250,231.500],[690.000,231.500],[690.000,195.500],[942.250,195.500]]
+          "points": [[1000.250,386.250],[651.250,386.250],[651.250,350.250],[1000.250,350.250]]
         }
       ],
       "_ldraw_": 
@@ -887,24 +1124,90 @@
         },
         {
           "op": "T",
-          "pt": [698.000,208.820],
+          "pt": [659.250,363.570],
           "align": "l",
-          "width": 236.250,
-          "text": "dir_content.append(filename.ljust(26))"
+          "width": 333.000,
+          "text": "assert display.ax_.spines[s].get_visible() is not despine"
         }
       ],
       "fillcolor": "#FFFB81",
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
-      "label": "dir_content.append(filename.ljust(26))\\l",
-      "pos": "816.12,213.5",
+      "label": "assert display.ax_.spines[s].get_visible() is not despine\\l",
+      "pos": "825.75,368.25",
       "shape": "rectangle",
       "style": "filled,solid",
-      "width": "3.5035"
+      "width": "4.8472"
     },
     {
-      "_gvid": 17,
-      "name": "17",
+      "_gvid": 20,
+      "name": "22",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#fffb81"
+        },
+        {
+          "op": "P",
+          "points": [[551.750,317.000],[497.750,317.000],[497.750,281.000],[551.750,281.000]]
+        }
+      ],
+      "fillcolor": "#FFFB81",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "",
+      "pos": "524.75,299",
+      "shape": "rectangle",
+      "style": "filled,solid",
+      "width": "0.75"
+    },
+    {
+      "_gvid": 21,
+      "name": "23",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#fffb81"
+        },
+        {
+          "op": "P",
+          "points": [[852.750,317.000],[798.750,317.000],[798.750,281.000],[852.750,281.000]]
+        }
+      ],
+      "fillcolor": "#FFFB81",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "",
+      "pos": "825.75,299",
+      "shape": "rectangle",
+      "style": "filled,solid",
+      "width": "0.75"
+    },
+    {
+      "_gvid": 22,
+      "name": "24",
       "_draw_": 
       [
         {
@@ -919,7 +1222,7 @@
         },
         {
           "op": "P",
-          "points": [[883.380,146.250],[760.880,146.250],[760.880,150.250],[748.880,150.250],[748.880,110.250],[883.380,110.250]]
+          "points": [[905.880,239.750],[725.620,239.750],[725.620,243.750],[713.620,243.750],[713.620,203.750],[905.880,203.750]]
         },
         {
           "op": "c",
@@ -928,7 +1231,7 @@
         },
         {
           "op": "L",
-          "points": [[748.880,146.250],[760.880,146.250]]
+          "points": [[713.620,239.750],[725.620,239.750]]
         }
       ],
       "_ldraw_": 
@@ -945,23 +1248,478 @@
         },
         {
           "op": "T",
-          "pt": [816.120,123.580],
+          "pt": [809.750,217.070],
           "align": "c",
-          "width": 118.500,
-          "text": "dir_content.append"
+          "width": 176.250,
+          "text": "display.ax_.spines.get_visible"
         }
       ],
       "color": "#E552FF",
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
-      "label": "dir_content.append",
-      "pos": "816.12,128.25",
+      "label": "display.ax_.spines.get_visible",
+      "pos": "809.75,221.75",
       "shape": "tab",
       "style": "filled",
-      "width": "1.8681"
+      "width": "2.6701"
     },
     {
-      "_gvid": 18,
+      "_gvid": 23,
+      "name": "21",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#ff6752"
+        },
+        {
+          "op": "P",
+          "points": [[1241.750,386.250],[1162.630,368.250],[1241.750,350.250],[1320.870,368.250]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1193.360,363.570],
+          "align": "l",
+          "width": 63.750,
+          "text": "if despine:"
+        }
+      ],
+      "fillcolor": "#FF6752",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "if despine:\\l",
+      "pos": "1241.8,368.25",
+      "shape": "diamond",
+      "style": "filled,solid",
+      "width": "2.1976"
+    },
+    {
+      "_gvid": 24,
+      "name": "25",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#ffbe52"
+        },
+        {
+          "op": "P",
+          "points": [[1373.780,299.000],[1307.760,317.000],[1175.740,317.000],[1109.720,299.000],[1175.740,281.000],[1307.760,281.000]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1155.640,294.320],
+          "align": "l",
+          "width": 147.000,
+          "text": "for s in ['bottom', 'left']:"
+        }
+      ],
+      "fillcolor": "#FFBE52",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "for s in ['bottom', 'left']:\\l",
+      "pos": "1241.8,299",
+      "shape": "hexagon",
+      "style": "filled,solid",
+      "width": "3.6675"
+    },
+    {
+      "_gvid": 25,
+      "name": "27",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#fffb81"
+        },
+        {
+          "op": "P",
+          "points": [[1407.620,239.750],[1075.880,239.750],[1075.880,203.750],[1407.620,203.750]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1083.880,217.070],
+          "align": "l",
+          "width": 315.750,
+          "text": "assert display.ax_.spines[s].get_bounds() == (0, 1)"
+        }
+      ],
+      "fillcolor": "#FFFB81",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "assert display.ax_.spines[s].get_bounds() == (0, 1)\\l",
+      "pos": "1241.8,221.75",
+      "shape": "rectangle",
+      "style": "filled,solid",
+      "width": "4.6076"
+    },
+    {
+      "_gvid": 26,
+      "name": "29",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#fffb81"
+        },
+        {
+          "op": "P",
+          "points": [[1273.750,162.500],[1219.750,162.500],[1219.750,126.500],[1273.750,126.500]]
+        }
+      ],
+      "fillcolor": "#FFFB81",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "",
+      "pos": "1246.8,144.5",
+      "shape": "rectangle",
+      "style": "filled,solid",
+      "width": "0.75"
+    },
+    {
+      "_gvid": 27,
+      "name": "30",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#fffb81"
+        },
+        {
+          "op": "P",
+          "points": [[963.750,162.500],[909.750,162.500],[909.750,126.500],[963.750,126.500]]
+        }
+      ],
+      "fillcolor": "#FFFB81",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "",
+      "pos": "936.75,144.5",
+      "shape": "rectangle",
+      "style": "filled,solid",
+      "width": "0.75"
+    },
+    {
+      "_gvid": 28,
+      "name": "31",
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "P",
+          "points": [[1036.250,85.250],[849.250,85.250],[849.250,89.250],[837.250,89.250],[837.250,49.250],[1036.250,49.250]]
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "L",
+          "points": [[837.250,85.250],[849.250,85.250]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [936.750,62.580],
+          "align": "c",
+          "width": 183.000,
+          "text": "display.ax_.spines.get_bounds"
+        }
+      ],
+      "color": "#E552FF",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "display.ax_.spines.get_bounds",
+      "pos": "936.75,67.25",
+      "shape": "tab",
+      "style": "filled",
+      "width": "2.7639"
+    },
+    {
+      "_gvid": 29,
+      "name": "28",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#fffb81"
+        },
+        {
+          "op": "P",
+          "points": [[1502.750,239.750],[1448.750,239.750],[1448.750,203.750],[1502.750,203.750]]
+        }
+      ],
+      "fillcolor": "#FFFB81",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "",
+      "pos": "1475.8,221.75",
+      "shape": "rectangle",
+      "style": "filled,solid",
+      "width": "0.75"
+    },
+    {
+      "_gvid": 30,
+      "name": "26",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#fffb81"
+        },
+        {
+          "op": "P",
+          "points": [[1561.750,162.500],[1507.750,162.500],[1507.750,126.500],[1561.750,126.500]]
+        }
+      ],
+      "fillcolor": "#FFFB81",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "",
+      "pos": "1534.8,144.5",
+      "shape": "rectangle",
+      "style": "filled,solid",
+      "width": "0.75"
+    },
+    {
+      "_gvid": 31,
+      "name": "13",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#ff6752"
+        },
+        {
+          "op": "P",
+          "points": [[1599.750,687.000],[1319.000,669.000],[1599.750,651.000],[1880.500,669.000]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1407.640,664.330],
+          "align": "l",
+          "width": 267.000,
+          "text": "if constructor_name == 'from_predictions':"
+        }
+      ],
+      "fillcolor": "#FF6752",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "if constructor_name == 'from_predictions':\\l",
+      "pos": "1599.8,669",
+      "shape": "diamond",
+      "style": "filled,solid",
+      "width": "7.7986"
+    },
+    {
+      "_gvid": 32,
+      "name": "14",
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#fffb81"
+        },
+        {
+          "op": "P",
+          "points": [[1369.250,601.750],[906.250,601.750],[906.250,565.750],[1369.250,565.750]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [914.250,579.080],
+          "align": "l",
+          "width": 447.000,
+          "text": "display = RocCurveDisplay.from_predictions(y, y_pred, despine=despine)"
+        }
+      ],
+      "fillcolor": "#FFFB81",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "display = RocCurveDisplay.from_predictions(y, y_pred, despine=despine)\\l",
+      "pos": "1137.8,583.75",
+      "shape": "rectangle",
+      "style": "filled,solid",
+      "width": "6.4306"
+    },
+    {
+      "_gvid": 33,
       "name": "18",
       "_draw_": 
       [
@@ -977,7 +1735,7 @@
         },
         {
           "op": "P",
-          "points": [[865.000,85.250],[779.250,85.250],[779.250,89.250],[767.250,89.250],[767.250,49.250],[865.000,49.250]]
+          "points": [[1186.250,516.500],[975.250,516.500],[975.250,520.500],[963.250,520.500],[963.250,480.500],[1186.250,480.500]]
         },
         {
           "op": "c",
@@ -986,7 +1744,7 @@
         },
         {
           "op": "L",
-          "points": [[767.250,85.250],[779.250,85.250]]
+          "points": [[963.250,516.500],[975.250,516.500]]
         }
       ],
       "_ldraw_": 
@@ -1003,23 +1761,23 @@
         },
         {
           "op": "T",
-          "pt": [816.120,62.580],
+          "pt": [1074.750,493.820],
           "align": "c",
-          "width": 81.750,
-          "text": "filename.ljust"
+          "width": 207.000,
+          "text": "RocCurveDisplay.from_predictions"
         }
       ],
       "color": "#E552FF",
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
-      "label": "filename.ljust",
-      "pos": "816.12,67.25",
+      "label": "RocCurveDisplay.from_predictions",
+      "pos": "1074.8,498.5",
       "shape": "tab",
       "style": "filled",
-      "width": "1.3576"
+      "width": "3.0972"
     },
     {
-      "_gvid": 19,
+      "_gvid": 34,
       "name": "15",
       "_draw_": 
       [
@@ -1039,116 +1797,21 @@
         },
         {
           "op": "P",
-          "points": [[1576.500,234.750],[1361.750,234.750],[1361.750,192.250],[1576.500,192.250]]
-        }
-      ],
-      "_ldraw_": 
-      [
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [1469.120,217.450],
-          "align": "c",
-          "width": 198.750,
-          "text": "dir_content.append(filename + '"
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [1369.750,200.200],
-          "align": "l",
-          "width": 8.250,
-          "text": "')"
+          "points": [[1258.750,516.500],[1204.750,516.500],[1204.750,480.500],[1258.750,480.500]]
         }
       ],
       "fillcolor": "#FFFB81",
       "fontname": "DejaVu Sans Mono",
-      "height": "0.59028",
-      "label": "dir_content.append(filename + '\\n')\\l",
-      "pos": "1469.1,213.5",
+      "height": "0.5",
+      "label": "",
+      "pos": "1231.8,498.5",
       "shape": "rectangle",
       "style": "filled,solid",
-      "width": "2.9826"
+      "width": "0.75"
     },
     {
-      "_gvid": 20,
+      "_gvid": 35,
       "name": "16",
-      "_draw_": 
-      [
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#e552ff"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#e552ff"
-        },
-        {
-          "op": "P",
-          "points": [[1536.380,146.250],[1413.880,146.250],[1413.880,150.250],[1401.880,150.250],[1401.880,110.250],[1536.380,110.250]]
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#e552ff"
-        },
-        {
-          "op": "L",
-          "points": [[1401.880,146.250],[1413.880,146.250]]
-        }
-      ],
-      "_ldraw_": 
-      [
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [1469.120,123.580],
-          "align": "c",
-          "width": 118.500,
-          "text": "dir_content.append"
-        }
-      ],
-      "color": "#E552FF",
-      "fontname": "DejaVu Sans Mono",
-      "height": "0.5",
-      "label": "dir_content.append",
-      "pos": "1469.1,128.25",
-      "shape": "tab",
-      "style": "filled",
-      "width": "1.8681"
-    },
-    {
-      "_gvid": 21,
-      "name": "12",
       "_draw_": 
       [
         {
@@ -1163,11 +1826,11 @@
         {
           "op": "C",
           "grad": "none",
-          "color": "#98fb98"
+          "color": "#fffb81"
         },
         {
           "op": "P",
-          "points": [[1335.750,532.290],[830.120,671.800],[324.500,532.290],[324.970,306.560],[1335.280,306.560]]
+          "points": [[1880.620,601.750],[1386.880,601.750],[1386.880,565.750],[1880.620,565.750]]
         }
       ],
       "_ldraw_": 
@@ -1184,210 +1847,81 @@
         },
         {
           "op": "T",
-          "pt": [423.400,568.100],
+          "pt": [1394.880,579.080],
           "align": "l",
-          "width": 111.750,
-          "text": "raise ImportError("
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,550.850],
-          "align": "l",
-          "width": 53.250,
-          "text": "    \"\"\"%s"
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,533.600],
-          "align": "l",
-          "width": 562.500,
-          "text": "___________________________________________________________________________"
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,516.350],
-          "align": "l",
-          "width": 99.000,
-          "text": "Contents of %s:"
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,499.100],
-          "align": "l",
-          "width": 19.500,
-          "text": "%s"
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,481.850],
-          "align": "l",
-          "width": 562.500,
-          "text": "___________________________________________________________________________"
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,464.600],
-          "align": "l",
-          "width": 327.000,
-          "text": "It seems that scikit-learn has not been built correctly."
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,431.350],
-          "align": "l",
-          "width": 405.750,
-          "text": "If you have installed scikit-learn from source, please do not forget"
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,414.100],
-          "align": "l",
-          "width": 407.250,
-          "text": "to build the package before using it. For detailed instructions, see:"
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,396.850],
-          "align": "l",
-          "width": 539.250,
-          "text": "https:\/\/scikit-learn.org\/dev\/developers\/advanced_installation.html#building-from-source"
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,379.600],
-          "align": "l",
-          "width": 35.250,
-          "text": "%s\"\"\""
-        },
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [423.400,362.350],
-          "align": "l",
-          "width": 317.250,
-          "text": "     % (e, local_dir, ''.join(dir_content).strip(), msg))"
+          "width": 477.750,
+          "text": "display = RocCurveDisplay.from_cv_results(cv_results, X, y, despine=despine)"
         }
       ],
-      "fillcolor": "#98fb98",
+      "fillcolor": "#FFFB81",
       "fontname": "DejaVu Sans Mono",
-      "height": "5.6084",
-      "label": "raise ImportError(\\l    \"\"\"%s\\l___________________________________________________________________________\\lContents of %s:\\l%s\\l___________________________________________________________________________\\lIt seems that scikit-learn has not been built correctly.\\l\\lIf you have installed scikit-learn from source, please do not forget\\lto build the package before using it. For detailed instructions, see:\\lhttps:\/\/scikit-learn.org\/dev\/developers\/advanced_installation.html#building-from-source\\l%s\"\"\"\\l     % (e, local_dir, ''.join(dir_content).strip(), msg))\\l",
-      "pos": "830.12,469.9",
-      "shape": "house",
+      "height": "0.5",
+      "label": "display = RocCurveDisplay.from_cv_results(cv_results, X, y, despine=despine)\\l",
+      "pos": "1633.8,583.75",
+      "shape": "rectangle",
       "style": "filled,solid",
-      "width": "14.045"
+      "width": "6.8576"
     },
     {
-      "_gvid": 22,
+      "_gvid": 36,
+      "name": "17",
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "P",
+          "points": [[1742.620,516.500],[1536.880,516.500],[1536.880,520.500],[1524.880,520.500],[1524.880,480.500],[1742.620,480.500]]
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#e552ff"
+        },
+        {
+          "op": "L",
+          "points": [[1524.880,516.500],[1536.880,516.500]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1633.750,493.820],
+          "align": "c",
+          "width": 201.750,
+          "text": "RocCurveDisplay.from_cv_results"
+        }
+      ],
+      "color": "#E552FF",
+      "fontname": "DejaVu Sans Mono",
+      "height": "0.5",
+      "label": "RocCurveDisplay.from_cv_results",
+      "pos": "1633.8,498.5",
+      "shape": "tab",
+      "style": "filled",
+      "width": "3.0243"
+    },
+    {
+      "_gvid": 37,
       "name": "input",
       "_draw_": 
       [
@@ -1403,7 +1937,7 @@
         },
         {
           "op": "P",
-          "points": [[1698.440,956.550],[1623.170,956.550],[1603.810,920.550],[1679.080,920.550]]
+          "points": [[1999.060,756.250],[1923.800,756.250],[1904.440,720.250],[1979.700,720.250]]
         }
       ],
       "_ldraw_": 
@@ -1420,7 +1954,7 @@
         },
         {
           "op": "T",
-          "pt": [1651.120,933.880],
+          "pt": [1951.750,733.580],
           "align": "c",
           "width": 30.000,
           "text": "input"
@@ -1430,13 +1964,13 @@
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
       "label": "\\N",
-      "pos": "1651.1,938.55",
+      "pos": "1951.8,738.25",
       "shape": "parallelogram",
       "style": "filled",
       "width": "1.3142"
     },
     {
-      "_gvid": 23,
+      "_gvid": 38,
       "name": "default",
       "_draw_": 
       [
@@ -1452,7 +1986,7 @@
         },
         {
           "op": "P",
-          "points": [[1800.120,887.300],[1742.120,887.300],[1742.120,851.300],[1800.120,851.300]]
+          "points": [[2100.750,687.000],[2042.750,687.000],[2042.750,651.000],[2100.750,651.000]]
         }
       ],
       "_ldraw_": 
@@ -1469,7 +2003,7 @@
         },
         {
           "op": "T",
-          "pt": [1771.120,864.630],
+          "pt": [2071.750,664.330],
           "align": "c",
           "width": 42.000,
           "text": "default"
@@ -1479,13 +2013,13 @@
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
       "label": "\\N",
-      "pos": "1771.1,869.3",
+      "pos": "2071.8,669",
       "shape": "rectangle",
       "style": "filled",
       "width": "0.80556"
     },
     {
-      "_gvid": 24,
+      "_gvid": 39,
       "name": "if",
       "_draw_": 
       [
@@ -1501,7 +2035,7 @@
         },
         {
           "op": "P",
-          "points": [[1646.120,1009.550],[1619.120,991.550],[1646.120,973.550],[1673.120,991.550]]
+          "points": [[1946.750,879.880],[1919.750,861.880],[1946.750,843.880],[1973.750,861.880]]
         }
       ],
       "_ldraw_": 
@@ -1518,7 +2052,7 @@
         },
         {
           "op": "T",
-          "pt": [1646.120,986.880],
+          "pt": [1946.750,857.200],
           "align": "c",
           "width": 7.500,
           "text": "if"
@@ -1528,13 +2062,13 @@
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
       "label": "\\N",
-      "pos": "1646.1,991.55",
+      "pos": "1946.8,861.88",
       "shape": "diamond",
       "style": "filled",
       "width": "0.75"
     },
     {
-      "_gvid": 25,
+      "_gvid": 40,
       "name": "for",
       "_draw_": 
       [
@@ -1550,7 +2084,7 @@
         },
         {
           "op": "P",
-          "points": [[1745.120,991.550],[1731.620,1009.550],[1704.620,1009.550],[1691.120,991.550],[1704.620,973.550],[1731.620,973.550]]
+          "points": [[2045.750,861.880],[2032.250,879.880],[2005.250,879.880],[1991.750,861.880],[2005.250,843.880],[2032.250,843.880]]
         }
       ],
       "_ldraw_": 
@@ -1567,7 +2101,7 @@
         },
         {
           "op": "T",
-          "pt": [1718.120,986.880],
+          "pt": [2018.750,857.200],
           "align": "c",
           "width": 17.250,
           "text": "for"
@@ -1577,13 +2111,13 @@
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
       "label": "\\N",
-      "pos": "1718.1,991.55",
+      "pos": "2018.8,861.88",
       "shape": "hexagon",
       "style": "filled",
       "width": "0.75"
     },
     {
-      "_gvid": 26,
+      "_gvid": 41,
       "name": "while",
       "_draw_": 
       [
@@ -1599,7 +2133,7 @@
         },
         {
           "op": "P",
-          "points": [[1839.600,991.550],[1820.360,1009.550],[1781.890,1009.550],[1762.650,991.550],[1781.890,973.550],[1820.360,973.550]]
+          "points": [[2140.220,861.880],[2120.990,879.880],[2082.510,879.880],[2063.280,861.880],[2082.510,843.880],[2120.990,843.880]]
         }
       ],
       "_ldraw_": 
@@ -1616,7 +2150,7 @@
         },
         {
           "op": "T",
-          "pt": [1801.120,986.880],
+          "pt": [2101.750,857.200],
           "align": "c",
           "width": 31.500,
           "text": "while"
@@ -1626,13 +2160,13 @@
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
       "label": "\\N",
-      "pos": "1801.1,991.55",
+      "pos": "2101.8,861.88",
       "shape": "hexagon",
       "style": "filled",
       "width": "1.0687"
     },
     {
-      "_gvid": 27,
+      "_gvid": 42,
       "name": "call",
       "_draw_": 
       [
@@ -1648,7 +2182,7 @@
         },
         {
           "op": "P",
-          "points": [[1678.120,887.300],[1636.120,887.300],[1636.120,891.300],[1624.120,891.300],[1624.120,851.300],[1678.120,851.300]]
+          "points": [[1978.750,687.000],[1936.750,687.000],[1936.750,691.000],[1924.750,691.000],[1924.750,651.000],[1978.750,651.000]]
         },
         {
           "op": "c",
@@ -1657,7 +2191,7 @@
         },
         {
           "op": "L",
-          "points": [[1624.120,887.300],[1636.120,887.300]]
+          "points": [[1924.750,687.000],[1936.750,687.000]]
         }
       ],
       "_ldraw_": 
@@ -1674,7 +2208,7 @@
         },
         {
           "op": "T",
-          "pt": [1651.120,864.630],
+          "pt": [1951.750,664.330],
           "align": "c",
           "width": 20.250,
           "text": "call"
@@ -1684,13 +2218,13 @@
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
       "label": "\\N",
-      "pos": "1651.1,869.3",
+      "pos": "1951.8,669",
       "shape": "tab",
       "style": "filled",
       "width": "0.75"
     },
     {
-      "_gvid": 28,
+      "_gvid": 43,
       "name": "return",
       "_draw_": 
       [
@@ -1706,7 +2240,7 @@
         },
         {
           "op": "P",
-          "points": [[1826.150,956.550],[1738.620,956.550],[1716.100,920.550],[1803.630,920.550]]
+          "points": [[2126.770,756.250],[2039.240,756.250],[2016.730,720.250],[2104.260,720.250]]
         }
       ],
       "_ldraw_": 
@@ -1723,7 +2257,7 @@
         },
         {
           "op": "T",
-          "pt": [1771.120,933.880],
+          "pt": [2071.750,733.580],
           "align": "c",
           "width": 37.500,
           "text": "return"
@@ -1733,13 +2267,13 @@
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
       "label": "\\N",
-      "pos": "1771.1,938.55",
+      "pos": "2071.8,738.25",
       "shape": "parallelogram",
       "style": "filled",
       "width": "1.5285"
     },
     {
-      "_gvid": 29,
+      "_gvid": 44,
       "name": "try",
       "_draw_": 
       [
@@ -1755,7 +2289,7 @@
         },
         {
           "op": "P",
-          "points": [[1890.120,1009.550],[1857.880,991.550],[1890.120,973.550],[1922.370,991.550]]
+          "points": [[2190.750,879.880],[2158.510,861.880],[2190.750,843.880],[2222.990,861.880]]
         },
         {
           "op": "c",
@@ -1764,7 +2298,7 @@
         },
         {
           "op": "L",
-          "points": [[1868.360,997.400],[1868.360,985.700]]
+          "points": [[2168.990,867.720],[2168.990,856.030]]
         },
         {
           "op": "c",
@@ -1773,7 +2307,7 @@
         },
         {
           "op": "L",
-          "points": [[1879.650,979.400],[1900.600,979.400]]
+          "points": [[2180.270,849.720],[2201.230,849.720]]
         },
         {
           "op": "c",
@@ -1782,7 +2316,7 @@
         },
         {
           "op": "L",
-          "points": [[1911.890,985.700],[1911.890,997.400]]
+          "points": [[2212.510,856.030],[2212.510,867.720]]
         },
         {
           "op": "c",
@@ -1791,7 +2325,7 @@
         },
         {
           "op": "L",
-          "points": [[1900.600,1003.700],[1879.650,1003.700]]
+          "points": [[2201.230,874.030],[2180.270,874.030]]
         }
       ],
       "_ldraw_": 
@@ -1808,7 +2342,7 @@
         },
         {
           "op": "T",
-          "pt": [1890.120,986.880],
+          "pt": [2190.750,857.200],
           "align": "c",
           "width": 16.500,
           "text": "try"
@@ -1818,13 +2352,13 @@
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
       "label": "\\N",
-      "pos": "1890.1,991.55",
+      "pos": "2190.8,861.88",
       "shape": "Mdiamond",
       "style": "filled",
       "width": "0.89559"
     },
     {
-      "_gvid": 30,
+      "_gvid": 45,
       "name": "raise",
       "_draw_": 
       [
@@ -1840,7 +2374,7 @@
         },
         {
           "op": "P",
-          "points": [[1922.360,944.120],[1883.120,956.550],[1843.890,944.120],[1843.930,923.990],[1922.320,923.990]]
+          "points": [[2222.990,743.810],[2183.750,756.250],[2144.510,743.810],[2144.550,723.690],[2222.950,723.690]]
         }
       ],
       "_ldraw_": 
@@ -1857,7 +2391,7 @@
         },
         {
           "op": "T",
-          "pt": [1883.120,933.880],
+          "pt": [2183.750,733.580],
           "align": "c",
           "width": 29.250,
           "text": "raise"
@@ -1867,7 +2401,7 @@
       "fontname": "DejaVu Sans Mono",
       "height": "0.5",
       "label": "\\N",
-      "pos": "1883.1,938.55",
+      "pos": "2183.8,738.25",
       "shape": "house",
       "style": "filled",
       "width": "1.0899"
@@ -1875,8 +2409,75 @@
   ],
   "edges": [
     {
-      "_gvid": 4,
-      "tail": 10,
+      "_gvid": 0,
+      "tail": 9,
+      "head": 10,
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "dashed"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[641.510,797.210],[630.500,785.770],[619.630,774.470],[610.440,764.920]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[613.030,762.560],[603.580,757.780],[607.990,767.420]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [646.900,776.200],
+          "align": "c",
+          "width": 26.250,
+          "text": "calls"
+        }
+      ],
+      "fontname": "DejaVu Sans Mono",
+      "label": "calls",
+      "lp": "646.9,780.88",
+      "pos": "e,602.53,756.69 641.51,797.21 630.5,785.77 619.63,774.47 610.44,764.92",
+      "style": "dashed"
+    },
+    {
+      "_gvid": 1,
+      "tail": 9,
       "head": 11,
       "_draw_": 
       [
@@ -1891,7 +2492,7 @@
         },
         {
           "op": "b",
-          "points": [[619.890,789.960],[601.340,780.980],[579.040,769.350],[560.120,757.050],[559.560,756.690],[559.000,756.310],[558.440,755.930]]
+          "points": [[702.750,797.210],[702.750,787.060],[702.750,777.010],[702.750,768.200]]
         }
       ],
       "_hdraw_": 
@@ -1912,7 +2513,7 @@
         },
         {
           "op": "P",
-          "points": [[560.730,753.280],[550.580,750.230],[556.620,758.940]]
+          "points": [[706.250,768.210],[702.750,758.210],[699.250,768.210]]
         }
       ],
       "_ldraw_": 
@@ -1929,7 +2530,7 @@
         },
         {
           "op": "T",
-          "pt": [615.150,769.000],
+          "pt": [715.880,776.200],
           "align": "c",
           "width": 26.250,
           "text": "calls"
@@ -1937,13 +2538,80 @@
       ],
       "fontname": "DejaVu Sans Mono",
       "label": "calls",
-      "lp": "615.15,773.68",
-      "pos": "e,549.36,749.34 619.89,789.96 601.34,780.98 579.04,769.35 560.12,757.05 559.56,756.69 559,756.31 558.44,755.93",
+      "lp": "715.88,780.88",
+      "pos": "e,702.75,756.69 702.75,797.21 702.75,787.06 702.75,777.01 702.75,768.2",
       "style": "dashed"
     },
     {
-      "_gvid": 6,
-      "tail": 12,
+      "_gvid": 2,
+      "tail": 9,
+      "head": 12,
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "dashed"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[753.000,797.210],[761.850,786.010],[770.590,774.930],[778.030,765.510]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[780.600,767.900],[784.050,757.880],[775.100,763.560]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [783.510,776.200],
+          "align": "c",
+          "width": 26.250,
+          "text": "calls"
+        }
+      ],
+      "fontname": "DejaVu Sans Mono",
+      "label": "calls",
+      "lp": "783.51,780.88",
+      "pos": "e,784.98,756.69 753,797.21 761.85,786.01 770.59,774.93 778.03,765.51",
+      "style": "dashed"
+    },
+    {
+      "_gvid": 3,
+      "tail": 9,
       "head": 13,
       "_draw_": 
       [
@@ -1958,7 +2626,7 @@
         },
         {
           "op": "b",
-          "points": [[687.490,714.670],[648.800,710.980],[606.890,707.430],[568.120,705.050],[551.800,704.050],[286.000,708.030],[273.880,697.050],[218.580,646.990],[229.120,548.070],[238.530,499.370]]
+          "points": [[559.980,797.030],[531.190,784.160],[502.810,771.470],[480.010,761.280]]
         }
       ],
       "_hdraw_": 
@@ -1979,7 +2647,7 @@
         },
         {
           "op": "P",
-          "points": [[241.890,500.380],[240.490,489.880],[235.040,498.960]]
+          "points": [[481.550,758.130],[471.000,757.250],[478.700,764.520]]
         }
       ],
       "_ldraw_": 
@@ -1996,7 +2664,7 @@
         },
         {
           "op": "T",
-          "pt": [287.000,683.750],
+          "pt": [555.510,776.200],
           "align": "c",
           "width": 26.250,
           "text": "calls"
@@ -2004,13 +2672,13 @@
       ],
       "fontname": "DejaVu Sans Mono",
       "label": "calls",
-      "lp": "287,688.43",
-      "pos": "e,240.79,488.4 687.49,714.67 648.8,710.98 606.89,707.43 568.12,705.05 551.8,704.05 286,708.03 273.88,697.05 218.58,646.99 229.12,548.07 238.53,499.37",
+      "lp": "555.51,780.88",
+      "pos": "e,469.61,756.63 559.98,797.03 531.19,784.16 502.81,771.47 480.01,761.28",
       "style": "dashed"
     },
     {
-      "_gvid": 9,
-      "tail": 13,
+      "_gvid": 5,
+      "tail": 12,
       "head": 14,
       "_draw_": 
       [
@@ -2021,7 +2689,7 @@
         },
         {
           "op": "b",
-          "points": [[245.120,451.420],[245.120,408.190],[245.120,296.010],[245.120,243.020]]
+          "points": [[795.140,719.930],[793.800,713.470],[792.230,705.950],[790.730,698.740]]
         }
       ],
       "_hdraw_": 
@@ -2042,16 +2710,16 @@
         },
         {
           "op": "P",
-          "points": [[248.630,243.290],[245.130,233.290],[241.630,243.290]]
+          "points": [[794.160,698.050],[788.700,688.980],[787.310,699.480]]
         }
       ],
       "color": "black",
       "fontname": "DejaVu Sans Mono",
       "label": "",
-      "pos": "e,245.12,231.77 245.12,451.42 245.12,408.19 245.12,296.01 245.12,243.02"
+      "pos": "e,788.39,687.49 795.14,719.93 793.8,713.47 792.23,705.95 790.73,698.74"
     },
     {
-      "_gvid": 13,
+      "_gvid": 8,
       "tail": 16,
       "head": 17,
       "_draw_": 
@@ -2067,7 +2735,7 @@
         },
         {
           "op": "b",
-          "points": [[816.120,195.250],[816.120,184.420],[816.120,170.200],[816.120,157.730]]
+          "points": [[916.100,650.540],[895.440,646.410],[874.820,641.310],[855.500,635.000],[835.230,628.380],[814.130,617.630],[797.010,607.760]]
         }
       ],
       "_hdraw_": 
@@ -2088,7 +2756,7 @@
         },
         {
           "op": "P",
-          "points": [[819.630,157.990],[816.130,147.990],[812.630,157.990]]
+          "points": [[799.110,604.940],[788.720,602.870],[795.550,610.970]]
         }
       ],
       "_ldraw_": 
@@ -2105,7 +2773,7 @@
         },
         {
           "op": "T",
-          "pt": [829.250,166.200],
+          "pt": [868.620,621.700],
           "align": "c",
           "width": 26.250,
           "text": "calls"
@@ -2113,56 +2781,14 @@
       ],
       "fontname": "DejaVu Sans Mono",
       "label": "calls",
-      "lp": "829.25,170.88",
-      "pos": "e,816.12,146.48 816.12,195.25 816.12,184.42 816.12,170.2 816.12,157.73",
+      "lp": "868.62,626.38",
+      "pos": "e,787.42,602.1 916.1,650.54 895.44,646.41 874.82,641.31 855.5,635 835.23,628.38 814.13,617.63 797.01,607.76",
       "style": "dashed"
     },
     {
-      "_gvid": 14,
-      "tail": 17,
-      "head": 18,
-      "_draw_": 
-      [
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "b",
-          "points": [[816.120,109.870],[816.120,105.820],[816.120,101.410],[816.120,97.020]]
-        }
-      ],
-      "_hdraw_": 
-      [
-        {
-          "op": "S",
-          "style": "solid"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "P",
-          "points": [[819.630,97.230],[816.130,87.230],[812.630,97.230]]
-        }
-      ],
-      "color": "black",
-      "fontname": "DejaVu Sans Mono",
-      "label": "",
-      "pos": "e,816.12,85.712 816.12,109.87 816.12,105.82 816.12,101.41 816.12,97.018"
-    },
-    {
       "_gvid": 12,
-      "tail": 16,
-      "head": 12,
+      "tail": 19,
+      "head": 20,
       "_draw_": 
       [
         {
@@ -2172,7 +2798,7 @@
         },
         {
           "op": "b",
-          "points": [[689.800,219.340],[549.630,226.050],[339.800,240.560],[315.120,268.000],[300.130,284.680],[300.180,655.070],[315.120,671.800],[321.120,678.510],[520.780,699.590],[669.690,714.450]]
+          "points": [[650.970,358.740],[599.210,354.840],[553.550,349.440],[543.500,342.250],[538.570,338.720],[534.910,333.600],[532.210,328.120]]
         }
       ],
       "_hdraw_": 
@@ -2193,49 +2819,7 @@
         },
         {
           "op": "P",
-          "points": [[668.970,717.900],[679.270,715.410],[669.660,710.930]]
-        }
-      ],
-      "color": "black",
-      "fontname": "DejaVu Sans Mono",
-      "label": "",
-      "pos": "e,680.77,715.56 689.8,219.34 549.63,226.05 339.8,240.56 315.12,268 300.13,284.68 300.18,655.07 315.12,671.8 321.12,678.51 520.78,699.59 669.69,714.45"
-    },
-    {
-      "_gvid": 10,
-      "tail": 15,
-      "head": 16,
-      "_draw_": 
-      [
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "b",
-          "points": [[1453.350,452.070],[1443.450,412.270],[1412.700,312.420],[1345.120,268.000],[1282.850,227.070],[1088.700,216.490],[953.790,214.250]]
-        }
-      ],
-      "_hdraw_": 
-      [
-        {
-          "op": "S",
-          "style": "solid"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "P",
-          "points": [[954.130,210.760],[944.070,214.110],[954.020,217.760]]
+          "points": [[535.520,326.980],[528.650,318.910],[528.990,329.500]]
         }
       ],
       "_ldraw_": 
@@ -2252,22 +2836,22 @@
         },
         {
           "op": "T",
-          "pt": [1359.190,246.700],
+          "pt": [682.620,328.950],
           "align": "c",
-          "width": 70.500,
-          "text": "(i + 1) % 3"
+          "width": 278.250,
+          "text": "(display.ax_.spines[s].get_visible() is despine)"
         }
       ],
-      "color": "green",
+      "color": "black",
       "fontname": "DejaVu Sans Mono",
-      "label": "(i + 1) % 3",
-      "lp": "1359.2,251.38",
-      "pos": "e,942.56,214.08 1453.3,452.07 1443.4,412.27 1412.7,312.42 1345.1,268 1282.9,227.07 1088.7,216.49 953.79,214.25"
+      "label": "(display.ax_.spines[s].get_visible() is despine)",
+      "lp": "682.62,333.62",
+      "pos": "e,528.11,317.5 650.97,358.74 599.21,354.84 553.55,349.44 543.5,342.25 538.57,338.72 534.91,333.6 532.21,328.12"
     },
     {
-      "_gvid": 16,
-      "tail": 19,
-      "head": 20,
+      "_gvid": 15,
+      "tail": 21,
+      "head": 22,
       "_draw_": 
       [
         {
@@ -2281,7 +2865,7 @@
         },
         {
           "op": "b",
-          "points": [[1469.120,191.920],[1469.120,181.670],[1469.120,169.100],[1469.120,157.920]]
+          "points": [[822.040,280.550],[820.180,271.810],[817.890,261.010],[815.780,251.120]]
         }
       ],
       "_hdraw_": 
@@ -2302,7 +2886,7 @@
         },
         {
           "op": "P",
-          "points": [[1472.630,158.020],[1469.130,148.020],[1465.630,158.020]]
+          "points": [[819.260,250.640],[813.760,241.590],[812.410,252.100]]
         }
       ],
       "_ldraw_": 
@@ -2319,7 +2903,7 @@
         },
         {
           "op": "T",
-          "pt": [1482.250,166.200],
+          "pt": [833.240,259.700],
           "align": "c",
           "width": 26.250,
           "text": "calls"
@@ -2327,14 +2911,14 @@
       ],
       "fontname": "DejaVu Sans Mono",
       "label": "calls",
-      "lp": "1482.2,170.88",
-      "pos": "e,1469.1,146.5 1469.1,191.92 1469.1,181.67 1469.1,169.1 1469.1,157.92",
+      "lp": "833.24,264.38",
+      "pos": "e,813.44,240.11 822.04,280.55 820.18,271.81 817.89,261.01 815.78,251.12",
       "style": "dashed"
     },
     {
-      "_gvid": 15,
-      "tail": 19,
-      "head": 12,
+      "_gvid": 14,
+      "tail": 21,
+      "head": 18,
       "_draw_": 
       [
         {
@@ -2344,7 +2928,7 @@
         },
         {
           "op": "b",
-          "points": [[1563.510,235.060],[1568.300,237.420],[1572.000,239.980],[1574.120,242.750],[1690.140,394.100],[1671.300,510.780],[1569.120,671.800],[1555.360,693.500],[1542.020,690.700],[1517.120,697.050],[1437.460,717.400],[1244.710,725.400],[1083.580,728.460]]
+          "points": [[853.080,300.320],[922.340,301.420],[1100.560,306.060],[1118.750,325.000],[1139.490,346.600],[1137.020,382.750],[1131.790,408.010]]
         }
       ],
       "_hdraw_": 
@@ -2365,196 +2949,28 @@
         },
         {
           "op": "P",
-          "points": [[1083.980,724.950],[1074.040,728.630],[1084.110,731.950]]
+          "points": [[1128.410,407.090],[1129.530,417.620],[1135.230,408.690]]
         }
       ],
       "color": "black",
       "fontname": "DejaVu Sans Mono",
       "label": "",
-      "pos": "e,1072.5,728.66 1563.5,235.06 1568.3,237.42 1572,239.98 1574.1,242.75 1690.1,394.1 1671.3,510.78 1569.1,671.8 1555.4,693.5 1542,690.7 1517.1,697.05 1437.5,717.4 1244.7,725.4 1083.6,728.46"
+      "pos": "e,1129.2,419.1 853.08,300.32 922.34,301.42 1100.6,306.06 1118.8,325 1139.5,346.6 1137,382.75 1131.8,408.01"
     },
     {
-      "_gvid": 11,
-      "tail": 15,
-      "head": 19,
-      "_draw_": 
-      [
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#ff0000"
-        },
-        {
-          "op": "b",
-          "points": [[1457.930,451.810],[1459.910,409.760],[1465.060,300.740],[1467.620,246.340]]
-        }
-      ],
-      "_hdraw_": 
-      [
-        {
-          "op": "S",
-          "style": "solid"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#ff0000"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#ff0000"
-        },
-        {
-          "op": "P",
-          "points": [[1471.110,246.650],[1468.090,236.500],[1464.120,246.320]]
-        }
-      ],
-      "_ldraw_": 
-      [
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [1520.140,246.700],
-          "align": "c",
-          "width": 105.000,
-          "text": "(not (i + 1) % 3)"
-        }
-      ],
-      "color": "red",
-      "fontname": "DejaVu Sans Mono",
-      "label": "(not (i + 1) % 3)",
-      "lp": "1520.1,251.38",
-      "pos": "e,1468.2,234.99 1457.9,451.81 1459.9,409.76 1465.1,300.74 1467.6,246.34"
-    },
-    {
-      "_gvid": 7,
-      "tail": 12,
-      "head": 15,
-      "_draw_": 
-      [
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "b",
-          "points": [[1047.230,725.110],[1165.160,718.650],[1296.580,704.120],[1345.120,671.800],[1406.910,630.660],[1438.020,543.340],[1450.430,498.600]]
-        }
-      ],
-      "_hdraw_": 
-      [
-        {
-          "op": "S",
-          "style": "solid"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "P",
-          "points": [[1453.750,499.710],[1452.930,489.150],[1446.990,497.920]]
-        }
-      ],
-      "_ldraw_": 
-      [
-        {
-          "op": "F",
-          "size": 14.000,
-          "face": "DejaVu Sans Mono"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "T",
-          "pt": [1419.040,683.750],
-          "align": "c",
-          "width": 189.000,
-          "text": "enumerate(os.listdir(local_dir))"
-        }
-      ],
-      "color": "green",
-      "fontname": "DejaVu Sans Mono",
-      "label": "enumerate(os.listdir(local_dir))",
-      "lp": "1419,688.43",
-      "pos": "e,1453.3,487.68 1047.2,725.11 1165.2,718.65 1296.6,704.12 1345.1,671.8 1406.9,630.66 1438,543.34 1450.4,498.6"
-    },
-    {
-      "_gvid": 8,
-      "tail": 12,
+      "_gvid": 13,
+      "tail": 19,
       "head": 21,
       "_draw_": 
       [
         {
           "op": "c",
           "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "b",
-          "points": [[830.120,712.650],[830.120,704.950],[830.120,695.050],[830.120,683.670]]
-        }
-      ],
-      "_hdraw_": 
-      [
-        {
-          "op": "S",
-          "style": "solid"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "P",
-          "points": [[833.630,683.830],[830.130,673.830],[826.630,683.830]]
-        }
-      ],
-      "color": "green",
-      "fontname": "DejaVu Sans Mono",
-      "label": "",
-      "pos": "e,830.12,672.32 830.12,712.65 830.12,704.95 830.12,695.05 830.12,683.67"
-    },
-    {
-      "_gvid": 5,
-      "tail": 10,
-      "head": 12,
-      "_draw_": 
-      [
-        {
-          "op": "c",
-          "grad": "none",
           "color": "#000000"
         },
         {
           "op": "b",
-          "points": [[698.020,789.850],[722.350,779.200],[753.680,765.500],[779.720,754.100]]
+          "points": [[825.750,349.930],[825.750,343.550],[825.750,336.130],[825.750,329.000]]
         }
       ],
       "_hdraw_": 
@@ -2575,91 +2991,7 @@
         },
         {
           "op": "P",
-          "points": [[781.010,757.360],[788.760,750.150],[778.200,750.950]]
-        }
-      ],
-      "color": "black",
-      "fontname": "DejaVu Sans Mono",
-      "label": "",
-      "pos": "e,790.15,749.54 698.02,789.85 722.35,779.2 753.68,765.5 779.72,754.1"
-    },
-    {
-      "_gvid": 3,
-      "tail": 9,
-      "head": 10,
-      "_draw_": 
-      [
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "b",
-          "points": [[560.780,850.920],[575.250,844.730],[591.740,837.690],[606.970,831.170]]
-        }
-      ],
-      "_hdraw_": 
-      [
-        {
-          "op": "S",
-          "style": "solid"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#000000"
-        },
-        {
-          "op": "P",
-          "points": [[608.070,834.510],[615.890,827.360],[605.320,828.070]]
-        }
-      ],
-      "color": "black",
-      "fontname": "DejaVu Sans Mono",
-      "label": "",
-      "pos": "e,617.28,826.77 560.78,850.92 575.25,844.73 591.74,837.69 606.97,831.17"
-    },
-    {
-      "_gvid": 1,
-      "tail": 8,
-      "head": 9,
-      "_draw_": 
-      [
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "b",
-          "points": [[468.750,921.910],[466.080,919.120],[463.740,915.990],[462.120,912.550],[459.740,907.450],[458.580,904.000],[462.550,896.890]]
-        }
-      ],
-      "_hdraw_": 
-      [
-        {
-          "op": "S",
-          "style": "solid"
-        },
-        {
-          "op": "c",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "C",
-          "grad": "none",
-          "color": "#00ff00"
-        },
-        {
-          "op": "P",
-          "points": [[465.380,898.960],[468.190,888.740],[459.620,894.970]]
+          "points": [[829.250,329.010],[825.750,319.010],[822.250,329.010]]
         }
       ],
       "_ldraw_": 
@@ -2676,32 +3008,32 @@
         },
         {
           "op": "T",
-          "pt": [573.120,899.250],
+          "pt": [971.620,328.950],
           "align": "c",
-          "width": 222.000,
-          "text": "local_dir == 'sklearn\/__check_build'"
+          "width": 291.750,
+          "text": "display.ax_.spines[s].get_visible() is not despine"
         }
       ],
-      "color": "green",
+      "color": "black",
       "fontname": "DejaVu Sans Mono",
-      "label": "local_dir == 'sklearn\/__check_build'",
-      "lp": "573.12,903.93",
-      "pos": "e,469.05,887.5 468.75,921.91 466.08,919.12 463.74,915.99 462.12,912.55 459.74,907.45 458.58,904 462.55,896.89"
+      "label": "display.ax_.spines[s].get_visible() is not despine",
+      "lp": "971.62,333.62",
+      "pos": "e,825.75,317.49 825.75,349.93 825.75,343.55 825.75,336.13 825.75,329"
     },
     {
-      "_gvid": 2,
-      "tail": 8,
-      "head": 10,
+      "_gvid": 10,
+      "tail": 18,
+      "head": 19,
       "_draw_": 
       [
         {
           "op": "c",
           "grad": "none",
-          "color": "#ff0000"
+          "color": "#00ff00"
         },
         {
           "op": "b",
-          "points": [[640.320,930.450],[660.500,926.590],[676.810,920.890],[684.120,912.550],[702.640,891.480],[690.060,859.100],[676.760,836.240]]
+          "points": [[1056.500,421.320],[1014.480,411.840],[959.880,399.520],[914.350,389.240]]
         }
       ],
       "_hdraw_": 
@@ -2713,16 +3045,16 @@
         {
           "op": "c",
           "grad": "none",
-          "color": "#ff0000"
+          "color": "#00ff00"
         },
         {
           "op": "C",
           "grad": "none",
-          "color": "#ff0000"
+          "color": "#00ff00"
         },
         {
           "op": "P",
-          "points": [[679.740,834.410],[671.500,827.760],[673.790,838.100]]
+          "points": [[915.280,385.870],[904.760,387.080],[913.740,392.700]]
         }
       ],
       "_ldraw_": 
@@ -2739,22 +3071,22 @@
         },
         {
           "op": "T",
-          "pt": [806.700,864.630],
+          "pt": [1049.580,398.200],
           "align": "c",
-          "width": 226.500,
-          "text": "(local_dir != 'sklearn\/__check_build')"
+          "width": 78.750,
+          "text": "['top', 'right']"
         }
       ],
-      "color": "red",
+      "color": "green",
       "fontname": "DejaVu Sans Mono",
-      "label": "(local_dir != 'sklearn\/__check_build')",
-      "lp": "806.7,869.3",
-      "pos": "e,670.7,826.47 640.32,930.45 660.5,926.59 676.81,920.89 684.12,912.55 702.64,891.48 690.06,859.1 676.76,836.24"
+      "label": "['top', 'right']",
+      "lp": "1049.6,402.88",
+      "pos": "e,903.28,386.75 1056.5,421.32 1014.5,411.84 959.88,399.52 914.35,389.24"
     },
     {
-      "_gvid": 0,
-      "tail": 7,
-      "head": 8,
+      "_gvid": 20,
+      "tail": 25,
+      "head": 26,
       "_draw_": 
       [
         {
@@ -2764,7 +3096,7 @@
         },
         {
           "op": "b",
-          "points": [[492.120,973.290],[492.120,971.620],[492.120,969.910],[492.120,968.180]]
+          "points": [[1242.910,203.300],[1243.480,194.650],[1244.190,184.000],[1244.840,174.190]]
         }
       ],
       "_hdraw_": 
@@ -2785,57 +3117,1182 @@
         },
         {
           "op": "P",
-          "points": [[495.630,968.310],[492.130,958.310],[488.630,968.310]]
+          "points": [[1248.330,174.580],[1245.500,164.370],[1241.340,174.110]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1384.490,174.450],
+          "align": "c",
+          "width": 279.000,
+          "text": "(display.ax_.spines[s].get_bounds() != (0, 1))"
+        }
+      ],
+      "color": "black",
+      "fontname": "DejaVu Sans Mono",
+      "label": "(display.ax_.spines[s].get_bounds() != (0, 1))",
+      "lp": "1384.5,179.12",
+      "pos": "e,1245.6,162.86 1242.9,203.3 1243.5,194.65 1244.2,184 1244.8,174.19"
+    },
+    {
+      "_gvid": 23,
+      "tail": 27,
+      "head": 28,
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "dashed"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[936.750,126.050],[936.750,117.400],[936.750,106.750],[936.750,96.940]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[940.250,97.120],[936.750,87.120],[933.250,97.120]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [949.880,105.200],
+          "align": "c",
+          "width": 26.250,
+          "text": "calls"
+        }
+      ],
+      "fontname": "DejaVu Sans Mono",
+      "label": "calls",
+      "lp": "949.88,109.88",
+      "pos": "e,936.75,85.608 936.75,126.05 936.75,117.4 936.75,106.75 936.75,96.945",
+      "style": "dashed"
+    },
+    {
+      "_gvid": 22,
+      "tail": 27,
+      "head": 24,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[936.570,162.980],[937.300,171.220],[939.420,180.740],[944.750,187.750],[989.380,246.400],[1068.660,273.860],[1134.090,286.710]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[1133.330,290.130],[1143.810,288.520],[1134.620,283.250]]
         }
       ],
       "color": "black",
       "fontname": "DejaVu Sans Mono",
       "label": "",
-      "pos": "e,492.12,956.8 492.12,973.29 492.12,971.62 492.12,969.91 492.12,968.18"
+      "pos": "e,1145.3,288.8 936.57,162.98 937.3,171.22 939.42,180.74 944.75,187.75 989.38,246.4 1068.7,273.86 1134.1,286.71"
+    },
+    {
+      "_gvid": 21,
+      "tail": 25,
+      "head": 27,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[1075.580,212.320],[1028.660,207.460],[985.000,199.810],[965.250,187.750],[959.010,183.940],[953.820,178.180],[949.660,172.130]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[952.890,170.710],[944.750,163.920],[946.880,174.300]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1102.500,174.450],
+          "align": "c",
+          "width": 274.500,
+          "text": "display.ax_.spines[s].get_bounds() == (0, 1)"
+        }
+      ],
+      "color": "black",
+      "fontname": "DejaVu Sans Mono",
+      "label": "display.ax_.spines[s].get_bounds() == (0, 1)",
+      "lp": "1102.5,179.12",
+      "pos": "e,943.97,162.63 1075.6,212.32 1028.7,207.46 985,199.81 965.25,187.75 959.01,183.94 953.82,178.18 949.66,172.13"
     },
     {
       "_gvid": 18,
       "tail": 24,
-      "head": 22,
+      "head": 25,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "b",
+          "points": [[1241.750,280.550],[1241.750,271.900],[1241.750,261.250],[1241.750,251.440]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "P",
+          "points": [[1245.250,251.620],[1241.750,241.620],[1238.250,251.620]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1289.000,259.700],
+          "align": "c",
+          "width": 94.500,
+          "text": "['bottom', 'left']"
+        }
+      ],
+      "color": "green",
       "fontname": "DejaVu Sans Mono",
-      "label": "",
-      "pos": "e,1649.4,956.99 1647.7,974.14 1647.9,972.25 1648.1,970.3 1648.3,968.31",
-      "style": "invis"
+      "label": "['bottom', 'left']",
+      "lp": "1289,264.38",
+      "pos": "e,1241.8,240.11 1241.8,280.55 1241.8,271.9 1241.8,261.25 1241.8,251.44"
     },
     {
-      "_gvid": 17,
-      "tail": 22,
-      "head": 27,
+      "_gvid": 24,
+      "tail": 29,
+      "head": 30,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[1503.200,208.520],[1511.980,203.310],[1520.930,196.410],[1526.750,187.750],[1529.510,183.640],[1531.380,178.820],[1532.630,173.930]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[1536.060,174.660],[1534.310,164.210],[1529.160,173.470]]
+        }
+      ],
+      "color": "black",
       "fontname": "DejaVu Sans Mono",
       "label": "",
-      "pos": "e,1651.1,887.8 1651.1,920.23 1651.1,913.85 1651.1,906.44 1651.1,899.3",
-      "style": "invis"
+      "pos": "e,1534.6,162.72 1503.2,208.52 1512,203.31 1520.9,196.41 1526.8,187.75 1529.5,183.64 1531.4,178.82 1532.6,173.93"
     },
     {
       "_gvid": 19,
-      "tail": 25,
-      "head": 28,
+      "tail": 24,
+      "head": 29,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "b",
+          "points": [[1310.630,281.300],[1320.760,278.640],[1331.050,275.830],[1340.750,273.000],[1374.920,263.020],[1383.450,260.310],[1416.750,247.750],[1423.580,245.170],[1430.790,242.270],[1437.730,239.390]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "P",
+          "points": [[1439.080,242.620],[1446.930,235.500],[1436.350,236.170]]
+        }
+      ],
+      "color": "green",
       "fontname": "DejaVu Sans Mono",
       "label": "",
-      "pos": "e,1753,956.97 1733.5,975.8 1737.1,972.31 1741.1,968.49 1745,964.67",
-      "style": "invis"
+      "pos": "e,1448.3,234.91 1310.6,281.3 1320.8,278.64 1331.1,275.83 1340.8,273 1374.9,263.02 1383.4,260.31 1416.8,247.75 1423.6,245.17 1430.8,242.27 1437.7,239.39"
     },
     {
-      "_gvid": 20,
-      "tail": 28,
-      "head": 23,
+      "_gvid": 16,
+      "tail": 23,
+      "head": 24,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "b",
+          "points": [[1241.750,349.930],[1241.750,343.550],[1241.750,336.130],[1241.750,329.000]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "P",
+          "points": [[1245.250,329.010],[1241.750,319.010],[1238.250,329.010]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1265.000,328.950],
+          "align": "c",
+          "width": 46.500,
+          "text": "despine"
+        }
+      ],
+      "color": "green",
       "fontname": "DejaVu Sans Mono",
-      "label": "",
-      "pos": "e,1771.1,887.8 1771.1,920.23 1771.1,913.85 1771.1,906.44 1771.1,899.3",
-      "style": "invis"
+      "label": "despine",
+      "lp": "1265,333.62",
+      "pos": "e,1241.8,317.49 1241.8,349.93 1241.8,343.55 1241.8,336.13 1241.8,329"
     },
     {
-      "_gvid": 21,
-      "tail": 29,
+      "_gvid": 17,
+      "tail": 23,
       "head": 30,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#ff0000"
+        },
+        {
+          "op": "b",
+          "points": [[1285.770,359.760],[1345.670,347.260],[1452.200,316.370],[1511.750,247.750],[1529.340,227.480],[1534.300,196.630],[1535.340,174.110]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#ff0000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#ff0000"
+        },
+        {
+          "op": "P",
+          "points": [[1538.830,174.480],[1535.540,164.410],[1531.830,174.330]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1544.040,259.700],
+          "align": "c",
+          "width": 81.000,
+          "text": "(not despine)"
+        }
+      ],
+      "color": "red",
+      "fontname": "DejaVu Sans Mono",
+      "label": "(not despine)",
+      "lp": "1544,264.38",
+      "pos": "e,1535.6,162.89 1285.8,359.76 1345.7,347.26 1452.2,316.37 1511.8,247.75 1529.3,227.48 1534.3,196.63 1535.3,174.11"
+    },
+    {
+      "_gvid": 11,
+      "tail": 18,
+      "head": 23,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "b",
+          "points": [[1154.450,419.010],[1171.680,409.180],[1193.150,396.950],[1210.480,387.070]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "P",
+          "points": [[1211.870,390.310],[1218.830,382.310],[1208.410,384.220]]
+        }
+      ],
+      "color": "green",
       "fontname": "DejaVu Sans Mono",
       "label": "",
-      "pos": "e,1885.4,956.11 1887.9,974.42 1887.6,972.14 1887.3,969.74 1886.9,967.32",
+      "pos": "e,1220.1,381.56 1154.4,419.01 1171.7,409.18 1193.1,396.95 1210.5,387.07"
+    },
+    {
+      "_gvid": 9,
+      "tail": 16,
+      "head": 18,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[954.080,650.660],[932.040,641.840],[911.770,628.840],[897.750,609.750],[884.070,591.130],[891.410,579.970],[897.750,557.750],[910.000,514.850],[914.040,497.850],[950.750,472.500],[964.050,463.320],[995.790,455.930],[1028.520,450.410]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[1028.820,453.910],[1038.130,448.860],[1027.700,447.000]]
+        }
+      ],
+      "color": "black",
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pos": "e,1039.6,448.61 954.08,650.66 932.04,641.84 911.77,628.84 897.75,609.75 884.07,591.13 891.41,579.97 897.75,557.75 910,514.85 914.04,497.85 950.75,472.5 964.05,463.32 995.79,455.93 1028.5,450.41"
+    },
+    {
+      "_gvid": 6,
+      "tail": 15,
+      "head": 16,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "b",
+          "points": [[1126.950,720.970],[1120.500,713.350],[1112.650,704.100],[1105.430,695.580]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "P",
+          "points": [[1108.330,693.590],[1099.200,688.220],[1102.990,698.110]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1239.780,698.950],
+          "align": "c",
+          "width": 241.500,
+          "text": "constructor_name == 'from_estimator'"
+        }
+      ],
+      "color": "green",
+      "fontname": "DejaVu Sans Mono",
+      "label": "constructor_name == 'from_estimator'",
+      "lp": "1239.8,703.62",
+      "pos": "e,1098.2,687.07 1127,720.97 1120.5,713.35 1112.7,704.1 1105.4,695.58"
+    },
+    {
+      "_gvid": 27,
+      "tail": 32,
+      "head": 33,
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "dashed"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[1124.700,565.500],[1116.000,554.000],[1104.400,538.680],[1094.570,525.690]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[1097.530,523.800],[1088.700,517.930],[1091.940,528.020]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1125.020,536.450],
+          "align": "c",
+          "width": 26.250,
+          "text": "calls"
+        }
+      ],
+      "fontname": "DejaVu Sans Mono",
+      "label": "calls",
+      "lp": "1125,541.12",
+      "pos": "e,1087.8,516.73 1124.7,565.5 1116,554 1104.4,538.68 1094.6,525.69",
+      "style": "dashed"
+    },
+    {
+      "_gvid": 29,
+      "tail": 34,
+      "head": 18,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[1210.220,480.120],[1206.490,477.420],[1202.580,474.780],[1198.750,472.500],[1191.820,468.380],[1184.310,464.420],[1176.810,460.760]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[1178.540,457.710],[1168.000,456.600],[1175.550,464.040]]
+        }
+      ],
+      "color": "black",
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pos": "e,1166.6,455.96 1210.2,480.12 1206.5,477.42 1202.6,474.78 1198.8,472.5 1191.8,468.38 1184.3,464.42 1176.8,460.76"
+    },
+    {
+      "_gvid": 28,
+      "tail": 32,
+      "head": 34,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[1157.230,565.500],[1170.710,553.560],[1188.870,537.480],[1203.880,524.180]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[1206.000,526.980],[1211.170,517.730],[1201.360,521.740]]
+        }
+      ],
+      "color": "black",
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pos": "e,1212.3,516.73 1157.2,565.5 1170.7,553.56 1188.9,537.48 1203.9,524.18"
+    },
+    {
+      "_gvid": 25,
+      "tail": 31,
+      "head": 32,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "b",
+          "points": [[1503.790,656.700],[1459.830,651.030],[1407.130,643.550],[1360.000,635.000],[1312.840,626.440],[1260.530,614.720],[1218.510,604.760]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#00ff00"
+        },
+        {
+          "op": "P",
+          "points": [[1219.520,601.400],[1208.980,602.480],[1217.890,608.210]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1484.880,621.700],
+          "align": "c",
+          "width": 249.750,
+          "text": "constructor_name == 'from_predictions'"
+        }
+      ],
+      "color": "green",
+      "fontname": "DejaVu Sans Mono",
+      "label": "constructor_name == 'from_predictions'",
+      "lp": "1484.9,626.38",
+      "pos": "e,1207.5,602.13 1503.8,656.7 1459.8,651.03 1407.1,643.55 1360,635 1312.8,626.44 1260.5,614.72 1218.5,604.76"
+    },
+    {
+      "_gvid": 31,
+      "tail": 35,
+      "head": 36,
+      "_draw_": 
+      [
+        {
+          "op": "S",
+          "style": "dashed"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[1633.750,565.500],[1633.750,554.670],[1633.750,540.450],[1633.750,527.980]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[1637.250,528.240],[1633.750,518.240],[1630.250,528.240]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1646.880,536.450],
+          "align": "c",
+          "width": 26.250,
+          "text": "calls"
+        }
+      ],
+      "fontname": "DejaVu Sans Mono",
+      "label": "calls",
+      "lp": "1646.9,541.12",
+      "pos": "e,1633.8,516.73 1633.8,565.5 1633.8,554.67 1633.8,540.45 1633.8,527.98",
+      "style": "dashed"
+    },
+    {
+      "_gvid": 30,
+      "tail": 35,
+      "head": 34,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[1549.480,565.300],[1463.650,547.520],[1334.360,520.750],[1270.400,507.500]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[1271.230,504.100],[1260.730,505.500],[1269.810,510.960]]
+        }
+      ],
+      "color": "black",
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pos": "e,1259.2,505.19 1549.5,565.3 1463.6,547.52 1334.4,520.75 1270.4,507.5"
+    },
+    {
+      "_gvid": 26,
+      "tail": 31,
+      "head": 35,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#ff0000"
+        },
+        {
+          "op": "b",
+          "points": [[1606.630,651.150],[1611.130,640.130],[1617.120,625.460],[1622.330,612.710]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#ff0000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#ff0000"
+        },
+        {
+          "op": "P",
+          "points": [[1625.530,614.130],[1626.070,603.550],[1619.050,611.480]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1746.920,621.700],
+          "align": "c",
+          "width": 254.250,
+          "text": "(constructor_name != 'from_predictions')"
+        }
+      ],
+      "color": "red",
+      "fontname": "DejaVu Sans Mono",
+      "label": "(constructor_name != 'from_predictions')",
+      "lp": "1746.9,626.38",
+      "pos": "e,1626.6,602.14 1606.6,651.15 1611.1,640.13 1617.1,625.46 1622.3,612.71"
+    },
+    {
+      "_gvid": 7,
+      "tail": 15,
+      "head": 31,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#ff0000"
+        },
+        {
+          "op": "b",
+          "points": [[1247.470,726.810],[1284.660,722.780],[1326.610,717.800],[1364.750,712.250],[1417.310,704.600],[1476.140,694.020],[1521.780,685.370]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#ff0000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#ff0000"
+        },
+        {
+          "op": "P",
+          "points": [[1522.430,688.800],[1531.600,683.490],[1521.120,681.930]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1591.160,698.950],
+          "align": "c",
+          "width": 246.000,
+          "text": "(constructor_name != 'from_estimator')"
+        }
+      ],
+      "color": "red",
+      "fontname": "DejaVu Sans Mono",
+      "label": "(constructor_name != 'from_estimator')",
+      "lp": "1591.2,703.62",
+      "pos": "e,1533.1,683.21 1247.5,726.81 1284.7,722.78 1326.6,717.8 1364.8,712.25 1417.3,704.6 1476.1,694.02 1521.8,685.37"
+    },
+    {
+      "_gvid": 4,
+      "tail": 9,
+      "head": 15,
+      "_draw_": 
+      [
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "b",
+          "points": [[910.850,803.090],[972.300,786.030],[1034.900,768.640],[1079.230,756.330]]
+        }
+      ],
+      "_hdraw_": 
+      [
+        {
+          "op": "S",
+          "style": "solid"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "C",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "P",
+          "points": [[1079.930,759.770],[1088.630,753.720],[1078.060,753.030]]
+        }
+      ],
+      "_ldraw_": 
+      [
+        {
+          "op": "F",
+          "size": 14.000,
+          "face": "DejaVu Sans Mono"
+        },
+        {
+          "op": "c",
+          "grad": "none",
+          "color": "#000000"
+        },
+        {
+          "op": "T",
+          "pt": [1247.200,776.200],
+          "align": "c",
+          "width": 471.750,
+          "text": "constructor_name in ('from_estimator', 'from_predictions', 'from_cv_results')"
+        }
+      ],
+      "color": "black",
+      "fontname": "DejaVu Sans Mono",
+      "label": "constructor_name in ('from_estimator', 'from_predictions', 'from_cv_results')",
+      "lp": "1247.2,780.88",
+      "pos": "e,1090.1,753.32 910.85,803.09 972.3,786.03 1034.9,768.64 1079.2,756.33"
+    },
+    {
+      "_gvid": 33,
+      "tail": 39,
+      "head": 37,
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pos": "e,1951,756.41 1947.4,843.96 1948.3,824.29 1949.6,791.48 1950.6,767.83",
+      "style": "invis"
+    },
+    {
+      "_gvid": 32,
+      "tail": 37,
+      "head": 42,
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pos": "e,1951.8,687.49 1951.8,719.93 1951.8,713.55 1951.8,706.13 1951.8,699",
+      "style": "invis"
+    },
+    {
+      "_gvid": 34,
+      "tail": 40,
+      "head": 43,
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pos": "e,2064.2,756.64 2026.3,843.45 2035,823.49 2049.4,790.52 2059.7,767.01",
+      "style": "invis"
+    },
+    {
+      "_gvid": 35,
+      "tail": 43,
+      "head": 38,
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pos": "e,2071.8,687.49 2071.8,719.93 2071.8,713.55 2071.8,706.13 2071.8,699",
+      "style": "invis"
+    },
+    {
+      "_gvid": 36,
+      "tail": 44,
+      "head": 45,
+      "fontname": "DejaVu Sans Mono",
+      "label": "",
+      "pos": "e,2184.7,756.41 2189.8,843.96 2188.6,824.29 2186.8,791.48 2185.4,767.83",
       "style": "invis"
     }
   ]
