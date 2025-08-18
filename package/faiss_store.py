@@ -11,32 +11,16 @@ class FaissStore:
     def __init__(self, model_name="sentence-transformers/all-MiniLM-L6-v2", chunk_size=512, chunk_overlap=50):
         self.embeddings = HuggingFaceEmbeddings(model_name=model_name)
 
-        # create empty FAISS indices per data type
         dim = len(self.embeddings.embed_query("hello world"))
-        self.stores = {
-            "issues": FAISS(
+        self.index =  FAISS(
                 embedding_function=self.embeddings,
                 index=faiss.IndexFlatL2(dim),
                 docstore=InMemoryDocstore(),
                 index_to_docstore_id={},
-            ),
-            "prs": FAISS(
-                embedding_function=self.embeddings,
-                index=faiss.IndexFlatL2(dim),
-                docstore=InMemoryDocstore(),
-                index_to_docstore_id={},
-            ),
-            "code": FAISS(
-                embedding_function=self.embeddings,
-                index=faiss.IndexFlatL2(dim),
-                docstore=InMemoryDocstore(),
-                index_to_docstore_id={},
-            ),
-        }
+            )
 
-        # one splitter for all text types
         self.splitter = RecursiveCharacterTextSplitter.from_language(
-            language="python",  # still fine for English text, preserves code semantics
+            language="python",
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
@@ -50,11 +34,11 @@ class FaissStore:
                 docs.append(
                     Document(
                         page_content=chunk,
-                        metadata={"issue_number": row["issue_number"], "node_id": row["node_id"]},
+                        metadata={"type":"issue","issue_number": row["issue_number"], "node_id": row["node_id"]},
                     )
                 )
         if docs:
-            self.stores["issues"].add_documents(docs)
+            self.index.add_documents(docs)
 
     def add_prs(self, prs_df):
         """Index PRs into FAISS with chunking."""
@@ -65,11 +49,11 @@ class FaissStore:
                 docs.append(
                     Document(
                         page_content=chunk,
-                        metadata={"pr_number": row["pr_number"], "node_id": row["node_id"]},
+                        metadata={"type":"pr","pr_number": row["pr_number"], "node_id": row["node_id"]},
                     )
                 )
         if docs:
-            self.stores["prs"].add_documents(docs)
+            self.index.add_documents(docs)
 
     def add_code(self, code_df):
         """Index code functions into FAISS with chunking."""
@@ -79,15 +63,19 @@ class FaissStore:
                 docs.append(
                     Document(
                         page_content=chunk,
-                        metadata={"func_id": row["func_id"], "node_id": row["node_id"]},
+                        metadata={"type":"code","func_id": row["func_id"], "node_id": row["node_id"]},
                     )
                 )
         if docs:
-            self.stores["code"].add_documents(docs)
+            self.index.add_documents(docs)
 
     def search(self, query, index_type="issues", top_k=5):
-        """Search one of the FAISS stores."""
-        return self.stores[index_type].similarity_search(query, k=top_k)
+        """Search the FAISS store."""
+        return self.index.similarity_search(query, k=top_k, filter={"type": {"$eq": index_type}})
+    
+    def search_with_scores(self, query, index_type="issues", top_k=5):
+        """Search the FAISS store with scores returned"""
+        return self.index.similarity_search_with_score(query, k=top_k, filter={"type": {"$eq": index_type}})
 
     def save(self, path):
         """Save all FAISS indices to disk."""
