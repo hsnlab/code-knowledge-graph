@@ -237,7 +237,7 @@ class HierarchicalGraphBuilder:
 
 
         # Filter columns
-        col_mask = ['fnc_id', 'combinedName', 'function_code', 'docstring', 'docstring_embedding', 'function_location', 'file_id']
+        col_mask = ['fnc_id', 'combinedName', 'function_code', 'docstring', 'docstring_embedding', 'function_location', 'file_id'] if 'docstring_embedding' in filtered_cg_nodes.columns else ['fnc_id', 'combinedName', 'function_code', 'docstring', 'function_location', 'file_id']
         filtered_cg_nodes = filtered_cg_nodes[col_mask]
 
 
@@ -307,6 +307,10 @@ class HierarchicalGraphBuilder:
 
         
     def _create_hetero_data(self):
+
+        if 'docstring_embedding' not in self.nodes.columns or 'embedding' not in self.subgraph_nodes.columns:
+            raise ValueError("Embeddings are missing in the nodes or subgraph_nodes dataframes. Please enable create_embedding=True when creating the hierarchical graph.")
+
         data = HeteroData()
         data['function'].x = torch.tensor(self.nodes['docstring_embedding'].tolist(), dtype=torch.float)
         data['expression'].x = torch.tensor(self.subgraph_nodes['embedding'].tolist(), dtype=torch.float)

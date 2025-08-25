@@ -207,3 +207,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+package/sklearn.pkl
+package/sklearn_with_summaries.pkl
