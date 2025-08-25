@@ -9,6 +9,7 @@ import re
 import sys, os
 
 from neo4j import GraphDatabase
+from git import Repo
 
 from .hierarchical_graph import HierarchicalGraphBuilder
 from .semantic_clustering import SemanticClustering
@@ -29,7 +30,7 @@ class KnowledgeGraphBuilder():
 
 
 
-    def build_knowledge_graph(self, repo_path, repo_name, graph_type="CFG", num_of_PRs=5):
+    def build_knowledge_graph(self, repo_name, graph_type="CFG", num_of_PRs=5, create_embedding=False, repo_path_modifier=None):
         """
         Builds a knowledge graph from the given repository path.
         
@@ -40,12 +41,17 @@ class KnowledgeGraphBuilder():
         :return: A dictionary containing nodes, edges, imports, and other parts of the hierarchical graph.
         """
 
+        # Clone repository
+        repo_path = self.clone_github_repo(repo_name)
+        if repo_path_modifier:
+            repo_path = repo_path + '/' + repo_path_modifier
+
         # Initialize repository
         self.repository = self.git.get_repo(repo_name)
 
         # Build hierarchical graph (CG + CFG/AST)
         hg = HierarchicalGraphBuilder()
-        cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type)
+        cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type, create_embedding=create_embedding)
 
         # Get repository issues, pull requests, artifacts and actions
         issues = self.__get_repo_issues(self.repository)
@@ -244,6 +250,30 @@ class KnowledgeGraphBuilder():
     # ---------------------------------------------------------------
     #                     Private Methods
     # ---------------------------------------------------------------
+
+    def clone_github_repo(repo_identifier: str, target_dir: str = "./repos"):
+        """
+        Klónoz egy GitHub repót owner/repo azonosító alapján.
+        :param repo_identifier: pl. "torvalds/linux"
+        :param target_dir: hova klónozza
+        :return: a klónozott repo lokális útvonala
+        """
+        # Repo URL összeállítása
+        url = f"https://github.com/{repo_identifier}.git"
+
+        # Lokális könyvtár előkészítése
+        repo_name = repo_identifier.split("/")[-1]
+        local_path = os.path.join(target_dir, repo_name)
+
+        os.makedirs(target_dir, exist_ok=True)
+
+        if os.path.exists(local_path):
+            print(f"⚠️ A repo már létezik itt: {local_path}")
+        else:
+            print(f"⬇️ Klónozás: {url} -> {local_path}")
+            Repo.clone_from(url, local_path)
+
+        return local_path
 
     def __get_repo_issues(self, repo, labels=["bug"]):
         """

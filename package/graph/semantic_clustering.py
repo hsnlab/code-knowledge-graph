@@ -12,7 +12,7 @@ class SemanticClustering():
 
     def cluster_text(self, df, column, max_clusters=50):
 
-        df['split_names'] = df['combinedName'].apply(self._preprocess_strings)
+        df['split_names'] = df[column].apply(self._preprocess_strings)
         processed_text = df['split_names'].tolist()
         
         vectorizer = TfidfVectorizer(stop_words='english', ngram_range=(1,2))
