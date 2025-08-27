@@ -9,6 +9,7 @@ import re
 import sys, os
 
 from neo4j import GraphDatabase
+from git import Repo
 
 from .hierarchical_graph import HierarchicalGraphBuilder
 from .semantic_clustering import SemanticClustering
@@ -29,32 +30,60 @@ class KnowledgeGraphBuilder():
 
 
 
-    def build_knowledge_graph(self, repo_path, repo_name, graph_type="CFG", num_of_PRs=5):
+    def build_knowledge_graph(
+        self, 
+        repo_name: str, 
+        graph_type: str = "CFG", 
+        num_of_PRs: int = 5, 
+        create_embedding: bool = False, 
+        repo_path_modifier: str = None,
+        URI: str = None,
+        user: str = None,
+        password: str = None
+    ):
         """
-        Builds a knowledge graph from the given repository path.
+        Builds a knowledge graph from the given repository.
         
         :param repo_path: Path to the repository.
         :param repo_name: Name of the repository. Must match the format "owner/repo_name", as it is used for github API calls.
         :param graph_type: Type of subgraph to build. Can be "CFG" (Control Flow Graph) or "AST" (Abstract Syntax Tree). Default is "CFG".
         :param num_of_PRs: Number of pull requests to retrieve in detail. Defaults to 5. 0 means all PRs.
-        :return: A dictionary containing nodes, edges, imports, and other parts of the hierarchical graph.
+        :param create_embedding: Whether to create embeddings for the nodes. Defaults to False.
+        :param repo_path_modifier: Optional path modifier for the repository.
+        :param URI: Optional URI for the Neo4J data saving.
+        :param user: Optional username for the Neo4J data saving.
+        :param password: Optional password for the Neo4J data saving.
+
+        :return: By defult, it returns a dictionary containing nodes, edges, imports, and other parts of the hierarchical graph. If the URI, user and password data is given, it saves it into a Neo4J database.
         """
+
+        # Clone repository
+        repo_path = self.__clone_github_repo(repo_name)
+        if repo_path_modifier:
+            repo_path = repo_path + '/' + repo_path_modifier if repo_path_modifier[0] != '/' else repo_path + repo_path_modifier
+            repo_path = repo_path if repo_path[-1] == '/' else repo_path + '/'
 
         # Initialize repository
         self.repository = self.git.get_repo(repo_name)
 
         # Build hierarchical graph (CG + CFG/AST)
         hg = HierarchicalGraphBuilder()
-        cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type)
+        cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type, create_embedding=create_embedding)
 
         # Get repository issues, pull requests, artifacts and actions
+        # cluster_nodes, cluster_edges = self.__cluster_function_nodes(cg_nodes)
         issues = self.__get_repo_issues(self.repository)
+        print('Issues scraped.')
         prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs)
+        print('PRs scraped.')
         artifacts = self.__get_repo_CI_artifacts(self.repository)
+        print('Artifacts scraped.')
         actions = self.__get_repo_actions()
+        print('Actions scraped.')
         imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
+        print('Imports and import edges created.')
         issue_to_pr_edges = self.__get_issue_to_pr_edges(issues, prs)
-        cluster_edges = self.__cluster_function_nodes(cg_nodes)
+        print('Issue to PR edges created.')
 
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2)
 
@@ -73,10 +102,15 @@ class KnowledgeGraphBuilder():
             "issue_pr_edges": issue_to_pr_edges,
             "artifacts": artifacts,
             "actions": actions,
-            "cluster_functions": cluster_edges
+            # "cluster_nodes": cluster_nodes,
+            # "cluster_edges": cluster_edges
         }
 
-        return self.knowledge_graph
+        if URI and user and password:
+            self.store_knowledge_graph_in_neo4j(URI, user, password, self.knowledge_graph)
+
+        else:
+            return self.knowledge_graph
 
 
 
@@ -244,6 +278,35 @@ class KnowledgeGraphBuilder():
     # ---------------------------------------------------------------
     #                     Private Methods
     # ---------------------------------------------------------------
+
+    def __clone_github_repo(self, repo_identifier: str, target_dir: str = "./repos"):
+        """
+        Clones a GitHub repository.
+        :param repo_identifier: The repository identifier (e.g., "torvalds/linux").
+        :param target_dir: The directory where the repository will be cloned.
+        :return: The local path of the cloned repository.
+        """
+
+        # Repo URL összeállítása
+        url = f"https://github.com/{repo_identifier}.git"
+
+        # Lokális könyvtár előkészítése
+        repo_name = repo_identifier.split("/")[-1]
+        local_path = os.path.join(target_dir, repo_name)
+
+        os.makedirs(target_dir, exist_ok=True)
+
+        if os.path.exists(local_path):
+            print(f"Repo already exists here: {local_path}")
+        else:
+            print(f"Cloning: {url} -> {local_path}")
+            Repo.clone_from(url, local_path)
+
+        return local_path
+
+
+
+
 
     def __get_repo_issues(self, repo, labels=["bug"]):
         """
@@ -503,7 +566,10 @@ class KnowledgeGraphBuilder():
         # Create edges for the clusters
         cluster_df = cluster_df.merge(cg_nodes[['func_id', 'combinedName']], left_on='original', right_on='combinedName', how='left')
 
-        return cluster_df[['cluster', 'func_id']]
+        cluster_nodes = cluster_df[['cluster', 'cluster_summary']].drop_duplicates()
+        cluster_edges = cluster_df[['cluster', 'func_id']].drop_duplicates()
+
+        return cluster_nodes, cluster_edges
 
 
 
@@ -523,7 +589,7 @@ class KnowledgeGraphBuilder():
 
         issue_to_pr_edges = self.__validated_linked_issues_to_dataframe(
             linked_issues,
-            issue_df['issue_number'].tolist()
+            issue_df['ID'].tolist()
         )
 
         issue_to_pr_edges = issue_to_pr_edges.rename(columns={

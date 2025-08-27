@@ -57,7 +57,8 @@ class HierarchicalGraphBuilder:
         edge_set='default', 
         remove_isolated=False,
         remove_subgraph_missing=True,
-        batch_size=64
+        batch_size=64,
+        create_embedding=False
     ):
         """
         Create a hierarchical graph from the given code.
@@ -71,6 +72,7 @@ class HierarchicalGraphBuilder:
             - remove_isolated: Whether to remove isolated nodes from the call graph.
             - remove_subgraph_missing: Whether to remove call graph nodes that do not have a corresponding subgraph node.
             - batch_size: Batch size for embedding the nodes. Default is 128.
+            - create_embedding: Whether to create embeddings for the nodes. Default is False.
         Returns:
             If pandas return type is specified:
             - nodes: DataFrame containing the call graph nodes.
@@ -90,11 +92,13 @@ class HierarchicalGraphBuilder:
         self.edges['source_id'] = self.edges['source_id'].astype(int)
         self.edges['target_id'] = self.edges['target_id'].astype(int)
 
-        print("CG build completed. Embedding CG nodes...")
-        self._embed_graph_nodes(batch_size=batch_size)
-        self._fix_missing_docstring_embeddings()
+        if create_embedding:
+            print("CG build completed. Embedding CG nodes...")
+            self._embed_graph_nodes(batch_size=batch_size)
+            self._fix_missing_docstring_embeddings()
+            print("CG nodes embedded.")
 
-        print("CG nodes embedded. Creating subgraphs for each function...")
+        print("Creating subgraphs for each function...")
         self.subgraph_nodes = pd.DataFrame(columns=['func_id', 'node_id', 'name', 'code', 'parent_id', 'is_leaf']) if \
             graph_type == "AST" else pd.DataFrame(columns=['func_id', 'node_id', 'code'])
         self.subgraph_edges = pd.DataFrame(columns=['func_id', 'source_id', 'target_id'])
@@ -126,11 +130,14 @@ class HierarchicalGraphBuilder:
         self.subgraph_nodes['node_id'] = self.subgraph_nodes['node_id'].astype(int)
         self.subgraph_edges['source_id'] = self.subgraph_edges['source_id'].astype(int)
         self.subgraph_edges['target_id'] = self.subgraph_edges['target_id'].astype(int)
+        print("Subgraphs created.")
 
-        print("Subgraphs created. Embedding subgraph nodes...")
-        self._embed_subgraph_nodes(batch_size=batch_size)
+        if create_embedding:
+            print("Embedding subgraph nodes...")
+            self._embed_subgraph_nodes(batch_size=batch_size)
+            print("Subgraph nodes embedded.")
 
-        print("Subgraph nodes embedded. Filtering graph nodes...")
+        print("Filtering graph nodes...")
         self._filter_call_graph(remove_isolated, remove_subgraph_missing)
         self._filter_sub_graph(remove_isolated)
 
@@ -230,7 +237,7 @@ class HierarchicalGraphBuilder:
 
 
         # Filter columns
-        col_mask = ['fnc_id', 'combinedName', 'function_code', 'docstring', 'docstring_embedding', 'function_location', 'file_id']
+        col_mask = ['fnc_id', 'combinedName', 'function_code', 'docstring', 'docstring_embedding', 'function_location', 'file_id'] if 'docstring_embedding' in filtered_cg_nodes.columns else ['fnc_id', 'combinedName', 'function_code', 'docstring', 'function_location', 'file_id']
         filtered_cg_nodes = filtered_cg_nodes[col_mask]
 
 
@@ -300,6 +307,10 @@ class HierarchicalGraphBuilder:
 
         
     def _create_hetero_data(self):
+
+        if 'docstring_embedding' not in self.nodes.columns or 'embedding' not in self.subgraph_nodes.columns:
+            raise ValueError("Embeddings are missing in the nodes or subgraph_nodes dataframes. Please enable create_embedding=True when creating the hierarchical graph.")
+
         data = HeteroData()
         data['function'].x = torch.tensor(self.nodes['docstring_embedding'].tolist(), dtype=torch.float)
         data['expression'].x = torch.tensor(self.subgraph_nodes['embedding'].tolist(), dtype=torch.float)
