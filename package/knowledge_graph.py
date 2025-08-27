@@ -66,7 +66,7 @@ class KnowledgeGraphBuilder():
         cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type, create_embedding=create_embedding)
 
         # Get repository issues, pull requests, artifacts and actions
-        # cluster_nodes, cluster_edges = self.__cluster_function_nodes(cg_nodes)
+        cluster_nodes, cluster_edges = self.__cluster_function_nodes(cg_nodes)
         issues = self.__get_repo_issues(self.repository)
         print('Issues scraped.')
         prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs)
@@ -97,8 +97,8 @@ class KnowledgeGraphBuilder():
             "issue_pr_edges": issue_to_pr_edges,
             "artifacts": artifacts,
             "actions": actions,
-            # "cluster_nodes": cluster_nodes,
-            # "cluster_edges": cluster_edges
+            "cluster_nodes": cluster_nodes,
+            "cluster_edges": cluster_edges
         }
 
         if URI and user and password:
