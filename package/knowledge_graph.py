@@ -13,11 +13,7 @@ from git import Repo
 
 from .hierarchical_graph import HierarchicalGraphBuilder
 from .semantic_clustering import SemanticClustering
-
-
-sys.path.append(os.path.abspath('../../package'))
-
-from package.pr_function_collector import extract_changed_functions_from_pr
+from .pr_function_collector import extract_changed_functions_from_pr
 
 
 class KnowledgeGraphBuilder():
