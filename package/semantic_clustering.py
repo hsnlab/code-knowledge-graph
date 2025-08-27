@@ -3,20 +3,30 @@ from sklearn.cluster import KMeans
 from sklearn import metrics
 import pandas as pd
 import torch
-from transformers import pipeline
+from transformers import AutoTokenizer, pipeline
 
 import re
 
 class SemanticClustering():
 
-    def __init__(self, llm_model="mistralai/Mistral-Small-3.1-24B-Instruct-2503"):
+    def __init__(self, hugging_face_token=None, llm_model="mistralai/mistral-7b-instruct-v0.3"):
+
         self.llm_model = llm_model
         device = 0 if torch.cuda.is_available() else -1
+
+        tokenizer = AutoTokenizer.from_pretrained(
+            self.llm_model,
+            token=hugging_face_token
+        )
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+
         self.pipe = pipeline(
             "text-generation", 
             model=self.llm_model, 
             device=device,
-            token=""
+            tokenizer=tokenizer,
+            token=hugging_face_token
         )
 
     def cluster_text(self, df, column, max_clusters=50):
@@ -56,7 +66,7 @@ class SemanticClustering():
             'cluster': labels
         })
 
-        cluster_summaries = {}
+        prompts = []
         for c in cluster_df['cluster'].unique():
             cluster_texts = cluster_df[cluster_df['cluster'] == c]['text'].tolist()
             sample_texts = "; ".join(cluster_texts[:50])
@@ -65,9 +75,20 @@ class SemanticClustering():
                 f"These function names belong to one cluster:\n{sample_texts}\n\n"
                 f"Write a very short one-sentence summary describing the content of this cluster."
             )
+            prompts.append((c, prompt))
 
-            response = self.pipe(prompt, max_new_tokens=30, temperature=0.3)
-            summary = response[0]["generated_text"].replace(prompt, "").strip()
+        # csak a promptokat küldjük a modellnek, egyszerre
+        responses = self.pipe(
+            [p for _, p in prompts],
+            max_new_tokens=50,
+            temperature=0.3,
+            batch_size=16
+        )
+
+        # hozzárendeljük a válaszokat a clusterekhez
+        cluster_summaries = {}
+        for (c, prompt), resp in zip(prompts, responses):
+            summary = resp[0]["generated_text"].replace(prompt, "").strip()
             cluster_summaries[c] = summary
 
         cluster_df['cluster_summary'] = cluster_df['cluster'].map(cluster_summaries)

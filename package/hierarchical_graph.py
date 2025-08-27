@@ -1,4 +1,5 @@
 # Data
+import os
 import pandas as pd
 import numpy as np
 
@@ -145,7 +146,16 @@ class HierarchicalGraphBuilder:
         self.hierarchical_sub_to_main_edges = self.subgraph_nodes[['node_id', 'func_id']].rename(columns={'node_id': 'source_id', 'func_id': 'target_id'})
         self.hierarchical_main_to_sub_edges = self.subgraph_nodes[['func_id', 'node_id']].rename(columns={'func_id': 'source_id', 'node_id': 'target_id'})
 
+        try:
+            os.remove('noname.gv.xdot')
+            os.remove('cfg_output.json')
+        except:
+            pass
+        
         print("Hierarchical graph building successful.")
+
+
+
         if return_type.lower() in ["pandas", "pandas_df", 'pd', 'df', 'dataframe']:
             return self.nodes, self.edges, self.subgraph_nodes, self.subgraph_edges, self.hierarchical_sub_to_main_edges, self.hierarchical_main_to_sub_edges, self.imports
         

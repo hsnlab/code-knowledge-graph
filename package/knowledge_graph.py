@@ -21,10 +21,9 @@ class KnowledgeGraphBuilder():
     git = None
     repository = None
 
-    def __init__(self, github_token=None):
+    def __init__(self, github_token=None, hugging_face_token=None):
         self.git = Github(github_token) if github_token else Github()
-
-
+        self.hugging_face_token = hugging_face_token
 
     def build_knowledge_graph(
         self, 
@@ -562,7 +561,7 @@ class KnowledgeGraphBuilder():
         :param cg_nodes: DataFrame containing call graph nodes.
         :return: DataFrame with clustered function nodes.
         """
-        sc = SemanticClustering()
+        sc = SemanticClustering(hugging_face_token=self.hugging_face_token)
         cluster_df = sc.cluster_text(cg_nodes, 'combinedName', max_clusters=50)
 
         # Create edges for the clusters
