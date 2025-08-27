@@ -34,7 +34,7 @@ class KnowledgeGraphBuilder():
         self, 
         repo_name: str, 
         graph_type: str = "CFG", 
-        num_of_PRs: int = 5, 
+        num_of_PRs: int = 0, 
         create_embedding: bool = False, 
         repo_path_modifier: str = None,
         URI: str = None,
@@ -44,15 +44,14 @@ class KnowledgeGraphBuilder():
         """
         Builds a knowledge graph from the given repository.
         
-        :param repo_path: Path to the repository.
         :param repo_name: Name of the repository. Must match the format "owner/repo_name", as it is used for github API calls.
-        :param graph_type: Type of subgraph to build. Can be "CFG" (Control Flow Graph) or "AST" (Abstract Syntax Tree). Default is "CFG".
-        :param num_of_PRs: Number of pull requests to retrieve in detail. Defaults to 5. 0 means all PRs.
-        :param create_embedding: Whether to create embeddings for the nodes. Defaults to False.
-        :param repo_path_modifier: Optional path modifier for the repository.
-        :param URI: Optional URI for the Neo4J data saving.
-        :param user: Optional username for the Neo4J data saving.
-        :param password: Optional password for the Neo4J data saving.
+        :param graph_type (optional): Type of subgraph to build. Can be "CFG" (Control Flow Graph) or "AST" (Abstract Syntax Tree). Default is "CFG".
+        :param num_of_PRs (optional): Number of pull requests to retrieve in detail. Defaults to 0 (all).
+        :param create_embedding (optional): Whether to create embeddings for the nodes. Defaults to False.
+        :param repo_path_modifier (optional): Path modifier for the repository for cases when only a subfolder is meant to be parsed.
+        :param URI (optional): URI for the Neo4J data saving.
+        :param user (optional): Username for the Neo4J data saving.
+        :param password (optional): Password for the Neo4J data saving.
 
         :return: By defult, it returns a dictionary containing nodes, edges, imports, and other parts of the hierarchical graph. If the URI, user and password data is given, it saves it into a Neo4J database.
         """
@@ -114,7 +113,14 @@ class KnowledgeGraphBuilder():
 
 
 
-    def visualize_graph(self, knowledge_graph=None, show_subgraph_nodes=False, save_path="filtered_graph.html"):
+    def visualize_graph(self, knowledge_graph=None, show_subgraph_nodes=False, save_path="./graph.html"):
+        """
+        Create a HTML visualizaiton of the graph with the `visualize_graph` function. NOTE: for large graphs, it is advised to only plot a fraction of the nodes, othervise the visualization might not render properly. Parameters:
+        :param repograph: The dictionary containing the created repository graph.
+        :param show_subgraph_nodes (optional): Whether to plot the subgraph (CFG or AST) nodes. Defaults to False.
+        :param save_path (optional): The file path to save the visualization. Defaults to "filtered_graph.html".
+        """
+
 
         if knowledge_graph is None:
             knowledge_graph = self.knowledge_graph
