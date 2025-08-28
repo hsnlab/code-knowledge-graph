@@ -567,8 +567,9 @@ class KnowledgeGraphBuilder():
         # Create edges for the clusters
         cluster_df = cluster_df.merge(cg_nodes[['func_id', 'combinedName']], left_on='original', right_on='combinedName', how='left')
 
-        cluster_nodes = cluster_df[['cluster', 'cluster_summary']].drop_duplicates()
-        cluster_edges = cluster_df[['cluster', 'func_id']].drop_duplicates()
+        cluster_nodes = cluster_df[['cluster', 'cluster_summary']].drop_duplicates().rename(columns={'cluster': 'ID', 'cluster_summary': 'summary'})
+        cluster_nodes['ID'] = cluster_nodes['ID'].astype(int) + 1
+        cluster_edges = cluster_df[['cluster', 'func_id']].drop_duplicates().rename(columns={'cluster': 'source', 'func_id': 'target'})
 
         return cluster_nodes, cluster_edges
 
