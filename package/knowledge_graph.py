@@ -21,6 +21,9 @@ class KnowledgeGraphBuilder():
     git = None
     repository = None
 
+    pr_function_data = []
+    pr_file_data = []
+
     def __init__(self, github_token=None, hugging_face_token=None):
         self.git = Github(github_token) if github_token else Github()
         self.hugging_face_token = hugging_face_token
@@ -30,6 +33,7 @@ class KnowledgeGraphBuilder():
         repo_name: str, 
         graph_type: str = "CFG", 
         num_of_PRs: int = 0, 
+        done_prs: list = None,
         create_embedding: bool = False, 
         repo_path_modifier: str = None,
         URI: str = None,
@@ -68,7 +72,7 @@ class KnowledgeGraphBuilder():
         cluster_nodes, cluster_edges = self.__cluster_function_nodes(cg_nodes)
         issues = self.__get_repo_issues(self.repository)
         print('Issues scraped.')
-        prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs)
+        prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
         print('PRs scraped.')
         artifacts = self.__get_repo_CI_artifacts(self.repository)
         print('Artifacts scraped.')
@@ -97,7 +101,7 @@ class KnowledgeGraphBuilder():
             "artifacts": artifacts,
             "actions": actions,
             "cluster_nodes": cluster_nodes,
-            "cluster_edges": cluster_edges
+            "cluster_function_edges": cluster_edges
         }
 
         if URI and user and password:
@@ -222,6 +226,11 @@ class KnowledgeGraphBuilder():
                 if key.endswith("_nodes"):
                     label = key.replace("_nodes", "").upper()
 
+                    if "id" in df.columns:
+                        df["id"] = df["id"].astype(int)
+                    elif "ID" in df.columns:
+                        df["ID"] = df["ID"].astype(int)
+
                     for _, row in df.iterrows():
                         props = {}
                         for k, v in row.items():
@@ -253,6 +262,9 @@ class KnowledgeGraphBuilder():
                         src_label, tgt_label = parts[0].upper(), parts[1].upper()
                     else:
                         raise ValueError(f"Nem tudom értelmezni az edge nevet: {key}")
+
+                    df["source"] = df["source"].astype(int)
+                    df["target"] = df["target"].astype(int)
 
                     for _, row in df.iterrows():
                         start_id = f"{src_label}:{row['source']}"
@@ -356,7 +368,7 @@ class KnowledgeGraphBuilder():
 
 
 
-    def __get_repo_PRs(self, repo, cg_nodes, num_of_PRs):
+    def __get_repo_PRs(self, repo, cg_nodes, num_of_PRs, done_prs):
         """
         Retrieves pull requests from the repository and saves details to a DataFrame.
         
@@ -367,28 +379,38 @@ class KnowledgeGraphBuilder():
 
         # ---------------- Open Pull Requests ----------------
 
-        df_open, changed_functions_df_open = self.__get_PR_from_git(repo, num_of_PRs, 'open')
+        df_open, changed_functions_df_open = self.__get_PR_from_git(repo, num_of_PRs, 'open', done_prs)
 
         # ---------------- Closed Pull Requests ----------------
 
-        df_closed, changed_functions_df_closed = self.__get_PR_from_git(repo, num_of_PRs, 'closed')
+        df_closed, changed_functions_df_closed = self.__get_PR_from_git(repo, num_of_PRs, 'closed', done_prs)
 
 
         PR_df = pd.concat([df_open, df_closed], ignore_index=True).reset_index(drop=True)
         changed_functions_df = pd.concat([changed_functions_df_open, changed_functions_df_closed], ignore_index=True).reset_index(drop=True)
 
-        changed_functions_df['file_path'] = changed_functions_df['file_path'].str.replace(r'\\', '/', regex=True).str.replace('./sklearn/', '')
+        # String formatting
+        changed_functions_df['file_path'] = changed_functions_df['file_path'].str.replace(r'\\', '/', regex=True)
+        cg_nodes['function_location'] = (
+            cg_nodes['function_location']
+            .str.replace(r'\\', '/', regex=True)
+            .str.replace('./repos/', '', regex=False)
+            .str.split('/')
+            .str[1:]
+            .str.join('/')
+        )
         changed_functions_df = changed_functions_df.merge(cg_nodes[['func_id', 'combinedName', 'function_location']], left_on=['file_path','class_and_function'], right_on=['function_location', 'combinedName'], how='left')
         changed_functions_df = changed_functions_df[['pr_number', 'func_id']].dropna().reset_index(drop=True).rename(columns={'pr_number': 'source', 'func_id': 'target'})
 
         PR_df = PR_df.rename(columns={
             'pr_number': 'ID'
         })
+        PR_df = PR_df[['ID', 'pr_title', 'pr_body', 'pr_open']].drop_duplicates().reset_index(drop=True)
 
         return PR_df, changed_functions_df
     
 
-    def __get_PR_from_git(self, repo, num_of_PRs: int, PR_state: str):
+    def __get_PR_from_git(self, repo, num_of_PRs: int, PR_state: str, done_prs: list):
 
         pulls = repo.get_pulls(state=PR_state, sort='created', direction='desc')
 
@@ -398,6 +420,10 @@ class KnowledgeGraphBuilder():
         num_pulls = 0
 
         for pull in pulls:
+
+            if done_prs and pull.number in done_prs:
+                continue
+
             pr = repo.get_pull(pull.number)
             pr_number = pr.number
             pr_title = pr.title
@@ -415,6 +441,14 @@ class KnowledgeGraphBuilder():
                         "file_path": file_path,
                         "class_and_function": class_and_function
                     })
+                    self.pr_function_data.append({
+                        "pr_number": pr_number,
+                        "pr_title": pr_title,
+                        "pr_body": pr_body,
+                        "pr_open": PR_state == 'open',
+                        "file_path": file_path,
+                        "class_and_function": class_and_function
+                    })
             except:
                 print("Warning: Could not extract changed functions from PR #", pr_number)
                 continue
@@ -422,6 +456,16 @@ class KnowledgeGraphBuilder():
             files = pr.get_files()
             for f in files:
                 data.append({
+                    "pr_number": pr_number,
+                    "pr_title": pr_title,
+                    "pr_body": pr_body,
+                    "pr_open": PR_state == 'open',
+                    "filename": f.filename,
+                    "status": f.status,
+                    "additions": f.additions,
+                    "deletions": f.deletions
+                })
+                self.pr_file_data.append({
                     "pr_number": pr_number,
                     "pr_title": pr_title,
                     "pr_body": pr_body,
