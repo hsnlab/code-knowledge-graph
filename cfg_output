@@ -1,0 +1,44 @@
+digraph cluster154example {
+	graph [compound=True fontname="DejaVu Sans Mono" label=example pack=False rankdir=TB ranksep=0.02]
+	node [fontname="DejaVu Sans Mono"]
+	edge [fontname="DejaVu Sans Mono"]
+	1 [label="def test_tsne_works_with_pandas_output():...\l" fillcolor="#FFFB81" shape=rectangle style="filled,solid"]
+	subgraph cluster0test_tsne_works_with_pandas_output {
+		graph [compound=True fontname="DejaVu Sans Mono" label=test_tsne_works_with_pandas_output pack=False rankdir=TB ranksep=0.02]
+		node [fontname="DejaVu Sans Mono"]
+		edge [fontname="DejaVu Sans Mono"]
+		3 [label="pytest.importorskip('pandas')\larr = np.arange(35 * 4).reshape(35, 4)\lTSNE(n_components=2).fit_transform(arr)\l" fillcolor="#FFFB81" shape=rectangle style="filled,solid"]
+		3 -> 4 [label=calls style=dashed]
+		3 -> 5 [label=calls style=dashed]
+		3 -> 6 [label=calls style=dashed]
+		3 -> 7 [label=calls style=dashed]
+		subgraph cluster_3 {
+			graph [color=purple compound=true fontname="DejaVu Sans Mono" label="" rankdir=TB ranksep=0.02 shape=tab style=filled]
+			node [fontname="DejaVu Sans Mono"]
+			edge [fontname="DejaVu Sans Mono"]
+			4 [label="pytest.importorskip" color="#E552FF" shape=tab style=filled]
+			5 [label=config_context color="#E552FF" shape=tab style=filled]
+			6 [label="np.arange.reshape" color="#E552FF" shape=tab style=filled]
+			7 [label="TSNE.fit_transform" color="#E552FF" shape=tab style=filled]
+		}
+	}
+	subgraph cluster_KEY {
+		graph [fontname="DejaVu Sans Mono" label=KEY]
+		node [fontname="DejaVu Sans Mono"]
+		edge [fontname="DejaVu Sans Mono"]
+		input [fillcolor="#afeeee" shape=parallelogram style=filled]
+		default [fillcolor="#FFFB81" shape=rectangle style=filled]
+		if [fillcolor="#FF6752" shape=diamond style=filled]
+		for [fillcolor="#FFBE52" shape=hexagon style=filled]
+		while [fillcolor="#FFBE52" shape=hexagon style=filled]
+		call [fillcolor="#E552FF" shape=tab style=filled]
+		return [fillcolor="#98fb98" shape=parallelogram style=filled]
+		try [fillcolor=orange shape=Mdiamond style=filled]
+		raise [fillcolor="#98fb98" shape=house style=filled]
+		if -> input [style=invis]
+		input -> call [style=invis]
+		for -> return [style=invis]
+		return -> default [style=invis]
+		try -> raise [style=invis]
+	}
+}
