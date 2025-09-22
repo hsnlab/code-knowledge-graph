@@ -1,16 +1,23 @@
 from tree_sitter_language_pack import get_parser
 from tree_sitter import Parser
+from enum import Enum
+
+class NodeType(Enum):
+    IMPORT = "Import"
+    CLASS = "Class"
+    FUNCTION = "Function"
+    CALL = "Call"
 
 class LanguageAdapter:
     """
     Base class for mapping Tree-sitter nodes to normalized categories:
     Import, Class, Function, Call.
     """
-    def __init__(self, language: str, mapper: dict[str, str]):
+    def __init__(self, language: str, mapper: dict[str, NodeType]):
         self.LANGUAGE = language
         self.NODE_MAPPER = mapper
 
-    def map_node_type(self, node_type: str) -> str:
+    def map_node_type(self, node_type: str) -> None | NodeType:
         return self.NODE_MAPPER.get(node_type)
 
     def get_tree_sitter_parser(self) -> None | Parser:
@@ -30,25 +37,25 @@ Provides:
 
 adapter_mapper: dict[str, LanguageAdapter] = {
     "python": LanguageAdapter(language="python", mapper={
-        "import_statement": "Import",
-        "import": "Import",
-        "class_definition": "Class",
-        "function_definition": "Function",
-        "call": "Call",
+        "import_statement": NodeType.IMPORT,
+        "import": NodeType.IMPORT,
+        "class_definition": NodeType.CLASS,
+        "function_definition": NodeType.FUNCTION,
+        "call": NodeType.CALL,
     }),
     "cpp": LanguageAdapter(language="cpp", mapper={
-        "preproc_include": "Import",
-        "class_specifier": "Class",
-        "function_definition": "Function",
-        "call_expression": "Call",
+        "preproc_include": NodeType.IMPORT,
+        "class_specifier": NodeType.CLASS,
+        "function_definition": NodeType.FUNCTION,
+        "call_expression": NodeType.CALL,
     }),
     "erlang": LanguageAdapter(language="erlang", mapper={
-        "module_attribute": "Import",
-        "export_attribute": "Import",
-        "fun_decl": "Function",
-        "function_clause": "Function",
-        "call": "Call",
-        "remote": "Call",
+        "module_attribute": NodeType.IMPORT,
+        "export_attribute": NodeType.IMPORT,
+        "fun_decl": NodeType.FUNCTION,
+        "function_clause": NodeType.FUNCTION,
+        "call": NodeType.CALL,
+        "remote": NodeType.CALL,
     })
 }
 
