@@ -13,7 +13,6 @@ from git import Repo
 
 from .hierarchical_graph import HierarchicalGraphBuilder
 from .semantic_clustering import SemanticClustering
-from .function_versioning import FunctionVersioning
 from .pr_function_collector import extract_changed_functions_from_pr
 
 
@@ -67,8 +66,22 @@ class KnowledgeGraphBuilder():
 
         # Build hierarchical graph (CG + CFG/AST)
         hg = HierarchicalGraphBuilder()
-        cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type, create_embedding=create_embedding)
-
+        (
+            cg_nodes,
+            cg_edges,
+            sg_nodes,
+            sg_edges,
+            hier_1,
+            hier_2,
+            imports,
+            function_version_nodes,
+            version_edges,
+            functionversion_function_edges,
+        ) = hg.create_hierarchical_graph(
+            repo_path,
+            graph_type=graph_type,
+            create_embedding=create_embedding
+        )
 
         
         # Get repository issues, pull requests, artifacts and actions
@@ -89,14 +102,6 @@ class KnowledgeGraphBuilder():
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2)
 
         
-        fv = FunctionVersioning(repo_path=repo_path)
-        fv_out = fv.build(function_nodes_df=cg_nodes,branch_ref="HEAD", only_changed_files=True,  max_commits=300)
-
-        function_version_nodes = fv_out["function_version_nodes"]
-        function_version_edges = fv_out["function_version_edges"]
-        functionversion_function_edges = fv_out["functionversion_function_edges"]
-        commit_nodes = fv_out["commit_nodes"]
-        functionversion_commit_edges = fv_out["functionversion_commit_edges"]
 
 
         self.knowledge_graph = {
@@ -117,10 +122,8 @@ class KnowledgeGraphBuilder():
             "cluster_nodes": cluster_nodes,
             "cluster_function_edges": cluster_edges,
             "function_version_nodes": function_version_nodes,
-            "function_version_edges": function_version_edges,
+            "version_edges": version_edges,
             "functionversion_function_edges": functionversion_function_edges,
-            "commit_nodes": commit_nodes,
-            "functionversion_commit_edges": functionversion_commit_edges,
         }
 
         if URI and user and password:

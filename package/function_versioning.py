@@ -101,12 +101,17 @@ class FunctionVersioning:
 
     Visszatér:
         {
-          "function_version_nodes": DataFrame[ ID, function_id, symbol_id, commit_sha, authored_datetime,
-                                               file_path, qualified_name, body_hash, start_line, end_line, code ],
-          "function_version_edges": DataFrame[ source, target ]               # NEXT_VERSION (version -> version)
-          "functionversion_function_edges": DataFrame[ source, target ]       # version(ID) -> function(ID)
-          "commit_nodes": DataFrame[ ID, sha, authored_datetime, author_name, author_email, message ]
-          "functionversion_commit_edges": DataFrame[ source, target ]         # version(ID) -> commit(ID)
+          "function_version_nodes": DataFrame[
+              ID, function_id, symbol_id, commit_sha, authored_datetime,
+              file_path, qualified_name, body_hash, start_line, end_line, code
+          ],
+          # Commit MINT ÉL metaadat: csak akkor jön létre, ha a függvény kódja tényleg változik
+          "version_edges": DataFrame[
+              source, target,
+              commit_sha, authored_datetime, author_name, author_email, message,
+              file_path, qualified_name
+          ],
+          "functionversion_function_edges": DataFrame[ source, target ]  # version(ID) -> function(ID)
         }
     """
 
@@ -143,11 +148,15 @@ class FunctionVersioning:
         if not commits:
             empty = pd.DataFrame
             return {
-                "function_version_nodes": empty(columns=["ID","function_id","symbol_id","commit_sha","authored_datetime","file_path","qualified_name","body_hash","start_line","end_line","code"]),
-                "function_version_edges": empty(columns=["source","target"]),
+                "function_version_nodes": empty(columns=[
+                    "ID","function_id","symbol_id","commit_sha","authored_datetime",
+                    "file_path","qualified_name","body_hash","start_line","end_line","code"
+                ]),
+                "version_edges": empty(columns=[
+                    "source","target","commit_sha","authored_datetime",
+                    "author_name","author_email","message","file_path","qualified_name"
+                ]),
                 "functionversion_function_edges": empty(columns=["source","target"]),
-                "commit_nodes": empty(columns=["ID","sha","authored_datetime","author_name","author_email","message"]),
-                "functionversion_commit_edges": empty(columns=["source","target"]),
             }
         
         # --- fájlok a CG-ből ---
@@ -272,26 +281,10 @@ class FunctionVersioning:
         return v.results
 
     def _build_dfs(self, versions_by_symbol: Dict[str, List[dict]], function_nodes_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
-        # 3/a) commit-táblázat
-        commit_rows: Dict[str, dict] = {}
-        for vers in versions_by_symbol.values():
-            for rec in vers:
-                sha = rec["commit_sha"]
-                if sha not in commit_rows:
-                    commit_rows[sha] = {
-                        "sha": sha,
-                        "authored_datetime": rec["authored_datetime"],
-                        "author_name": rec["author_name"],
-                        "author_email": rec["author_email"],
-                        "message": rec["message"],
-                    }
-        commit_nodes = pd.DataFrame(list(commit_rows.values())).reset_index(drop=True)
-        commit_nodes.insert(0, "ID", range(1, len(commit_nodes) + 1))
-        commit_id_map = {row["sha"]: int(row["ID"]) for _, row in commit_nodes.iterrows()}
-
-        # 3/b) FunctionVersion node-ok és NEXT_VERSION élek
+        # 3/a) FunctionVersion node-ok és VÁLTOZÁS-Élek (commit metaadattal)
         fv_nodes_rows: List[dict] = []
-        next_edges_rows: List[dict] = []
+        version_edges_rows: List[dict] = []
+
 
         # Szimbolumonként időrend és egymás utáni hash-változások figyelése
         def _sort_key(x):
@@ -330,7 +323,18 @@ class FunctionVersioning:
                 })
 
                 if prev_ver_id is not None:
-                    next_edges_rows.append({"source": prev_ver_id, "target": v_id})
+                    # Él CSAK változáskor, a commit metaadataival
+                    version_edges_rows.append({
+                        "source": prev_ver_id,
+                        "target": v_id,
+                        "commit_sha": rec["commit_sha"],
+                        "authored_datetime": rec["authored_datetime"],
+                        "author_name": rec.get("author_name", ""),
+                        "author_email": rec.get("author_email", ""),
+                        "message": rec.get("message", ""),
+                        "file_path": rec["file_path"],
+                        "qualified_name": rec["qualified_name"],
+                    })
 
                 prev_ver_id = v_id
                 prev_hash = rec["body_hash"]
@@ -339,15 +343,12 @@ class FunctionVersioning:
             "ID", "function_id", "symbol_id", "commit_sha", "authored_datetime", "file_path",
             "qualified_name", "body_hash", "start_line", "end_line", "code"
         ])
-        function_version_edges = pd.DataFrame(next_edges_rows, columns=["source", "target"])
+        version_edges = pd.DataFrame(version_edges_rows, columns=[
+            "source","target","commit_sha","authored_datetime",
+            "author_name","author_email","message","file_path","qualified_name"
+        ])
 
-        # 3/c) Version -> Commit élek
-        fv_commit_edges = function_version_nodes[["ID", "commit_sha"]].copy()
-        fv_commit_edges["target"] = fv_commit_edges["commit_sha"].map(commit_id_map)
-        fv_commit_edges = fv_commit_edges.drop(columns=["commit_sha"]).rename(columns={"ID": "source"})
-        fv_commit_edges = fv_commit_edges.dropna().reset_index(drop=True).astype({"source": int, "target": int})
-
-        # 3/d) Version -> Function élek (CG-hez kötés)
+        # 3/b) Version -> Function élek (CG-hez kötés változatlanul)
         # function_nodes_df oszlopok: a repo CG-ben 'func_id' vagy 'ID' néven azonosított
         fn_df = function_nodes_df.copy()
         if "ID" in fn_df.columns and "func_id" not in fn_df.columns:
@@ -381,14 +382,9 @@ class FunctionVersioning:
         fv_func_edges = function_version_nodes.dropna(subset=["function_id"])[["ID", "function_id"]].copy()
         fv_func_edges = fv_func_edges.rename(columns={"ID": "source", "function_id": "target"}).astype({"source": int, "target": int})
 
-        # 3/e) commit_nodes ID-k már ki vannak számolva
         # rendezett, típushelyes DF-ek visszaadása
-        commit_nodes = commit_nodes[["ID", "sha", "authored_datetime", "author_name", "author_email", "message"]].copy()
-
         return {
             "function_version_nodes": function_version_nodes.reset_index(drop=True),
-            "function_version_edges": function_version_edges.reset_index(drop=True),
+            "version_edges": version_edges.reset_index(drop=True),
             "functionversion_function_edges": fv_func_edges.reset_index(drop=True),
-            "commit_nodes": commit_nodes.reset_index(drop=True),
-            "functionversion_commit_edges": fv_commit_edges.reset_index(drop=True),
         }
