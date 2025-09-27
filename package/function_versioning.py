@@ -378,10 +378,31 @@ class FunctionVersioning:
             .set_index("symbol_id")["func_id"].to_dict()
         )
 
+        # A CG func_id hozzárendelése minden verzió-node-hoz
         function_version_nodes["function_id"] = function_version_nodes["symbol_id"].map(symbol_to_funcid)
-        fv_func_edges = function_version_nodes.dropna(subset=["function_id"])[["ID", "function_id"]].copy()
-        fv_func_edges = fv_func_edges.rename(columns={"ID": "source", "function_id": "target"}).astype({"source": int, "target": int})
 
+        # --- ÚJ: csak a legfrissebb verziókat kötjük a CG node-okhoz szimbólumonként ---
+        # Rendezési kulcs: authored_datetime (ha üres, ""), majd commit_sha stabilitás miatt.
+        tmp = function_version_nodes.copy()
+        tmp["_sort_key"] = tmp["authored_datetime"].fillna("") + tmp["commit_sha"]
+        # A legutolsó (legfrissebb) verzió ID-ja szimbólumonként
+        latest_ids = (
+            tmp.sort_values("_sort_key")
+               .groupby("symbol_id", dropna=False)
+               .tail(1)["ID"]
+               .astype(int)
+               .tolist()
+        )
+        # Csak a legfrissebb verzió → CG él
+        fv_func_edges = (
+            function_version_nodes[
+                function_version_nodes["ID"].isin(latest_ids)
+                & function_version_nodes["function_id"].notna()
+            ][["ID", "function_id"]]
+            .rename(columns={"ID": "source", "function_id": "target"})
+            .astype({"source": int, "target": int})
+        )
+        
         # rendezett, típushelyes DF-ek visszaadása
         return {
             "function_version_nodes": function_version_nodes.reset_index(drop=True),
