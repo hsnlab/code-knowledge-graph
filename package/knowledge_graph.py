@@ -38,7 +38,9 @@ class KnowledgeGraphBuilder():
         repo_path_modifier: str = None,
         URI: str = None,
         user: str = None,
-        password: str = None
+        password: str = None,
+        developer_mode: str | None = None,  # None (default) to preserve behavior; or 'commit_authors', 'pr_authors', 'contributors'
+        max_commits: int = 200  # used when developer_mode == 'commit_authors'
     ):
         """
         Builds a knowledge graph from the given repository.
@@ -51,7 +53,11 @@ class KnowledgeGraphBuilder():
         :param URI (optional): URI for the Neo4J data saving.
         :param user (optional): Username for the Neo4J data saving.
         :param password (optional): Password for the Neo4J data saving.
-
+        :param developer_mode (optional): If provided, extracts developer nodes and edges.
+               Options: 'commit_authors' (map commits -> files -> functions),
+                        'pr_authors' (map PR authors -> changed functions),
+                        'contributors' (contributors only; no edges unless PR mapping is available).
+        :param max_commits (optional): Max commits scanned when developer_mode='commit_authors'.
         :return: By defult, it returns a dictionary containing nodes, edges, imports, and other parts of the hierarchical graph. If the URI, user and password data is given, it saves it into a Neo4J database.
         """
 
@@ -82,6 +88,44 @@ class KnowledgeGraphBuilder():
         print('Imports and import edges created.')
         issue_to_pr_edges = self.__get_issue_to_pr_edges(issues, prs)
         print('Issue to PR edges created.')
+        
+        developers_df = pd.DataFrame(columns=['ID', 'dev_name', 'dev_email', 'dev_full'])
+        dev_edges_df = pd.DataFrame(columns=['source', 'target'])  # developer -> function
+
+        if developer_mode:
+            try:
+                if developer_mode == 'commit_authors':
+                    dev_nodes, dev_edges_raw = self.__get_developers_from_commits(self.repository, cg_nodes, max_commits=max_commits)
+                    # normalize columns
+                    if not dev_nodes.empty:
+                        dev_nodes = dev_nodes.rename(columns={'dev_id': 'ID'})
+                        dev_nodes['ID'] = dev_nodes['ID'].astype(int)
+                    if not dev_edges_raw.empty:
+                        dev_edges_df = dev_edges_raw.rename(columns={'dev_id': 'source', 'func_id': 'target'})
+                elif developer_mode == 'pr_authors':
+                    dev_nodes, dev_edges_raw = self.__get_repo_developers_github(self.repository, prs, pr_edges)
+                    if not dev_nodes.empty:
+                        dev_nodes = dev_nodes.rename(columns={'dev_id': 'ID'})
+                        dev_nodes['ID'] = dev_nodes['ID'].astype(int)
+                    if not dev_edges_raw.empty:
+                        dev_edges_df = dev_edges_raw.rename(columns={'dev_id': 'source', 'func_id': 'target'})
+                elif developer_mode == 'contributors':
+                    dev_nodes, dev_edges_raw = self.__get_repo_developers_github(self.repository, None, None)
+                    if not dev_nodes.empty:
+                        dev_nodes = dev_nodes.rename(columns={'dev_id': 'ID'})
+                        dev_nodes['ID'] = dev_nodes['ID'].astype(int)
+                    # no edges unless PR mapping was available
+                else:
+                    print(f"Unknown developer_mode '{developer_mode}', skipping developer extraction.")
+                    dev_nodes = pd.DataFrame()
+                    dev_edges_raw = pd.DataFrame()
+                developers_df = dev_nodes if not dev_nodes.empty else developers_df
+                if not dev_edges_df.empty and 'commit_sha' in dev_edges_df.columns:
+                    # keep commit_sha as property but not required; leave as-is
+                    pass
+            except Exception as e:
+                print(f"Developer extraction failed ({developer_mode}): {e}")
+
 
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2)
 
@@ -103,6 +147,17 @@ class KnowledgeGraphBuilder():
             "cluster_nodes": cluster_nodes,
             "cluster_function_edges": cluster_edges
         }
+        
+        if developer_mode and not developers_df.empty:
+            self.knowledge_graph["developer_nodes"] = developers_df
+
+        if developer_mode and not dev_edges_df.empty:
+            # Ensure correct dtype
+            for col in ('source', 'target'):
+                if col in dev_edges_df.columns:
+                    dev_edges_df[col] = pd.to_numeric(dev_edges_df[col], errors='coerce').astype('Int64')
+            dev_edges_df = dev_edges_df.dropna(subset=['source', 'target']).astype({'source':'int','target':'int'}).reset_index(drop=True)
+            self.knowledge_graph["developer_function_edges"] = dev_edges_df
 
         if URI and user and password:
             self.store_knowledge_graph_in_neo4j(URI, user, password, self.knowledge_graph)
@@ -153,6 +208,12 @@ class KnowledgeGraphBuilder():
             label = f"[IS] {row['issue_title'][:25]}..." if len(row['issue_title']) > 25 else f"[IS] {row['issue_title']}"
             G.add_node(node_id, label=label, title=label, color="#e31a1c")
 
+         # Add developer nodes (NEW)
+        if 'developer_nodes' in knowledge_graph:
+            for _, row in knowledge_graph['developer_nodes'].iterrows():
+                node_id = f"DEV_{row['ID']}"
+                label = f"[DEV] {row.get('dev_name', row['ID'])}"
+                G.add_node(node_id, label=label, title=label, color="#ff9800")  # orange
 
         # ---------------- Edges ----------------
 
@@ -204,6 +265,14 @@ class KnowledgeGraphBuilder():
             target = f"F_{int(row['target'])}"
             if source in G.nodes and target in G.nodes:
                 G.add_edge(source, target, color="#860000", dashes=True, label=f"Linked to PR#{row['pr_number']}")
+        
+        
+        if 'developer_function_edges' in knowledge_graph:
+            for _, row in knowledge_graph['developer_function_edges'].iterrows():
+                source = f"DEV_{int(row['source'])}"
+                target = f"F_{int(row['target'])}"
+                if source in G.nodes and target in G.nodes:
+                    G.add_edge(source, target, color="#ff9800", dashes=True, title="Developer → Function")
 
         # Visualize with pyvis
         net = Network(height='1000px', width='100%', notebook=False, directed=False)
@@ -283,8 +352,6 @@ class KnowledgeGraphBuilder():
                         )
 
         driver.close()
-
-
 
 
 
@@ -685,7 +752,132 @@ class KnowledgeGraphBuilder():
 
 
 
+    def __get_repo_developers_github(self, repo, pr_nodes=None, pr_function_edges=None):
+        """Retrieve contributors and optionally map PR authors to changed functions.
+        Returns: (developers_df with dev_id,dev_name,dev_email,dev_full,
+                dev_edges_df with dev_id,func_id[,pr_number])
+        """
+        data = []
+        dev_id_counter = 1
+        login_to_dev_id = {}
 
+        # Collect contributors
+        try:
+            for contributor in repo.get_contributors():
+                dev_id = dev_id_counter
+                login_to_dev_id[contributor.login] = dev_id
+                data.append({
+                    'dev_id': dev_id,
+                    'dev_name': contributor.login,
+                    'dev_email': getattr(contributor, 'email', '') or '',
+                    'dev_full': contributor.name if contributor.name else contributor.login
+                })
+                dev_id_counter += 1
+        except Exception as e:
+            print(f"Failed to fetch contributors: {e}")
+
+        developers_df = pd.DataFrame(data) if data else pd.DataFrame(columns=['dev_id', 'dev_name', 'dev_email', 'dev_full'])
+
+        # If PR + function mapping provided, create edges: PR author -> function(s)
+        dev_edges_df = pd.DataFrame(columns=['dev_id', 'func_id', 'pr_number'])
+        if pr_nodes is not None and pr_function_edges is not None and not pr_nodes.empty and not pr_function_edges.empty:
+            # Build PR -> author map
+            pr_author = {}
+            try:
+                for pr_id in pr_nodes['ID'].dropna().astype(int).unique().tolist():
+                    try:
+                        pr = repo.get_pull(int(pr_id))
+                        login = pr.user.login if pr.user else None
+                        if login:
+                            if login not in login_to_dev_id:
+                                login_to_dev_id[login] = dev_id_counter
+                                developers_df = pd.concat([developers_df, pd.DataFrame([{
+                                    'dev_id': dev_id_counter,
+                                    'dev_name': login,
+                                    'dev_email': getattr(pr.user, 'email', '') or '',
+                                    'dev_full': getattr(pr.user, 'name', login) or login
+                                }])], ignore_index=True)
+                                dev_id_counter += 1
+                            pr_author[int(pr_id)] = login_to_dev_id[login]
+                    except Exception as pe:
+                        print(f"Warning: could not fetch PR#{pr_id}: {pe}")
+            except Exception as e:
+                print(f"Failed to map PR authors: {e}")
+
+            # Join PR->func with PR->dev
+            tmp = pr_function_edges[['source', 'target']].dropna().copy()
+            if not tmp.empty:
+                tmp['dev_id'] = tmp['source'].astype(int).map(pr_author)
+                tmp = tmp[tmp['dev_id'].notna()]
+                tmp = tmp.rename(columns={'target': 'func_id', 'source': 'pr_number'})
+                dev_edges_df = tmp[['dev_id', 'func_id', 'pr_number']].drop_duplicates().reset_index(drop=True)
+
+        return developers_df, dev_edges_df
+
+    def __get_developers_from_commits(self, repo, cg_nodes, max_commits=None):
+        """Collect developers and function edges from individual commit authors.
+        :param repo: GitHub repo
+        :param cg_nodes: DataFrame of function nodes (must include file_id, func_id, function_location)
+        :param max_commits: Limit number of commits scanned (None = all)
+        :return: developers_df (dev_id,...), dev_edges_df (dev_id, func_id, commit_sha)
+        """
+        # Map filename -> file_ids
+        temp_nodes = cg_nodes.copy()
+        temp_nodes['filename_only'] = temp_nodes['function_location'].apply(lambda p: os.path.basename(str(p)) if isinstance(p, str) else None)
+        filename_map = temp_nodes.groupby('filename_only')['file_id'].apply(lambda x: list(set(x))).to_dict()
+        file_to_funcs = temp_nodes.groupby('file_id')['func_id'].apply(list).to_dict()
+
+        # Iterate commits
+        commit_list = []
+        try:
+            commits = repo.get_commits()
+            count = 0
+            for c in commits:
+                if max_commits is not None and count >= max_commits:
+                    break
+                commit_list.append(c)
+                count += 1
+        except Exception as e:
+            print(f"Error fetching commits: {e}")
+
+        dev_records = {}
+        edge_rows = []
+        dev_id_counter = 1
+
+        for commit in commit_list:
+            author_login = commit.author.login if commit.author else None
+            if not author_login:
+                continue
+            if author_login not in dev_records:
+                dev_records[author_login] = {
+                    'dev_id': dev_id_counter,
+                    'dev_name': author_login,
+                    'dev_email': getattr(commit.author, 'email', '') if commit.author else '',
+                    'dev_full': getattr(commit.author, 'name', author_login) if commit.author else author_login
+                }
+                dev_id_counter += 1
+            # fetch detailed commit to get files
+            try:
+                detailed = repo.get_commit(commit.sha)
+                for f in detailed.files:
+                    filename_only = os.path.basename(f.filename)
+                    file_ids = filename_map.get(filename_only, [])
+                    for file_id in file_ids:
+                        func_ids = file_to_funcs.get(file_id, [])
+                        for func_id in func_ids:
+                            edge_rows.append({
+                                'dev_id': dev_records[author_login]['dev_id'],
+                                'func_id': func_id,
+                                'commit_sha': commit.sha
+                            })
+            except Exception as e:
+                print(f"Failed to process commit {commit.sha}: {e}")
+                continue
+
+        developers_df = pd.DataFrame(list(dev_records.values())) if dev_records else pd.DataFrame(columns=['dev_id', 'dev_name', 'dev_email', 'dev_full'])
+        dev_edges_df = pd.DataFrame(edge_rows).drop_duplicates().reset_index(drop=True) if edge_rows else pd.DataFrame(columns=['dev_id', 'func_id', 'commit_sha'])
+        return developers_df, dev_edges_df
+    
 
     def __format_dfs(self, cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2):
         """
