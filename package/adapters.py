@@ -22,7 +22,7 @@ class LanguageAdapter:
 
     def get_tree_sitter_parser(self) -> None | Parser:
         try:
-            parser = get_parser(self.language)
+            parser = get_parser(self.LANGUAGE)
             return parser
         except LookupError:
             return None
@@ -50,13 +50,12 @@ adapter_mapper: dict[str, LanguageAdapter] = {
         "call_expression": NodeType.CALL,
     }),
     "erlang": LanguageAdapter(language="erlang", mapper={
-        "module_attribute": NodeType.IMPORT,
-        "export_attribute": NodeType.IMPORT,
-        "fun_decl": NodeType.FUNCTION,
-        "function_clause": NodeType.FUNCTION,
-        "call": NodeType.CALL,
-        "remote": NodeType.CALL,
-    })
+    "import_attribute": NodeType.IMPORT,  # For actual -import() statements
+    "fun_decl": NodeType.FUNCTION,
+    "function_clause": NodeType.FUNCTION,
+    "call": NodeType.CALL,
+    "remote": NodeType.CALL,
+})
 }
 
 
