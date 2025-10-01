@@ -74,6 +74,7 @@ class PythonAdapter(LanguageAdapter):
 
 
 class CppAdapter(LanguageAdapter):
+
     def __init__(self):
         super().__init__(language="cpp", mapper={
         "preproc_include": NodeType.IMPORT,
@@ -81,6 +82,39 @@ class CppAdapter(LanguageAdapter):
         "function_definition": NodeType.FUNCTION,
         "call_expression": NodeType.CALL,
     })
+
+
+    def parse_import(self, top_import_node: Node, file_id: str, imp_id: int) -> list[pd.DataFrame]:
+        imports: list = list()
+
+        # C++ doesn't have 'from' or 'as' - just the include
+        from_module = None
+        as_name = None
+
+        for child in top_import_node.named_children:
+            name = None
+
+            # System includes: #include <iostream>
+            if child.type == 'system_lib_string':
+                # Remove < and > brackets
+                name = child.text.decode('utf-8').strip('<>')
+
+            # User includes: #include "myheader.h"
+            elif child.type == 'string_literal':
+                # Remove quotes
+                name = child.text.decode('utf-8').strip('"')
+
+            if name:
+                new_row = pd.DataFrame([{
+                    'file_id': file_id,
+                    'imp_id': imp_id,
+                    'name': name,
+                    'from': from_module,
+                    'as_name': as_name
+                }])
+                imports.append(new_row)
+
+        return imports
 
 """
 Mapper to store language-specific adapters and parsers.
