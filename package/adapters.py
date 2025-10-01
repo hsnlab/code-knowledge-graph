@@ -70,11 +70,17 @@ class PythonAdapter(LanguageAdapter):
                 'as_name': as_name
             }])
             imports.append(new_row)
-
         return imports
-                # Recursively traverse children
 
 
+class CppAdapter(LanguageAdapter):
+    def __init__(self):
+        super().__init__(language="cpp", mapper={
+        "preproc_include": NodeType.IMPORT,
+        "class_specifier": NodeType.CLASS,
+        "function_definition": NodeType.FUNCTION,
+        "call_expression": NodeType.CALL,
+    })
 
 """
 Mapper to store language-specific adapters and parsers.
@@ -86,12 +92,7 @@ Provides:
 
 adapter_mapper: dict[str, LanguageAdapter] = {
     "python": PythonAdapter(),
-    "cpp": LanguageAdapter(language="cpp", mapper={
-        "preproc_include": NodeType.IMPORT,
-        "class_specifier": NodeType.CLASS,
-        "function_definition": NodeType.FUNCTION,
-        "call_expression": NodeType.CALL,
-    }),
+    "cpp": CppAdapter(),
     "erlang": LanguageAdapter(language="erlang", mapper={
     "import_attribute": NodeType.IMPORT,  # For actual -import() statements
     "fun_decl": NodeType.FUNCTION,
