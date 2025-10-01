@@ -1,6 +1,8 @@
 from tree_sitter_language_pack import get_parser
 from tree_sitter import Parser
 from enum import Enum
+from tree_sitter import Node
+import pandas as pd
 
 class NodeType(Enum):
     IMPORT = "Import"
@@ -27,6 +29,53 @@ class LanguageAdapter:
         except LookupError:
             return None
 
+    def parse_import(self, top_import_node: Node, file_id: str, imp_id: int) -> list[pd.DataFrame]:
+        raise NotImplementedError
+
+class PythonAdapter(LanguageAdapter):
+    def __init__(self):
+        super().__init__(language="python", mapper={
+        "import_statement": NodeType.IMPORT,
+        "import": NodeType.IMPORT,
+        "class_definition": NodeType.CLASS,
+        "function_definition": NodeType.FUNCTION,
+        "call": NodeType.CALL,
+    })
+
+    def parse_import(self, top_import_node: Node, file_id: str, imp_id: int) -> list[pd.DataFrame]:
+        imports: list = list()
+
+        from_module = None
+        as_name = None
+        # Handle: from module import name
+        # Handle: from module import name as n
+        if top_import_node.type == 'import_from_statement':
+            module_node = top_import_node.children_by_field_name('module_name')
+            from_module = module_node[0].text.decode('utf-8') if module_node else None
+
+        for child in top_import_node.named_children:
+            name = child.text.decode('utf-8')
+
+            if child.type == 'aliased_import':
+                dotted = child.children_by_field_name('name')[0]
+                name = dotted.text.decode('utf-8')
+                alias = child.children_by_field_name('alias')[0]
+                as_name = alias.text.decode('utf-8')
+
+            new_row = pd.DataFrame([{
+                'file_id': file_id,
+                'imp_id': imp_id,
+                'name': name,
+                'from': from_module,
+                'as_name': as_name
+            }])
+            imports.append(new_row)
+
+        return imports
+                # Recursively traverse children
+
+
+
 """
 Mapper to store language-specific adapters and parsers.
 
@@ -36,13 +85,7 @@ Provides:
 """
 
 adapter_mapper: dict[str, LanguageAdapter] = {
-    "python": LanguageAdapter(language="python", mapper={
-        "import_statement": NodeType.IMPORT,
-        "import": NodeType.IMPORT,
-        "class_definition": NodeType.CLASS,
-        "function_definition": NodeType.FUNCTION,
-        "call": NodeType.CALL,
-    }),
+    "python": PythonAdapter(),
     "cpp": LanguageAdapter(language="cpp", mapper={
         "preproc_include": NodeType.IMPORT,
         "class_specifier": NodeType.CLASS,
