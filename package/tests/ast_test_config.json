@@ -1,0 +1,109 @@
+{
+  "python": {
+    "path": "fixtures/python/sample.py",
+    "expected_imports": [
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "sys",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "functools",
+              "from": null,
+              "as_name": "fun"
+          }
+    ]
+  },
+   "cpp": {
+    "path": "fixtures/cpp/sample.cpp",
+    "expected_imports": [
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "iostream",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "vector",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "string",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "myheader.h",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "utils/helper.h",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "algorithm",
+              "from": null,
+              "as_name": null
+          }
+    ]
+  },
+  "erlang": {
+    "path": "fixtures/erlang/sample.erl",
+    "expected_imports": [
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "lists",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "io",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "string",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "maps",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "erlang",
+              "from": null,
+              "as_name": null
+          }
+    ]
+  }
+
+}
