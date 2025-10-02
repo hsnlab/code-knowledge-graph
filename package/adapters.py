@@ -36,7 +36,7 @@ class PythonAdapter(LanguageAdapter):
     def __init__(self):
         super().__init__(language="python", mapper={
         "import_statement": NodeType.IMPORT,
-        "import": NodeType.IMPORT,
+        "import_from_statement": NodeType.IMPORT,
         "class_definition": NodeType.CLASS,
         "function_definition": NodeType.FUNCTION,
         "call": NodeType.CALL,
@@ -55,6 +55,9 @@ class PythonAdapter(LanguageAdapter):
 
         for child in top_import_node.named_children:
             name = child.text.decode('utf-8')
+            if top_import_node.type == 'import_from_statement' and from_module == name:
+                continue #edge case, we have to exclude the package name because we are importing specific parts of it not the whole
+
 
             if child.type == 'aliased_import':
                 dotted = child.children_by_field_name('name')[0]
