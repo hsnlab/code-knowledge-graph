@@ -1,17 +1,42 @@
 import sys
+import os
 import functools as fun
+from collections import defaultdict, Counter
+from typing import List, Dict
+import math
 
-# class
+# Simple class - no inheritance
+class SimpleClass:
+    def method_one(self):
+        pass
+
+# Single inheritance
+class BaseClass:
+    def base_method(self):
+        pass
+
+class SingleInheritance(BaseClass):
+    def child_method(self):
+        pass
+
+# Multiple inheritance
+class Mixin:
+    def mixin_method(self):
+        pass
+
+class MultipleInheritance(BaseClass, Mixin):
+    def combined_method(self):
+        pass
+
+# Original class
 class MyClass:
-    # function
     def say_hello(self):
         print("Hello from MyClass!")
 
 
-# function with call
 def main():
     obj = MyClass()
-    obj.say_hello()  # call
+    obj.say_hello()
 
 
-main()  # call
+main()

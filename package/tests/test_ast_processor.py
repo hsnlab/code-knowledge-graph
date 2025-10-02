@@ -35,6 +35,21 @@ class TestAstProcessor(unittest.TestCase):
         assert_frame_equal(processor.imports, expected_df,
                            obj=f"{language} imports")
 
+    def _test_language_classes(self, language):
+        """Generic test method for any language"""
+        # Get config
+        config = self.test_config[language]
+
+        processor: AstProcessor = self.processors[language]
+
+        expected_list = config['expected_classes']
+        expected_df = DataFrame(expected_list)
+        # Exercise: Parse and extract
+
+
+        assert_frame_equal(processor.classes, expected_df,
+                           obj=f"{language} classes")
+
     def tearDown(self):
         """Teardown Phase"""
         self.parser = None
@@ -63,6 +78,12 @@ def generate_tests():
         test_method = lambda self, lang=language: self._test_language_imports(lang)
         test_method.__name__ = f'test_{language}_imports'
         test_method.__doc__ = f'Test {language} import extraction'
+        setattr(TestAstProcessor, test_method.__name__, test_method)
+
+
+        test_method = lambda self, lang=language: self._test_language_classes(lang)
+        test_method.__name__ = f'test_{language}_class'
+        test_method.__doc__ = f'Test {language} class extraction'
         setattr(TestAstProcessor, test_method.__name__, test_method)
 
     # Store processors dict on the class

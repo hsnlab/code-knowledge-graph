@@ -12,9 +12,89 @@
           {
               "file_id": null,
               "imp_id": null,
+              "name": "os",
+              "from": null,
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
               "name": "functools",
               "from": null,
               "as_name": "fun"
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "defaultdict",
+              "from": "collections",
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "Counter",
+              "from": "collections",
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "List",
+              "from": "typing",
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "Dict",
+              "from": "typing",
+              "as_name": null
+          },
+          {
+              "file_id": null,
+              "imp_id": null,
+              "name": "math",
+              "from": null,
+              "as_name": null
+          }
+    ],
+    "expected_classes": [
+          {
+              "file_id": null,
+              "cls_id": null,
+              "name": "SimpleClass",
+              "base_classes": null
+          },
+          {
+              "file_id": null,
+              "cls_id": null,
+              "name": "BaseClass",
+              "base_classes": null
+          },
+          {
+              "file_id": null,
+              "cls_id": null,
+              "name": "SingleInheritance",
+              "base_classes": "BaseClass"
+          },
+          {
+              "file_id": null,
+              "cls_id": null,
+              "name": "Mixin",
+              "base_classes": null
+          },
+          {
+              "file_id": null,
+              "cls_id": null,
+              "name": "MultipleInheritance",
+              "base_classes": "BaseClass,Mixin"
+          },
+          {
+              "file_id": null,
+              "cls_id": null,
+              "name": "MyClass",
+              "base_classes": null
           }
     ]
   },
@@ -63,7 +143,8 @@
               "from": null,
               "as_name": null
           }
-    ]
+    ],
+   "expected_classes": []
   },
   "erlang": {
     "path": "fixtures/erlang/sample.erl",
@@ -103,7 +184,8 @@
               "from": null,
               "as_name": null
           }
-    ]
+    ],
+   "expected_classes": []
   }
 
 }
