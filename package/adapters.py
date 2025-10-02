@@ -159,6 +159,9 @@ class CppAdapter(LanguageAdapter):
 
         return imports
 
+    def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
+        pass
+
 
 class ErlangAdapter(LanguageAdapter):
 
@@ -201,6 +204,8 @@ class ErlangAdapter(LanguageAdapter):
 
         return imports
 
+    def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
+        pass
 """
 Mapper to store language-specific adapters and parsers.
 
