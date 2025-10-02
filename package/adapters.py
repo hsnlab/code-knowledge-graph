@@ -32,6 +32,9 @@ class LanguageAdapter:
     def parse_import(self, top_import_node: Node, file_id: str, imp_id: int) -> list[pd.DataFrame]:
         raise NotImplementedError
 
+    def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
+        raise NotImplementedError
+
 class PythonAdapter(LanguageAdapter):
     def __init__(self):
         super().__init__(language="python", mapper={
@@ -75,6 +78,43 @@ class PythonAdapter(LanguageAdapter):
             imports.append(new_row)
         return imports
 
+    def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
+        classes = []
+
+        # Python class: class MyClass(BaseClass1, BaseClass2):
+        # We need to extract:
+        # - class name
+        # - base classes (if any)
+
+        name = None
+        base_classes = []
+
+        for child in top_class_node.named_children:
+            # Get class name
+            if child.type == 'identifier':
+                name = child.text.decode('utf-8')
+
+            # Get base classes from argument_list
+            elif child.type == 'argument_list':
+                for base in child.named_children:
+                    if base.type == 'identifier':
+                        base_classes.append(base.text.decode('utf-8'))
+                    elif base.type == 'attribute':
+                        # Handle cases like: class MyClass(module.BaseClass)
+                        base_classes.append(base.text.decode('utf-8'))
+
+        # Convert base_classes list to string (or keep as list, depends on your needs)
+        base_classes_str = ','.join(base_classes) if base_classes else None
+
+        new_row = pd.DataFrame([{
+            'file_id': file_id,
+            'cls_id': cls_id,
+            'name': name,
+            'base_classes': base_classes_str
+        }])
+        classes.append(new_row)
+
+        return classes
 
 class CppAdapter(LanguageAdapter):
 
