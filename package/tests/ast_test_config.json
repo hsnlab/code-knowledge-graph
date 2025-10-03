@@ -144,7 +144,57 @@
               "as_name": null
           }
     ],
-   "expected_classes": []
+   "expected_classes":  [
+    {
+      "file_id": null,
+      "cls_id": null,
+      "name": "SimpleClass",
+      "base_classes": null
+    },
+    {
+      "file_id": null,
+      "cls_id": null,
+      "name": "BaseClass",
+      "base_classes": null
+    },
+    {
+      "file_id": null,
+      "cls_id": null,
+      "name": "SingleInheritance",
+      "base_classes": "BaseClass"
+    },
+    {
+      "file_id": null,
+      "cls_id": null,
+      "name": "Mixin",
+      "base_classes": null
+    },
+    {
+      "file_id": null,
+      "cls_id": null,
+      "name": "MultipleInheritance",
+      "base_classes": "BaseClass,Mixin"
+    },
+    {
+      "file_id": null,
+      "cls_id": null,
+      "name": "TemplateClass",
+      "base_classes": null
+    },
+    {
+      "file_id": null,
+      "cls_id": null,
+      "name": "SimpleStruct",
+      "base_classes": "BaseClass"
+    },
+    {
+      "file_id": null,
+      "cls_id": null,
+      "name": "MyClass",
+      "base_classes": null
+    }
+  ]
+
   },
   "erlang": {
     "path": "fixtures/erlang/sample.erl",

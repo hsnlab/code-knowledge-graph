@@ -44,8 +44,8 @@ class TestAstProcessor(unittest.TestCase):
 
         expected_list = config['expected_classes']
         expected_df = DataFrame(expected_list)
-        # Exercise: Parse and extract
-
+        if len(expected_list) == 0:
+            expected_df = DataFrame(columns=['file_id', 'cls_id', 'name', 'base_classes'])
 
         assert_frame_equal(processor.classes, expected_df,
                            obj=f"{language} classes")
