@@ -159,10 +159,33 @@ def load_any_dataset(select: str) -> pd.DataFrame:
         raise ValueError(select)
 
 raw_df = load_any_dataset(SELECT_DATASET)
+# --- Kiegyensúlyozás: ~10% pozitív (összes pozitív megtartása, negatívakból mintavétel) ---
+def make_about_10pct_pos(df: pd.DataFrame, seed: int = SEED, neg_per_pos: int = 9) -> pd.DataFrame:
+    df = df.copy()
+    df['label'] = df['label'].astype(int)
+    df_pos = df[df['label'] == 1]
+    df_neg = df[df['label'] == 0]
+    if len(df_pos) == 0:
+        raise ValueError("Nincs pozitív minta a datasetben, nem lehet kiegyensúlyozni.")
+
+    target_neg = min(len(df_neg), neg_per_pos * len(df_pos))   # ~10% pozitív → 1 : 9 arány
+    df_neg_sampled = df_neg.sample(target_neg, random_state=seed)
+
+    df_bal = pd.concat([df_pos, df_neg_sampled]).sample(frac=1, random_state=seed).reset_index(drop=True)
+    return df_bal
+
+raw_df = make_about_10pct_pos(raw_df, seed=SEED, neg_per_pos=9)
+
+# MAX_SAMPLES alkalmazása STRATIFIKÁLTAN, hogy az arány megmaradjon
+from sklearn.model_selection import train_test_split
 if MAX_SAMPLES and len(raw_df) > MAX_SAMPLES:
-    raw_df = raw_df.sample(MAX_SAMPLES, random_state=SEED).reset_index(drop=True)
+    raw_df, _ = train_test_split(
+        raw_df, train_size=MAX_SAMPLES, stratify=raw_df['label'], random_state=SEED
+    )
+
 raw_df['label'] = raw_df['label'].astype(int)
-print('Minták száma:', len(raw_df))
+print('Kiegyensúlyozott minták száma:', len(raw_df))
+print('Arányok:\n', raw_df['label'].value_counts(normalize=True).rename('proportion').round(3))
 display_cols = raw_df.columns.tolist()
 print("Oszlopok:", display_cols)
 
