@@ -122,6 +122,7 @@ class CppAdapter(LanguageAdapter):
         super().__init__(language="cpp", mapper={
         "preproc_include": NodeType.IMPORT,
         "class_specifier": NodeType.CLASS,
+        "struct_specifier": NodeType.CLASS,
         "function_definition": NodeType.FUNCTION,
         "call_expression": NodeType.CALL,
     })
@@ -160,7 +161,45 @@ class CppAdapter(LanguageAdapter):
         return imports
 
     def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
-        pass
+        classes = []
+
+        # C++ class: class MyClass : public BaseClass1, private BaseClass2 { ... };
+        # We need to extract:
+        # - class name
+        # - base classes (if any)
+
+        name = None
+        base_classes = []
+
+        for child in top_class_node.named_children:
+            # Get class name - it's a type_identifier in C++
+            if child.type == 'type_identifier':
+                name = child.text.decode('utf-8')
+
+            # Get base classes from base_class_clause
+            elif child.type == 'base_class_clause':
+                for base in child.named_children:
+                    # Each base class is in a base_class_specifier
+                    if base.type in ['type_identifier', 'qualified_identifier']:
+                        base_classes.append(base.text.decode('utf-8'))
+                    elif base.type == 'base_class_specifier':
+                        # Look for the actual type inside the specifier
+                        for specifier_child in base.named_children:
+                            if specifier_child.type in ['type_identifier', 'qualified_identifier']:
+                                base_classes.append(specifier_child.text.decode('utf-8'))
+
+        # Convert base_classes list to string
+        base_classes_str = ','.join(base_classes) if base_classes else None
+
+        new_row = pd.DataFrame([{
+            'file_id': file_id,
+            'cls_id': cls_id,
+            'name': name,
+            'base_classes': base_classes_str
+        }])
+        classes.append(new_row)
+
+        return classes
 
 
 class ErlangAdapter(LanguageAdapter):
@@ -205,7 +244,7 @@ class ErlangAdapter(LanguageAdapter):
         return imports
 
     def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
-        pass
+        return []
 """
 Mapper to store language-specific adapters and parsers.
 
