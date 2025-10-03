@@ -546,12 +546,12 @@ def evaluate(loader):
 # =========================
 # 10) TANÍTÁS + VALIDÁCIÓ + MENTÉS
 # =========================
-best_val, best_state = 0.0, None
+best_val_f1, best_state = 0.0, None
 for epoch in range(1, epochs+1):
     tr_loss, tr_acc = run(train_loader, train=True)
     va_acc, va_prec, va_rec, va_f1, _ = evaluate(val_loader)
-    if va_acc > best_val:
-        best_val, best_state = va_acc, model.state_dict()
+    if va_f1 > best_val_f1:
+        best_val_f1, best_state = va_f1, model.state_dict()
     print(f"epoch {epoch:02d} | train acc {tr_acc:.3f} | val acc {va_acc:.3f} | val F1 {va_f1:.3f}")
 
     # <<< VRAM tisztítás epoch végén (ha CUDA)
