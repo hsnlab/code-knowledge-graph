@@ -500,7 +500,7 @@ model = GGNNClassifierFeatsNoEmb(
     steps=10, blocks=5, num_edge_types=num_edge_types, dropout=0.3
 ).to(device)
 
-lr, epochs = 3e-5, EPOCHS_GGNN
+lr, epochs = 3e-4, EPOCHS_GGNN
 opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
 # BCEWithLogitsLoss: pos_weight a pozitív osztály súlyozására
