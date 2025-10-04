@@ -7,14 +7,14 @@
               "imp_id": null,
               "name": "sys",
               "from": null,
-              "as_name": null
+              "as_name": "sys"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "os",
               "from": null,
-              "as_name": null
+              "as_name": "os"
           },
           {
               "file_id": null,
@@ -28,35 +28,35 @@
               "imp_id": null,
               "name": "defaultdict",
               "from": "collections",
-              "as_name": null
+              "as_name": "defaultdict"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "Counter",
               "from": "collections",
-              "as_name": null
+              "as_name": "Counter"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "List",
               "from": "typing",
-              "as_name": null
+              "as_name": "List"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "Dict",
               "from": "typing",
-              "as_name": null
+              "as_name": "Dict"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "math",
               "from": null,
-              "as_name": null
+              "as_name": "math"
           }
     ],
     "expected_classes": [
@@ -64,37 +64,37 @@
               "file_id": null,
               "cls_id": null,
               "name": "SimpleClass",
-              "base_classes": null
+              "base_classes": []
           },
           {
               "file_id": null,
               "cls_id": null,
               "name": "BaseClass",
-              "base_classes": null
+              "base_classes": []
           },
           {
               "file_id": null,
               "cls_id": null,
               "name": "SingleInheritance",
-              "base_classes": "BaseClass"
+              "base_classes": ["BaseClass"]
           },
           {
               "file_id": null,
               "cls_id": null,
               "name": "Mixin",
-              "base_classes": null
+              "base_classes": []
           },
           {
               "file_id": null,
               "cls_id": null,
               "name": "MultipleInheritance",
-              "base_classes": "BaseClass,Mixin"
+              "base_classes": ["BaseClass","Mixin"]
           },
           {
               "file_id": null,
               "cls_id": null,
               "name": "MyClass",
-              "base_classes": null
+              "base_classes": []
           }
     ]
   },
@@ -106,42 +106,42 @@
               "imp_id": null,
               "name": "iostream",
               "from": null,
-              "as_name": null
+              "as_name": "iostream"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "vector",
               "from": null,
-              "as_name": null
+              "as_name": "vector"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "string",
               "from": null,
-              "as_name": null
+              "as_name": "string"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "myheader.h",
               "from": null,
-              "as_name": null
+              "as_name": "myheader.h"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "utils/helper.h",
               "from": null,
-              "as_name": null
+              "as_name": "utils/helper.h"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "algorithm",
               "from": null,
-              "as_name": null
+              "as_name": "algorithm"
           }
     ],
    "expected_classes":  [
@@ -149,49 +149,49 @@
       "file_id": null,
       "cls_id": null,
       "name": "SimpleClass",
-      "base_classes": null
+      "base_classes": []
     },
     {
       "file_id": null,
       "cls_id": null,
       "name": "BaseClass",
-      "base_classes": null
+      "base_classes": []
     },
     {
       "file_id": null,
       "cls_id": null,
       "name": "SingleInheritance",
-      "base_classes": "BaseClass"
+      "base_classes": ["BaseClass"]
     },
     {
       "file_id": null,
       "cls_id": null,
       "name": "Mixin",
-      "base_classes": null
+      "base_classes": []
     },
     {
       "file_id": null,
       "cls_id": null,
       "name": "MultipleInheritance",
-      "base_classes": "BaseClass,Mixin"
+      "base_classes": ["BaseClass","Mixin"]
     },
     {
       "file_id": null,
       "cls_id": null,
       "name": "TemplateClass",
-      "base_classes": null
+      "base_classes": []
     },
     {
       "file_id": null,
       "cls_id": null,
       "name": "SimpleStruct",
-      "base_classes": "BaseClass"
+      "base_classes": ["BaseClass"]
     },
     {
       "file_id": null,
       "cls_id": null,
       "name": "MyClass",
-      "base_classes": null
+      "base_classes": []
     }
   ]
 
@@ -204,35 +204,35 @@
               "imp_id": null,
               "name": "lists",
               "from": null,
-              "as_name": null
+              "as_name": "lists"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "io",
               "from": null,
-              "as_name": null
+              "as_name": "io"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "string",
               "from": null,
-              "as_name": null
+              "as_name": "string"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "maps",
               "from": null,
-              "as_name": null
+              "as_name": "maps"
           },
           {
               "file_id": null,
               "imp_id": null,
               "name": "erlang",
               "from": null,
-              "as_name": null
+              "as_name": "erlang"
           }
     ],
    "expected_classes": []
