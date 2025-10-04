@@ -133,7 +133,7 @@ def make_about_10pct_pos(df: pd.DataFrame, seed: int = SEED, neg_per_pos: int = 
     df_bal = pd.concat([df_pos, df_neg_sampled]).sample(frac=1, random_state=seed).reset_index(drop=True)
     return df_bal
 
-raw_df = make_about_10pct_pos(raw_df, seed=SEED, neg_per_pos=2)
+raw_df = make_about_10pct_pos(raw_df, seed=SEED, neg_per_pos=3)
 
 # MAX_SAMPLES alkalmazása STRATIFIKÁLTAN, hogy az arány megmaradjon
 from sklearn.model_selection import train_test_split
