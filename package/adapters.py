@@ -68,6 +68,8 @@ class PythonAdapter(LanguageAdapter):
                 alias = child.children_by_field_name('alias')[0]
                 as_name = alias.text.decode('utf-8')
 
+            if as_name is None:
+                as_name = name
             new_row = pd.DataFrame([{
                 'file_id': file_id,
                 'imp_id': imp_id,
@@ -76,6 +78,7 @@ class PythonAdapter(LanguageAdapter):
                 'as_name': as_name
             }])
             imports.append(new_row)
+            as_name = None # reset as_name
         return imports
 
     def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
@@ -104,7 +107,7 @@ class PythonAdapter(LanguageAdapter):
                         base_classes.append(base.text.decode('utf-8'))
 
         # Convert base_classes list to string (or keep as list, depends on your needs)
-        base_classes_str = ','.join(base_classes) if base_classes else None
+        base_classes_str = base_classes if base_classes else [ ]
 
         new_row = pd.DataFrame([{
             'file_id': file_id,
@@ -147,7 +150,8 @@ class CppAdapter(LanguageAdapter):
             elif child.type == 'string_literal':
                 # Remove quotes
                 name = child.text.decode('utf-8').strip('"')
-
+            if as_name is None:
+                as_name = name
             if name:
                 new_row = pd.DataFrame([{
                     'file_id': file_id,
@@ -189,7 +193,7 @@ class CppAdapter(LanguageAdapter):
                                 base_classes.append(specifier_child.text.decode('utf-8'))
 
         # Convert base_classes list to string
-        base_classes_str = ','.join(base_classes) if base_classes else None
+        base_classes_str = base_classes if base_classes else []
 
         new_row = pd.DataFrame([{
             'file_id': file_id,
@@ -230,6 +234,7 @@ class ErlangAdapter(LanguageAdapter):
                 name = child.text.decode('utf-8')
 
                 if name:
+                    as_name = name
                     new_row = pd.DataFrame([{
                         'file_id': file_id,
                         'imp_id': imp_id,
