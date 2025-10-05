@@ -35,6 +35,9 @@ class LanguageAdapter:
     def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
         raise NotImplementedError
 
+    def parse_functions(self, top_function_node: Node, current_class: str, file_id: str, fnc_id: int) -> list[pd.DataFrame]:
+        raise NotImplementedError
+
 class PythonAdapter(LanguageAdapter):
     def __init__(self):
         super().__init__(language="python", mapper={
