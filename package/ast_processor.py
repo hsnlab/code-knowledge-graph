@@ -8,7 +8,7 @@ class AstProcessor:
 
         self.imports = pd.DataFrame(columns=['file_id', 'imp_id', 'name', 'from', 'as_name'])
         self.classes = pd.DataFrame(columns=['file_id', 'cls_id', 'name', 'base_classes'])
-        self.functions = pd.DataFrame(columns=['file_id', 'fnc_id', 'name', 'class', 'class_base_classes', 'params'])
+        self.functions = pd.DataFrame(columns=['file_id', 'fnc_id', 'name', 'class', 'class_base_classes', 'params', 'docstring', 'function_code', 'class_id', 'return_type'])
         self.calls = pd.DataFrame(columns=['file_id', 'cll_id', 'name', 'class', 'class_base_classes'])
         self.adapter = adapter
         parser: Parser = adapter.get_tree_sitter_parser()
@@ -44,15 +44,36 @@ class AstProcessor:
 
     def _handle_class_definitions(self, node: Node, file_id: str, current_class_id):
         if self.__is_not_correct_type(node, NodeType.CLASS):
-            return
+            return None
         classes = self.adapter.parse_class(top_class_node=node, file_id=file_id, cls_id=current_class_id)
 
         self.classes = self.__update_indexes_and_dataframe(classes, self.classes, "cls_id")
+        return classes[0] if len(classes) > 0 else None
 
-    def __walk_ast(self, node: Node, file_id: str) -> None:
+    def _handle_function_definitions(self, node: Node, current_class_name: str ,current_base_classes: list[str], file_id: str, fnc_id, class_id):
+        if node.type == 'function_definition' and node.parent and node.parent.type == 'decorated_definition':
+            return
+
+        if self.__is_not_correct_type(node, NodeType.FUNCTION):
+            return
+        functions = self.adapter.parse_functions(top_function_node=node, current_class_name=current_class_name,
+                    class_base_classes=current_base_classes, file_id=file_id, fnc_id=fnc_id, class_id=class_id)
+        self.functions = self.__update_indexes_and_dataframe(functions, self.functions, "cls_id")
+
+
+    def __walk_ast(self, node: Node, file_id: str, class_name='Global', class_base_classes=list(), class_id=None ) -> None:
         # todo update the id mapper
         self._handle_imports(node, file_id=file_id, current_import_id=self.id_dict.get("imp_id", None))
-        self._handle_class_definitions(node, file_id=file_id, current_class_id=self.id_dict.get("cls_id", None))
-
+        current_class = self._handle_class_definitions(node, file_id=file_id, current_class_id=self.id_dict.get("cls_id", None))
+        class_name=class_name if not None else "Global"
+        class_base_classes=class_base_classes if not None else []
+        class_id=class_id if not None else None
+        if current_class is not None:
+            current_class = current_class.iloc[0]
+            class_name = current_class["name"]
+            class_base_classes = current_class["base_classes"]
+            class_id=current_class["cls_id"]
+        self._handle_function_definitions(node, file_id=file_id, fnc_id=self.id_dict.get("fnc_id", None), current_class_name=class_name,
+                                          current_base_classes=class_base_classes,class_id=class_id)
         for child in node.children:
-            self.__walk_ast(child, file_id)
+            self.__walk_ast(child, file_id, class_name=class_name, class_base_classes=class_base_classes, class_id=class_id)
