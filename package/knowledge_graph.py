@@ -706,4 +706,9 @@ class KnowledgeGraphBuilder():
         hier_1 = hier_1.rename(columns={'source_id': 'source', 'target_id': 'target'})
         hier_2 = hier_2.rename(columns={'source_id': 'source', 'target_id': 'target'})
 
+        cg_nodes['class_name'] = cg_nodes['combinedName'].apply(lambda x: x.split(".")[0] if "." in x else "")
+        cg_nodes['function_name'] = cg_nodes['combinedName'].apply(lambda x: x.split(".")[1] if "." in x else x)
+
+        cg_nodes['docstring'] = cg_nodes['docstring'].fillna("")
+
         return cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2
