@@ -35,7 +35,8 @@ class LanguageAdapter:
     def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
         raise NotImplementedError
 
-    def parse_functions(self, top_function_node: Node, current_class: str, file_id: str, fnc_id: int) -> list[pd.DataFrame]:
+    def parse_functions(self, top_function_node: Node, current_class_name: str, class_base_classes: list, file_id: str,
+                        fnc_id: int, class_id: int) -> list[pd.DataFrame]:
         raise NotImplementedError
 
 class PythonAdapter(LanguageAdapter):
@@ -45,6 +46,8 @@ class PythonAdapter(LanguageAdapter):
         "import_from_statement": NodeType.IMPORT,
         "class_definition": NodeType.CLASS,
         "function_definition": NodeType.FUNCTION,
+        "decorated_definition": NodeType.FUNCTION,
+        "async_function_definition": NodeType.FUNCTION,
         "call": NodeType.CALL,
     })
 
@@ -122,8 +125,92 @@ class PythonAdapter(LanguageAdapter):
 
         return classes
 
-    def parse_functions(self, top_function_node: Node, current_class: str, file_id: str, fnc_id: int) -> list[pd.DataFrame]:
-        raise NotImplementedError
+    def parse_functions(self, top_function_node: Node, current_class_name: str, class_base_classes: list,
+                        file_id: str, fnc_id: int, class_id: int) -> list[pd.DataFrame]:
+        # Unwrap decorated functions to get actual function node
+        func_node = top_function_node
+        if top_function_node.type == 'decorated_definition':
+            for child in top_function_node.named_children:
+                if child.type in ['function_definition', 'async_function_definition']:
+                    func_node = child
+                    break
+
+        # Extract all components
+        name = self._get_child_text(func_node, 'identifier') or '<anonymous>'
+        params = self._parse_params(func_node)
+        return_type = self._get_child_text(func_node, 'type')
+        docstring = self._get_docstring(func_node)
+
+        import json
+        return [pd.DataFrame([{
+            'file_id': file_id,
+            'fnc_id': fnc_id,
+            'name': name,
+            'class': current_class_name,
+            'class_base_classes': class_base_classes,
+            'params': json.dumps(params),
+            'docstring': docstring,
+            'function_code': top_function_node.text.decode('utf-8'),
+            'class_id': class_id,
+            'return_type': return_type
+        }])]
+
+    def _get_child_text(self, node: Node, child_type: str) -> str | None:
+        """Get decoded text of first child matching type."""
+        for child in node.named_children:
+            if child.type == child_type:
+                return child.text.decode('utf-8')
+        return None
+
+    def _parse_params(self, func_node: Node) -> dict[str, str]:
+        """Extract parameters, skipping positional-only, keyword-only, *args, **kwargs."""
+        params_node = next((c for c in func_node.named_children if c.type == 'parameters'), None)
+        if not params_node:
+            return {}
+
+        params = {}
+        has_pos_sep = any(c.type == 'positional_separator' for c in params_node.named_children)
+        before_pos_sep, after_kw_sep = has_pos_sep, False
+
+        for child in params_node.named_children:
+            if child.type == 'positional_separator':
+                before_pos_sep = False
+            elif child.type == 'keyword_separator':
+                after_kw_sep = True
+            elif not (before_pos_sep or after_kw_sep or
+                      child.type in ['list_splat_pattern', 'dictionary_splat_pattern']):
+                name, typ = self._get_param_info(child)
+                if name:
+                    params[name] = typ
+        return params
+
+    def _get_param_info(self, node: Node) -> tuple[str | None, str]:
+        """Extract parameter name and type."""
+        if node.type == 'identifier':
+            return node.text.decode('utf-8'), 'Any'
+        if node.type in ['typed_parameter', 'typed_default_parameter']:
+            name = self._get_child_text(node, 'identifier')
+            typ = self._get_child_text(node, 'type') or 'Any'
+            return name, typ
+        return None, 'Any'
+
+    def _get_docstring(self, func_node: Node) -> str | None:
+        """Extract docstring from first statement."""
+        block = next((c for c in func_node.named_children if c.type == 'block'), None)
+        if not block or not block.named_children:
+            return None
+
+        first = block.named_children[0]
+        if first.type == 'expression_statement':
+            string = next((c for c in first.named_children if c.type == 'string'), None)
+            if string:
+                text = string.text.decode('utf-8')
+                # Check for string prefix BEFORE stripping quotes
+                if text and text[0] in 'frFR':
+                    text = text[1:]
+                # Now strip quotes
+                return text.strip('"""').strip("'''").strip('"').strip("'")
+        return None
 
 class CppAdapter(LanguageAdapter):
 
@@ -211,8 +298,9 @@ class CppAdapter(LanguageAdapter):
 
         return classes
 
-    def parse_functions(self, top_function_node: Node, current_class: str, file_id: str, fnc_id: int) -> list[pd.DataFrame]:
-        raise NotImplementedError
+    def parse_functions(self, top_function_node: Node, current_class_name: str, class_base_classes: list, file_id: str,
+                        fnc_id: int, class_id: int) -> list[pd.DataFrame]:
+        return []
 
 class ErlangAdapter(LanguageAdapter):
 
@@ -259,8 +347,9 @@ class ErlangAdapter(LanguageAdapter):
     def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
         return []
 
-    def parse_functions(self, top_function_node: Node, current_class: str, file_id: str, fnc_id: int) -> list[pd.DataFrame]:
-        raise NotImplementedError
+    def parse_functions(self, top_function_node: Node, current_class_name: str, class_base_classes: list, file_id: str,
+                        fnc_id: int, class_id: int) -> list[pd.DataFrame]:
+        return []
 
 """
 Mapper to store language-specific adapters and parsers.
@@ -269,7 +358,7 @@ Provides:
 - Access to language-specific Tree-sitter parsers.
 - Node type mappings for normalized categories (Import, Class, Function, Call).
 """
-
+# todo add adapter registry class
 adapter_mapper: dict[str, LanguageAdapter] = {
     "python": PythonAdapter(),
     "cpp": CppAdapter(),
