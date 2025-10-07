@@ -5,6 +5,8 @@ import os, json, random, hashlib
 from dataclasses import dataclass
 from typing import List, Tuple, Dict, Any
 from pathlib import Path
+from datetime import datetime
+
 
 # <<< CUDA allocator: ezt a torch import ELŐTT kell beállítani!
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,max_split_size_mb:128"
@@ -47,8 +49,8 @@ print("device:", device)
 # =========================
 SELECT_DATASET = 'draper_hf'     # 'code_x_glue' | 'draper_hf'
 LANG = 'cpp'                     # 'c' | 'cpp'
-MAX_SAMPLES = 20000              # 0 → mind (óvatosan RAM/VRAM miatt)
-BATCH_TRAIN, BATCH_EVAL = 64, 128
+MAX_SAMPLES = 0              # 0 → mind (óvatosan RAM/VRAM miatt)
+BATCH_TRAIN, BATCH_EVAL = 128, 128
 EPOCHS_GGNN, EPOCHS_GINE = 30, 20
 
 # one-hot hash bucket a levelek szövegéhez (normalizálás miatt lehet kicsi)
@@ -133,7 +135,7 @@ def make_about_10pct_pos(df: pd.DataFrame, seed: int = SEED, neg_per_pos: int = 
     df_bal = pd.concat([df_pos, df_neg_sampled]).sample(frac=1, random_state=seed).reset_index(drop=True)
     return df_bal
 
-raw_df = make_about_10pct_pos(raw_df, seed=SEED, neg_per_pos=3)
+#raw_df = make_about_10pct_pos(raw_df, seed=SEED, neg_per_pos=3)
 
 # MAX_SAMPLES alkalmazása STRATIFIKÁLTAN, hogy az arány megmaradjon
 from sklearn.model_selection import train_test_split
