@@ -50,7 +50,7 @@ print("device:", device)
 SELECT_DATASET = 'draper_hf'     # 'code_x_glue' | 'draper_hf'
 LANG = 'cpp'                     # 'c' | 'cpp'
 MAX_SAMPLES = 0              # 0 → mind (óvatosan RAM/VRAM miatt)
-BATCH_TRAIN, BATCH_EVAL = 128, 128
+BATCH_TRAIN, BATCH_EVAL = 64, 128
 EPOCHS_GGNN, EPOCHS_GINE = 30, 20
 
 # one-hot hash bucket a levelek szövegéhez (normalizálás miatt lehet kicsi)
