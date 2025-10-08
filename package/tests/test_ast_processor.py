@@ -2,7 +2,7 @@ import unittest
 import json
 import os
 from package.ast_processor import AstProcessor
-from package.adapters import adapter_mapper, LanguageAdapter
+from package.adapters import LanguageAstAdapterRegistry
 from pandas.testing import assert_frame_equal
 from pandas import DataFrame, notna
 
@@ -99,7 +99,8 @@ def generate_tests():
 
     for language in test_config.keys():
         config = test_config[language]
-        adapter = adapter_mapper.get(language)
+        adapter_class = LanguageAstAdapterRegistry.get_adapter(language)
+        adapter = adapter_class()
         file_path = os.path.join(os.path.dirname(__file__), config['path'])
         with open(file_path, 'rb') as f:
             file_content = f.read()
