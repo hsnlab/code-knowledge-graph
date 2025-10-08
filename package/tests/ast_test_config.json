@@ -2,62 +2,76 @@
   "python": {
     "path": "fixtures/python/sample.py",
     "expected_imports": [
-          {
-              "file_id": null,
-              "imp_id": null,
-              "name": "sys",
-              "from": null,
-              "as_name": "sys"
-          },
-          {
-              "file_id": null,
-              "imp_id": null,
-              "name": "os",
-              "from": null,
-              "as_name": "os"
-          },
-          {
-              "file_id": null,
-              "imp_id": null,
-              "name": "functools",
-              "from": null,
-              "as_name": "fun"
-          },
-          {
-              "file_id": null,
-              "imp_id": null,
-              "name": "defaultdict",
-              "from": "collections",
-              "as_name": "defaultdict"
-          },
-          {
-              "file_id": null,
-              "imp_id": null,
-              "name": "Counter",
-              "from": "collections",
-              "as_name": "Counter"
-          },
-          {
-              "file_id": null,
-              "imp_id": null,
-              "name": "List",
-              "from": "typing",
-              "as_name": "List"
-          },
-          {
-              "file_id": null,
-              "imp_id": null,
-              "name": "Dict",
-              "from": "typing",
-              "as_name": "Dict"
-          },
-          {
-              "file_id": null,
-              "imp_id": null,
-              "name": "math",
-              "from": null,
-              "as_name": "math"
-          }
+      {
+          "file_id": null,
+          "imp_id": null,
+          "name": "sys",
+          "from": null,
+          "as_name": "sys"
+      },
+      {
+          "file_id": null,
+          "imp_id": null,
+          "name": "os",
+          "from": null,
+          "as_name": "os"
+      },
+      {
+          "file_id": null,
+          "imp_id": null,
+          "name": "functools",
+          "from": null,
+          "as_name": "fun"
+      },
+      {
+          "file_id": null,
+          "imp_id": null,
+          "name": "defaultdict",
+          "from": "collections",
+          "as_name": "defaultdict"
+      },
+      {
+          "file_id": null,
+          "imp_id": null,
+          "name": "Counter",
+          "from": "collections",
+          "as_name": "Counter"
+      },
+      {
+          "file_id": null,
+          "imp_id": null,
+          "name": "List",
+          "from": "typing",
+          "as_name": "List"
+      },
+      {
+          "file_id": null,
+          "imp_id": null,
+          "name": "Dict",
+          "from": "typing",
+          "as_name": "Dict"
+      },
+      {
+          "file_id": null,
+          "imp_id": null,
+          "name": "Optional",
+          "from": "typing",
+          "as_name": "Optional"
+      },
+      {
+          "file_id": null,
+          "imp_id": null,
+          "name": "Tuple",
+          "from": "typing",
+          "as_name": "Tuple"
+      },
+      {
+          "file_id": null,
+          "imp_id": null,
+          "name": "math",
+          "from": null,
+          "as_name": "math"
+      }
     ],
     "expected_classes": [
           {
@@ -96,7 +110,237 @@
               "name": "MyClass",
               "base_classes": []
           }
-    ]
+    ],
+    "expected_functions": [
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "method_one",
+        "class": "SimpleClass",
+        "class_base_classes": [],
+        "params": "{\"self\": \"Any\"}",
+        "docstring": null,
+        "function_code": "def method_one(self):\\n    pass",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "method_with_params",
+        "class": "SimpleClass",
+        "class_base_classes": [],
+        "params": "{\"self\": \"Any\", \"name\": \"str\", \"age\": \"int\"}",
+        "docstring": "Method with type hints and docstring",
+        "function_code": "def method_with_params(self, name: str, age: int) -> str:\\n    \"\"\"Method with type hints and docstring\"\"\"\\n    return f'{name} is {age}'",
+        "class_id": null,
+        "return_type": "str"
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "method_no_hints",
+        "class": "SimpleClass",
+        "class_base_classes": [],
+        "params": "{\"self\": \"Any\", \"x\": \"Any\", \"y\": \"Any\", \"z\": \"Any\"}",
+        "docstring": "Method without type hints",
+        "function_code": "def method_no_hints(self, x, y, z):\\n    \"\"\"Method without type hints\"\"\"\\n    return x + y + z",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "base_method",
+        "class": "BaseClass",
+        "class_base_classes": [],
+        "params": "{\"self\": \"Any\"}",
+        "docstring": null,
+        "function_code": "def base_method(self):\\n    pass",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "static_method",
+        "class": "BaseClass",
+        "class_base_classes": [],
+        "params": "{\"value\": \"int\"}",
+        "docstring": "Static method",
+        "function_code": "@staticmethod\\ndef static_method(value: int) -> int:\\n    \"\"\"Static method\"\"\"\\n    return value * 2",
+        "class_id": null,
+        "return_type": "int"
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "class_method",
+        "class": "BaseClass",
+        "class_base_classes": [],
+        "params": "{\"cls\": \"Any\", \"data\": \"str\"}",
+        "docstring": "Class method",
+        "function_code": "@classmethod\\ndef class_method(cls, data: str):\\n    \"\"\"Class method\"\"\"\\n    return cls()",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "child_method",
+        "class": "SingleInheritance",
+        "class_base_classes": ["BaseClass"],
+        "params": "{\"self\": \"Any\"}",
+        "docstring": null,
+        "function_code": "def child_method(self):\\n    pass",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "override_method",
+        "class": "SingleInheritance",
+        "class_base_classes": ["BaseClass"],
+        "params": "{\"self\": \"Any\", \"param\": \"Optional[str]\"}",
+        "docstring": "Method with default parameter",
+        "function_code": "def override_method(self, param: Optional[str] = None) -> bool:\\n    \"\"\"Method with default parameter\"\"\"\\n    return param is not None",
+        "class_id": null,
+        "return_type": "bool"
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "mixin_method",
+        "class": "Mixin",
+        "class_base_classes": [],
+        "params": "{\"self\": \"Any\"}",
+        "docstring": null,
+        "function_code": "def mixin_method(self):\\n    pass",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "combined_method",
+        "class": "MultipleInheritance",
+        "class_base_classes": ["BaseClass", "Mixin"],
+        "params": "{\"self\": \"Any\"}",
+        "docstring": null,
+        "function_code": "def combined_method(self):\\n    pass",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "complex_params",
+        "class": "MultipleInheritance",
+        "class_base_classes": ["BaseClass", "Mixin"],
+        "params": "{\"self\": \"Any\"}",
+        "docstring": "Method with *args and **kwargs",
+        "function_code": "def complex_params(self, *args, **kwargs) -> None:\\n    \"\"\"Method with *args and **kwargs\"\"\"\\n    pass",
+        "class_id": null,
+        "return_type": "None"
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "say_hello",
+        "class": "MyClass",
+        "class_base_classes": [],
+        "params": "{\"self\": \"Any\"}",
+        "docstring": null,
+        "function_code": "def say_hello(self):\\n    print('Hello from MyClass!')",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "nested_function_example",
+        "class": "MyClass",
+        "class_base_classes": [],
+        "params": "{\"self\": \"Any\"}",
+        "docstring": "Method with nested function",
+        "function_code": "def nested_function_example(self):\\n    \"\"\"Method with nested function\"\"\"\\n\\n    def inner_helper(x: int) -> int:\\n        return x * 2\\n\\n    return inner_helper(5)",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "inner_helper",
+        "class": "MyClass",
+        "class_base_classes": [],
+        "params": "{\"x\": \"int\"}",
+        "docstring": null,
+        "function_code": "def inner_helper(x: int) -> int:\\n    return x * 2",
+        "class_id": null,
+        "return_type": "int"
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "simple_function",
+        "class": "Global",
+        "class_base_classes": [],
+        "params": "{}",
+        "docstring": "Simple function with no params",
+        "function_code": "def simple_function():\\n    \"\"\"Simple function with no params\"\"\"\\n    pass",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "typed_function",
+        "class": "Global",
+        "class_base_classes": [],
+        "params": "{\"name\": \"str\", \"age\": \"int\", \"active\": \"bool\"}",
+        "docstring": "Function with type hints and default value",
+        "function_code": "def typed_function(name: str, age: int, active: bool = True) -> Dict[str, any]:\\n    \"\"\"Function with type hints and default value\"\"\"\\n    return {\"name\": name, \"age\": age, \"active\": active}",
+        "class_id": null,
+        "return_type": "Dict[str, any]"
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "no_type_hints",
+        "class": "Global",
+        "class_base_classes": [],
+        "params": "{\"a\": \"Any\", \"b\": \"Any\", \"c\": \"Any\"}",
+        "docstring": "Function without type hints",
+        "function_code": "def no_type_hints(a, b, c):\\n    \"\"\"Function without type hints\"\"\"\\n    return a + b + c",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "complex_signature",
+        "class": "Global",
+        "class_base_classes": [],
+        "params": "{\"normal\": \"Any\"}",
+        "docstring": "Function with positional-only and keyword-only params",
+        "function_code": "def complex_signature(pos_only, /, normal, *, kw_only, default=10) -> Tuple[int, int]:\\n    \"\"\"Function with positional-only and keyword-only params\"\"\"\\n    return (pos_only, kw_only)",
+        "class_id": null,
+        "return_type": "Tuple[int, int]"
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "main",
+        "class": "Global",
+        "class_base_classes": [],
+        "params": "{}",
+        "docstring": null,
+        "function_code": "def main():\\n    obj = MyClass()\\n    obj.say_hello()",
+        "class_id": null,
+        "return_type": null
+    }
+  ]
   },
    "cpp": {
     "path": "fixtures/cpp/sample.cpp",
@@ -193,8 +437,8 @@
       "name": "MyClass",
       "base_classes": []
     }
-  ]
-
+  ],
+   "expected_functions": []
   },
   "erlang": {
     "path": "fixtures/erlang/sample.erl",
@@ -235,7 +479,8 @@
               "as_name": "erlang"
           }
     ],
-   "expected_classes": []
+    "expected_classes": [],
+    "expected_functions": []
   }
 
 }

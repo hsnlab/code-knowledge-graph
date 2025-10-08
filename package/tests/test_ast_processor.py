@@ -4,7 +4,9 @@ import os
 from package.ast_processor import AstProcessor
 from package.adapters import adapter_mapper, LanguageAdapter
 from pandas.testing import assert_frame_equal
-from pandas import DataFrame
+from pandas import DataFrame, notna
+
+import re
 
 class TestAstProcessor(unittest.TestCase):
     """Test AstProcessor methods for different languages using tree-sitter"""
@@ -50,6 +52,37 @@ class TestAstProcessor(unittest.TestCase):
         assert_frame_equal(processor.classes, expected_df,
                            obj=f"{language} classes")
 
+    def _test_language_functions(self, language):
+        """Generic test method for any language"""
+        # Get config
+        config = self.test_config[language]
+
+        processor: AstProcessor = self.processors[language]
+
+        expected_list = config['expected_functions']
+        expected_df = DataFrame(expected_list)
+        if len(expected_list) == 0:
+            expected_df = DataFrame(columns=["file_id", "fnc_id", "name", "class", "class_base_classes", "params",
+                                             "docstring", "function_code", "class_id", "return_type"
+                                             ])
+
+        def normalize_function_code_whitespace(df):
+            """Normalize whitespace and quotes in function_code column"""
+            df_copy = df.copy()
+            if 'function_code' in df_copy.columns:
+                df_copy['function_code'] = df_copy['function_code'].apply(
+                    lambda x: re.sub(r'\s+', ' ', str(x).replace('\\n', '\n').replace('"', "'")).strip() if notna(
+                        x) else x
+                )
+            return df_copy
+
+        actual_normalized = normalize_function_code_whitespace(processor.functions)
+        expected_normalized = normalize_function_code_whitespace(expected_df)
+
+        assert_frame_equal(actual_normalized, expected_normalized,
+                           check_dtype=False,
+                           obj=f"{language} functions")
+
     def tearDown(self):
         """Teardown Phase"""
         self.parser = None
@@ -84,6 +117,11 @@ def generate_tests():
         test_method = lambda self, lang=language: self._test_language_classes(lang)
         test_method.__name__ = f'test_{language}_class'
         test_method.__doc__ = f'Test {language} class extraction'
+        setattr(TestAstProcessor, test_method.__name__, test_method)
+
+        test_method = lambda self, lang=language: self._test_language_functions(lang)
+        test_method.__name__ = f'test_{language}_function'
+        test_method.__doc__ = f'Test {language} function extraction'
         setattr(TestAstProcessor, test_method.__name__, test_method)
 
     # Store processors dict on the class
