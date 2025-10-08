@@ -1,10 +1,10 @@
-from package.adapters import LanguageAdapter, NodeType
+from package.adapters import LanguageAstAdapter, NodeType
 import pandas as pd
 from tree_sitter import Node, Tree, Parser
 
 class AstProcessor:
 
-    def __init__(self, adapter: LanguageAdapter, file_content):
+    def __init__(self, adapter: LanguageAstAdapter, file_content):
 
         self.imports = pd.DataFrame(columns=['file_id', 'imp_id', 'name', 'from', 'as_name'])
         self.classes = pd.DataFrame(columns=['file_id', 'cls_id', 'name', 'base_classes'])
