@@ -971,7 +971,206 @@
           }
     ],
     "expected_classes": [],
-    "expected_functions": []
+    "expected_functions": [
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "say_hello",
+        "class": "Global",
+        "class_base_classes": [],
+        "params": "{}",
+        "docstring": null,
+        "function_code": "say_hello() ->\n    io:format(\"Hello from Erlang!~n\").",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "process_data",
+        "class": "Global",
+        "class_base_classes": [],
+        "params": "{\"Data\": \"Any\"}",
+        "docstring": null,
+        "function_code": "process_data(Data) ->\n    lists:map(fun(X) -> X * 2 end, Data).",
+        "class_id": null,
+        "return_type": null
+    },
+    {
+        "file_id": null,
+        "fnc_id": null,
+        "name": "main",
+        "class": "Global",
+        "class_base_classes": [],
+        "params": "{}",
+        "docstring": null,
+        "function_code": "main() ->\n    say_hello().",
+        "class_id": null,
+        "return_type": null
+    }
+],
+    "standalone_function_tests": {
+    "erlang_simple_function": {
+      "mock": "simple_func() ->\n    ok.",
+      "expected": [
+        {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "simple_func",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "simple_func() ->\n    ok.",
+          "class_id": null,
+          "return_type": null
+        }
+      ]
+    },
+    "erlang_function_with_params": {
+      "mock": "add(X, Y) ->\n    X + Y.",
+      "expected": [
+        {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "add",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{\"X\": \"Any\", \"Y\": \"Any\"}",
+          "docstring": null,
+          "function_code": "add(X, Y) ->\n    X + Y.",
+          "class_id": null,
+          "return_type": null
+        }
+      ]
+    },
+    "erlang_multiple_clauses": {
+      "mock": "factorial(0) ->\n    1;\nfactorial(N) when N > 0 ->\n    N * factorial(N - 1).",
+      "expected": [
+        {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "factorial",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{\"0\": \"Any\"}",
+          "docstring": null,
+          "function_code": "factorial(0) ->\n    1;",
+          "class_id": null,
+          "return_type": null
+        },
+        {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "factorial",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{\"N\": \"Any\"}",
+          "docstring": null,
+          "function_code": "factorial(N) when N > 0 ->\n    N * factorial(N - 1).",
+          "class_id": null,
+          "return_type": null
+        }
+      ]
+    },
+    "erlang_function_with_guard": {
+      "mock": "divide(X, Y) when Y =/= 0 ->\n    X / Y.",
+      "expected": [
+        {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "divide",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{\"X\": \"Any\", \"Y\": \"Any\"}",
+          "docstring": null,
+          "function_code": "divide(X, Y) when Y =/= 0 ->\n    X / Y.",
+          "class_id": null,
+          "return_type": null
+        }
+      ]
+    },
+    "erlang_pattern_matching": {
+      "mock": "process([]) ->\n    ok;\nprocess([H|T]) ->\n    io:format(\"~p~n\", [H]),\n    process(T).",
+      "expected": [
+        {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "process",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "process([]) ->\n    ok;",
+          "class_id": null,
+          "return_type": null
+        },
+        {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "process",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{\"H\": \"Any\", \"T\": \"Any\"}",
+          "docstring": null,
+          "function_code": "process([H|T]) ->\n    io:format(\"~p~n\", [H]),\n    process(T).",
+          "class_id": null,
+          "return_type": null
+        }
+      ]
+    },
+    "erlang_tuple_pattern": {
+      "mock": "get_name({person, Name, _Age}) ->\n    Name.",
+      "expected": [
+        {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "get_name",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{\"person\": \"Any\", \"Name\": \"Any\", \"_Age\": \"Any\"}",
+          "docstring": null,
+          "function_code": "get_name({person, Name, _Age}) ->\n    Name.",
+          "class_id": null,
+          "return_type": null
+        }
+      ]
+    },
+    "erlang_anonymous_function": {
+      "mock": "start() ->\n    Fun = fun(X) -> X * 2 end,\n    Fun(5).",
+      "expected": [
+        {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "start",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "start() ->\n    Fun = fun(X) -> X * 2 end,\n    Fun(5).",
+          "class_id": null,
+          "return_type": null
+        }
+      ]
+    },
+    "erlang_underscore_param": {
+      "mock": "ignore_second(First, _) ->\n    First.",
+      "expected": [
+        {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "ignore_second",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{\"First\": \"Any\"}",
+          "docstring": null,
+          "function_code": "ignore_second(First, _) ->\n    First.",
+          "class_id": null,
+          "return_type": null
+        }
+      ]
+    }
+  }
   }
 
 }
