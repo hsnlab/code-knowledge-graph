@@ -30,7 +30,7 @@ class AstProcessor:
 
     def __update_indexes_and_dataframe(self, parsed_data: list[pd.DataFrame], data_frame_to_update: pd.DataFrame, key_to_update: str) -> pd.DataFrame | None:
         if parsed_data is None or len(parsed_data) == 0:
-            return
+            return data_frame_to_update
         if self.id_dict.get(key_to_update, None) is not None:
             self.id_dict[key_to_update] += len(parsed_data)
         all_import_df = [data_frame_to_update] + parsed_data
@@ -51,7 +51,7 @@ class AstProcessor:
         return classes[0] if len(classes) > 0 else None
 
     def _handle_function_definitions(self, node: Node, current_class_name: str ,current_base_classes: list[str], file_id: str, fnc_id, class_id):
-        if node.type == 'function_definition' and node.parent and node.parent.type == 'decorated_definition':
+        if self.adapter.should_skip_function_node(node):
             return
 
         if self.__is_not_correct_type(node, NodeType.FUNCTION):
