@@ -5,7 +5,7 @@ from package.ast_processor import AstProcessor
 from package.adapters import LanguageAstAdapterRegistry
 from pandas.testing import assert_frame_equal
 from pandas import DataFrame, notna
-
+import sys
 import re
 
 class TestAstProcessor(unittest.TestCase):
@@ -52,6 +52,38 @@ class TestAstProcessor(unittest.TestCase):
         assert_frame_equal(processor.classes, expected_df,
                            obj=f"{language} classes")
 
+    def normalize_function_code_whitespace(self, df):
+        """Normalize whitespace and quotes in function_code column"""
+        df_copy = df.copy()
+        if 'function_code' in df_copy.columns:
+            df_copy['function_code'] = df_copy['function_code'].apply(
+                lambda x: re.sub(r'\s+', ' ', str(x).replace('\\n', '\n').replace('"', "'")).strip() if notna(
+                    x) else x
+            )
+        return df_copy
+
+    def _test_specific_function_scenario(self, language_adapter_class, mock, expected):
+        """
+
+        :param language_adapter_class: Language specifict adapter, used to initiate object for parsing
+        :param mock: Test script snippet
+        :param expected: List containing the expected values for the given testcase
+        :return:
+        """
+        processor = AstProcessor(language_adapter_class(), mock.encode('utf-8'))
+        processor.process_file_ast(None, {}, False)
+        expected_df = DataFrame(expected)
+        if len(expected) == 0:
+            expected_df = DataFrame(columns=["file_id", "fnc_id", "name", "class", "class_base_classes", "params",
+                                             "docstring", "function_code", "class_id", "return_type"
+                                             ])
+
+        actual_normalized = self.normalize_function_code_whitespace(processor.functions)
+        expected_normalized = self.normalize_function_code_whitespace(expected_df)
+
+        assert_frame_equal(actual_normalized, expected_normalized,
+                           check_dtype=False)
+
     def _test_language_functions(self, language):
         """Generic test method for any language"""
         # Get config
@@ -66,22 +98,13 @@ class TestAstProcessor(unittest.TestCase):
                                              "docstring", "function_code", "class_id", "return_type"
                                              ])
 
-        def normalize_function_code_whitespace(df):
-            """Normalize whitespace and quotes in function_code column"""
-            df_copy = df.copy()
-            if 'function_code' in df_copy.columns:
-                df_copy['function_code'] = df_copy['function_code'].apply(
-                    lambda x: re.sub(r'\s+', ' ', str(x).replace('\\n', '\n').replace('"', "'")).strip() if notna(
-                        x) else x
-                )
-            return df_copy
+        actual_normalized = self.normalize_function_code_whitespace(processor.functions)
+        expected_normalized = self.normalize_function_code_whitespace(expected_df)
 
-        actual_normalized = normalize_function_code_whitespace(processor.functions)
-        expected_normalized = normalize_function_code_whitespace(expected_df)
-
+        actual_str = processor.functions[['name', 'class']].to_string()
         assert_frame_equal(actual_normalized, expected_normalized,
                            check_dtype=False,
-                           obj=f"{language} functions")
+                           obj=f"Actual:\n{actual_str}")
 
     def tearDown(self):
         """Teardown Phase"""
@@ -124,6 +147,18 @@ def generate_tests():
         test_method.__name__ = f'test_{language}_function'
         test_method.__doc__ = f'Test {language} function extraction'
         setattr(TestAstProcessor, test_method.__name__, test_method)
+
+        function_tests = config.get("standalone_function_tests")
+        if function_tests is not None:
+            for test_name, test_data in function_tests.items():
+                # Capture test_data in closure properly
+                test_method = lambda self, adapter=adapter_class, mock=test_data.get("mock"),expected=test_data.get("expected"): \
+                    self._test_specific_function_scenario(adapter, mock, expected)
+
+                test_method.__name__ = f'test_{language}_{test_name}'
+                test_method.__doc__ = f'Test {language} {test_name} function extraction'
+                setattr(TestAstProcessor, test_method.__name__, test_method)
+
 
     # Store processors dict on the class
     TestAstProcessor.processors = processors

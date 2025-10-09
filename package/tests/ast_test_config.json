@@ -438,7 +438,498 @@
       "base_classes": []
     }
   ],
-   "expected_functions": []
+   "expected_functions": [
+      {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "simpleMethod",
+          "class": "SimpleClass",
+          "class_base_classes": [],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "void simpleMethod() {\n        std::cout << \"Simple\" << std::endl;\n    }",
+          "class_id": null,
+          "return_type": "void"
+      },
+      {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "baseMethod",
+          "class": "BaseClass",
+          "class_base_classes": [],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "virtual void baseMethod() {\n        std::cout << \"Base\" << std::endl;\n    }",
+          "class_id": null,
+          "return_type": "void"
+      },
+      {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "childMethod",
+          "class": "SingleInheritance",
+          "class_base_classes": ["BaseClass"],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "void childMethod() {\n        std::cout << \"Child\" << std::endl;\n    }",
+          "class_id": null,
+          "return_type": "void"
+      },
+      {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "mixinMethod",
+          "class": "Mixin",
+          "class_base_classes": [],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "void mixinMethod() {\n        std::cout << \"Mixin\" << std::endl;\n    }",
+          "class_id": null,
+          "return_type": "void"
+      },
+      {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "combinedMethod",
+          "class": "MultipleInheritance",
+          "class_base_classes": ["BaseClass", "Mixin"],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "void combinedMethod() {\n        std::cout << \"Combined\" << std::endl;\n    }",
+          "class_id": null,
+          "return_type": "void"
+      },
+      {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "display",
+          "class": "TemplateClass",
+          "class_base_classes": [],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "void display() {\n        std::cout << data << std::endl;\n    }",
+          "class_id": null,
+          "return_type": "void"
+      },
+      {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "sayHello",
+          "class": "MyClass",
+          "class_base_classes": [],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "void sayHello() {\n        std::cout << \"Hello from MyClass!\" << std::endl;\n    }",
+          "class_id": null,
+          "return_type": "void"
+      },
+      {
+          "file_id": null,
+          "fnc_id": null,
+          "name": "main",
+          "class": "Global",
+          "class_base_classes": [],
+          "params": "{}",
+          "docstring": null,
+          "function_code": "int main() {\n    MyClass obj;\n    obj.sayHello();\n    return 0;\n}",
+          "class_id": null,
+          "return_type": "int"
+      }
+      ],
+     "standalone_function_tests": {
+  "cpp_standalone_simple": {
+        "mock": "void simpleStandaloneFunction() {\n    std::cout << \"Simple standalone\" << std::endl;\n}",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "simpleStandaloneFunction",
+            "class": "Global",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "void simpleStandaloneFunction() {\n    std::cout << \"Simple standalone\" << std::endl;\n}",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      },
+      "cpp_standalone_with_return": {
+        "mock": "int functionWithReturn(int x, int y) {\n    return x + y;\n}",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "functionWithReturn",
+            "class": "Global",
+            "class_base_classes": [],
+            "params": "{\"x\": \"int\", \"y\": \"int\"}",
+            "docstring": null,
+            "function_code": "int functionWithReturn(int x, int y) {\n    return x + y;\n}",
+            "class_id": null,
+            "return_type": "int"
+          }
+        ]
+      },
+      "cpp_standalone_default_params": {
+        "mock": "void functionWithDefaultParams(int a, int b = 10, int c = 20) {\n    std::cout << a + b + c << std::endl;\n}",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "functionWithDefaultParams",
+            "class": "Global",
+            "class_base_classes": [],
+            "params": "{\"a\": \"int\", \"b\": \"int\", \"c\": \"int\"}",
+            "docstring": null,
+            "function_code": "void functionWithDefaultParams(int a, int b = 10, int c = 20) {\n    std::cout << a + b + c << std::endl;\n}",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      },
+      "cpp_function_overloading": {
+        "mock": "void overloadedFunc(int x) {\n    std::cout << \"Int version\" << std::endl;\n}\n\nvoid overloadedFunc(double x) {\n    std::cout << \"Double version\" << std::endl;\n}\n\nvoid overloadedFunc(int x, int y) {\n    std::cout << \"Two params\" << std::endl;\n}",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "overloadedFunc",
+            "class": "Global",
+            "class_base_classes": [],
+            "params": "{\"x\": \"int\"}",
+            "docstring": null,
+            "function_code": "void overloadedFunc(int x) {\n    std::cout << \"Int version\" << std::endl;\n}",
+            "class_id": null,
+            "return_type": "void"
+          },
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "overloadedFunc",
+            "class": "Global",
+            "class_base_classes": [],
+            "params": "{\"x\": \"double\"}",
+            "docstring": null,
+            "function_code": "void overloadedFunc(double x) {\n    std::cout << \"Double version\" << std::endl;\n}",
+            "class_id": null,
+            "return_type": "void"
+          },
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "overloadedFunc",
+            "class": "Global",
+            "class_base_classes": [],
+            "params": "{\"x\": \"int\", \"y\": \"int\"}",
+            "docstring": null,
+            "function_code": "void overloadedFunc(int x, int y) {\n    std::cout << \"Two params\" << std::endl;\n}",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      },
+      "cpp_inline_function": {
+        "mock": "inline int square(int x) {\n    return x * x;\n}",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "square",
+            "class": "Global",
+            "class_base_classes": [],
+            "params": "{\"x\": \"int\"}",
+            "docstring": null,
+            "function_code": "inline int square(int x) {\n    return x * x;\n}",
+            "class_id": null,
+            "return_type": "int"
+          }
+        ]
+      },
+      "cpp_function_template": {
+        "mock": "template<typename T>\nT maximum(T a, T b) {\n    return (a > b) ? a : b;\n}",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "maximum",
+            "class": "Global",
+            "class_base_classes": [],
+            "params": "{\"a\": \"T\", \"b\": \"T\"}",
+            "docstring": null,
+            "function_code": "template<typename T>\nT maximum(T a, T b) {\n    return (a > b) ? a : b;\n}",
+            "class_id": null,
+            "return_type": "T"
+          }
+        ]
+      },
+      "cpp_parameter_types": {
+        "mock": "void parameterTypes(int value, int* ptr, int& ref, const int& constRef) {\n    std::cout << \"Various param types\" << std::endl;\n}",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "parameterTypes",
+            "class": "Global",
+            "class_base_classes": [],
+            "params": "{\"value\": \"int\", \"ptr\": \"int *\", \"ref\": \"int &\", \"constRef\": \"const int &\"}",
+            "docstring": null,
+            "function_code": "void parameterTypes(int value, int* ptr, int& ref, const int& constRef) {\n    std::cout << \"Various param types\" << std::endl;\n}",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      },
+      "cpp_simple_method": {
+        "mock": "class SimpleClass {\npublic:\n    void simpleMethod() {\n        std::cout << \"Simple\" << std::endl;\n    }\n};",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "simpleMethod",
+            "class": "SimpleClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "void simpleMethod() {\n        std::cout << \"Simple\" << std::endl;\n    }",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      },
+      "cpp_const_method": {
+        "mock": "class SimpleClass {\npublic:\n    int getValue() const {\n        return 42;\n    }\n};",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "getValue",
+            "class": "SimpleClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "int getValue() const {\n        return 42;\n    }",
+            "class_id": null,
+            "return_type": "int"
+          }
+        ]
+      },
+      "cpp_static_method": {
+        "mock": "class SimpleClass {\npublic:\n    static void staticMethod() {\n        std::cout << \"Static method\" << std::endl;\n    }\n};",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "staticMethod",
+            "class": "SimpleClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "static void staticMethod() {\n        std::cout << \"Static method\" << std::endl;\n    }",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      },
+      "cpp_constructors": {
+        "mock": "class BaseClass {\npublic:\n    BaseClass() {\n        std::cout << \"Default constructor\" << std::endl;\n    }\n    \n    BaseClass(int x) {\n        std::cout << \"Parameterized constructor\" << std::endl;\n    }\n    \n    ~BaseClass() {\n        std::cout << \"Destructor\" << std::endl;\n    }\n};",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "BaseClass",
+            "class": "BaseClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "BaseClass() {\n        std::cout << \"Default constructor\" << std::endl;\n    }",
+            "class_id": null,
+            "return_type": null
+          },
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "BaseClass",
+            "class": "BaseClass",
+            "class_base_classes": [],
+            "params": "{\"x\": \"int\"}",
+            "docstring": null,
+            "function_code": "BaseClass(int x) {\n        std::cout << \"Parameterized constructor\" << std::endl;\n    }",
+            "class_id": null,
+            "return_type": null
+          },
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "~BaseClass",
+            "class": "BaseClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "~BaseClass() {\n        std::cout << \"Destructor\" << std::endl;\n    }",
+            "class_id": null,
+            "return_type": null
+          }
+        ]
+      },
+      "cpp_virtual_methods": {
+        "mock": "class BaseClass {\npublic:\n    virtual void virtualMethod() {\n        std::cout << \"Virtual method\" << std::endl;\n    }\n    \n    virtual void pureVirtual() = 0;\n    \n    virtual ~BaseClass() = default;\n};",
+        "expected": [
+        {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "virtualMethod",
+            "class": "BaseClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "virtual void virtualMethod() {\n        std::cout << \"Virtual method\" << std::endl;\n    }",
+            "class_id": null,
+            "return_type": "void"
+        },
+        {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "~BaseClass",
+            "class": "BaseClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "virtual ~BaseClass() = default;",
+            "class_id": null,
+            "return_type": null
+        }
+      ]
+      },
+      "cpp_override_methods": {
+        "mock": "class BaseClass {\npublic:\n    virtual void baseMethod() {}\n};\n\nclass DerivedClass : public BaseClass {\npublic:\n    void baseMethod() override {\n        std::cout << \"Overridden\" << std::endl;\n    }\n};",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "baseMethod",
+            "class": "BaseClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "virtual void baseMethod() {}",
+            "class_id": null,
+            "return_type": "void"
+          },
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "baseMethod",
+            "class": "DerivedClass",
+            "class_base_classes": ["BaseClass"],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "void baseMethod() override {\n        std::cout << \"Overridden\" << std::endl;\n    }",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      },
+      "cpp_operator_overloading": {
+        "mock": "class Point {\nprivate:\n    int x, y;\npublic:\n    Point(int x = 0, int y = 0) : x(x), y(y) {}\n    \n    bool operator==(const Point& other) const {\n        return x == other.x && y == other.y;\n    }\n    \n    Point operator+(const Point& other) const {\n        return Point(x + other.x, y + other.y);\n    }\n};",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "Point",
+            "class": "Point",
+            "class_base_classes": [],
+            "params": "{\"x\": \"int\", \"y\": \"int\"}",
+            "docstring": null,
+            "function_code": "Point(int x = 0, int y = 0) : x(x), y(y) {}",
+            "class_id": null,
+            "return_type": null
+          },
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "operator==",
+            "class": "Point",
+            "class_base_classes": [],
+            "params": "{\"other\": \"const Point &\"}",
+            "docstring": null,
+            "function_code": "bool operator==(const Point& other) const {\n        return x == other.x && y == other.y;\n    }",
+            "class_id": null,
+            "return_type": "bool"
+          },
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "operator+",
+            "class": "Point",
+            "class_base_classes": [],
+            "params": "{\"other\": \"const Point &\"}",
+            "docstring": null,
+            "function_code": "Point operator+(const Point& other) const {\n        return Point(x + other.x, y + other.y);\n    }",
+            "class_id": null,
+            "return_type": "Point"
+          }
+        ]
+      },
+      "cpp_friend_function": {
+        "mock": "class Point {\nprivate:\n    int x, y;\npublic:\n    friend void friendFunction(Point& p);\n};\n\nvoid friendFunction(Point& p) {\n    std::cout << p.x << \", \" << p.y << std::endl;\n}",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "friendFunction",
+            "class": "Point",
+            "class_base_classes": [],
+            "params": "{\"p\": \"Point &\"}",
+            "docstring": null,
+            "function_code": "friend void friendFunction(Point& p);",
+            "class_id": null,
+            "return_type": "void"
+          },
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "friendFunction",
+            "class": "Global",
+            "class_base_classes": [],
+            "params": "{\"p\": \"Point &\"}",
+            "docstring": null,
+            "function_code": "void friendFunction(Point& p) {\n    std::cout << p.x << \", \" << p.y << std::endl;\n}",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      },
+      "cpp_template_class_methods": {
+        "mock": "template<typename T>\nclass TemplateClass {\npublic:\n    T data;\n    \n    void display() {\n        std::cout << data << std::endl;\n    }\n    \n    template<typename U>\n    void convert(U value) {\n        data = static_cast<T>(value);\n    }\n};",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "display",
+            "class": "TemplateClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "void display() {\n        std::cout << data << std::endl;\n    }",
+            "class_id": null,
+            "return_type": "void"
+          },
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "convert",
+            "class": "TemplateClass",
+            "class_base_classes": [],
+            "params": "{\"value\": \"U\"}",
+            "docstring": null,
+            "function_code": "template<typename U>\n    void convert(U value) {\n        data = static_cast<T>(value);\n    }",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      }
+    }
   },
   "erlang": {
     "path": "fixtures/erlang/sample.erl",
