@@ -93,6 +93,12 @@ class PythonAdapter(LanguageAstAdapter):
 
         return classes
 
+    def should_skip_function_node(self, node: Node) -> bool:
+        """Skip function_definition nodes inside decorated_definition (we process the wrapper instead)."""
+        return (node.type in ['function_definition', 'async_function_definition'] and
+                node.parent and
+                node.parent.type == 'decorated_definition')
+
     def parse_functions(self, top_function_node: Node, current_class_name: str, class_base_classes: list,
                         file_id: str, fnc_id: int, class_id: int) -> list[pd.DataFrame]:
         # Unwrap decorated functions to get actual function node
