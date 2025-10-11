@@ -55,6 +55,9 @@ MAX_SAMPLES = 0                  # 0 → mind (óvatosan RAM/VRAM miatt)
 BATCH_TRAIN, BATCH_EVAL = 64, 128
 EPOCHS_GGNN, EPOCHS_GINE = 30, 20
 
+# Balanszolás kapcsoló (None → nincs downsample; pl. 3 → ~25% pos, 9 → ~10% pos)
+BALANCE_NEG_PER_POS = None
+
 # Shardolás
 CHUNK_SIZE = 20_000
 SHARD_DIR = "shards"
@@ -145,7 +148,8 @@ def make_about_10pct_pos(df: pd.DataFrame, seed: int = SEED, neg_per_pos: int = 
     df_bal = pd.concat([df_pos, df_neg_sampled]).sample(frac=1, random_state=seed).reset_index(drop=True)
     return df_bal
 
-raw_df = make_about_10pct_pos(raw_df, seed=SEED, neg_per_pos=3)
+if BALANCE_NEG_PER_POS is not None:
+    raw_df = make_about_10pct_pos(raw_df, seed=SEED, neg_per_pos=BALANCE_NEG_PER_POS)
 
 # MAX_SAMPLES kihagyva: teljes készlet
 # if MAX_SAMPLES and len(raw_df) > MAX_SAMPLES:
@@ -436,7 +440,24 @@ test_shards  = materialize_split_to_shards(df_test,  "test")
 print(f"Shards | train={len(train_shards)} val={len(val_shards)} test={len(test_shards)}")
 
 # =========================
-# 10) MODELL DEFINÍCIÓK
+# 10) BIZTONSÁGOS TORCH.LOAD (PyTorch 2.6+)
+# =========================
+
+def safe_torch_load(path, map_location="cpu"):
+    """PyTorch 2.6-tól a torch.load default security policy szigorúbb.
+    A PyG DataEdgeAttr-t explicit whitelistre tesszük, és weights_only=False-t állítunk.
+    """
+    from torch.serialization import safe_globals
+    try:
+        from torch_geometric.data.data import DataEdgeAttr
+        allow = [DataEdgeAttr]
+    except Exception:
+        allow = []
+    with safe_globals(allow):
+        return torch.load(path, map_location=map_location, weights_only=False)
+
+# =========================
+# 11) MODELL DEFINÍCIÓK
 # =========================
 
 import torch.nn.functional as F
@@ -587,7 +608,7 @@ def collect_probs_and_labels_from_shards(shard_paths):
     model.eval()
     y_true, probs = [], []
     for p in shard_paths:
-        pyg_list = torch.load(p, map_location="cpu")
+        pyg_list = safe_torch_load(p, map_location="cpu")
         loader = DataLoader(pyg_list, batch_size=BATCH_EVAL, shuffle=False)
         for batch in loader:
             batch = batch.to(device)
@@ -627,7 +648,7 @@ for epoch in range(1, EPOCHS_GGNN+1):
     # --- TRAIN: végigmegyünk a train shardeokon ---
     tr_loss_sum, tr_acc_sum, tr_n = 0.0, 0.0, 0
     for p in train_shards:
-        pyg_list = torch.load(p, map_location="cpu")
+        pyg_list = safe_torch_load(p, map_location="cpu")
         loss, acc = run_loader(pyg_list, train=True)
         tr_loss_sum += loss * len(pyg_list)
         tr_acc_sum  += acc  * len(pyg_list)
