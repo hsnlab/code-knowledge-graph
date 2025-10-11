@@ -7,6 +7,7 @@ from typing import List, Tuple, Dict, Any
 from pathlib import Path
 from collections import Counter
 
+
 # <<< CUDA allocator: ezt a torch import ELŐTT kell beállítani!
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,max_split_size_mb:128"
 
@@ -67,6 +68,8 @@ SHARD_DIR = "shards"
 EDA_DIR = "eda"
 os.makedirs(SHARD_DIR, exist_ok=True)
 os.makedirs(EDA_DIR, exist_ok=True)
+
+TYPE_FREQ = Counter()
 
 # one-hot hash bucket a levelek szövegéhez (normalizálás miatt lehet kicsi)
 TOK_DIM = 128                    # korábban 1024; normalizálással bőven elég 64–256
@@ -484,19 +487,27 @@ def plot_code_len_hist(df: pd.DataFrame, name: str):
     plt.close(fig)
 
 def plot_top_ast_types(topk: int = 25):
-    if not TYPE_FREQ:
+    global TYPE_FREQ
+    try:
+        if len(TYPE_FREQ) == 0:
+            print("[EDA] TYPE_FREQ üres, kihagyjuk az AST típus grafikonját.")
+            return
+    except Exception:
+        print("[EDA] TYPE_FREQ nem elérhető, kihagyjuk az AST típus grafikonját.")
         return
+
     most = TYPE_FREQ.most_common(topk)
-    labels = [k for k,_ in most]
-    vals = [v for _,v in most]
-    fig = plt.figure(figsize=(10,6))
+    labels = [k for k, _ in most]
+    vals = [v for _, v in most]
+    fig = plt.figure(figsize=(10, 6))
     ax = fig.gca()
     ax.barh(labels[::-1], vals[::-1])
     ax.set_title(f"Top-{topk} AST node types (all splits/shards)")
     ax.set_xlabel("count")
     fig.tight_layout()
-    fig.savefig(Path(EDA_DIR)/f"ast_types_top{topk}.png")
+    fig.savefig(Path(EDA_DIR) / f"ast_types_top{topk}.png")
     plt.close(fig)
+
 
 # DF-alapú, olcsó EDA azonnal
 plot_label_dist(df_train, "train")
