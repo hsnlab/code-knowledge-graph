@@ -18,6 +18,7 @@ class CppAstAdapter(LanguageAstAdapter):
         "friend_declaration": NodeType.FUNCTION,
         "template_declaration": NodeType.FUNCTION,
        # "field_declaration": NodeType.FUNCTION,
+        "new_expression": NodeType.CALL,
         "call_expression": NodeType.CALL,
     })
 
@@ -165,13 +166,8 @@ class CppAstAdapter(LanguageAstAdapter):
             if child.type == 'function_declarator':
                 # Extract name from inside declarator
                 for subchild in child.named_children:
-                    if subchild.type in ['identifier', 'field_identifier']:
+                    if subchild.type in ['identifier', 'field_identifier', 'destructor_name', 'operator_name']:
                         return subchild.text.decode('utf-8')
-                    elif subchild.type == 'destructor_name':
-                        return subchild.text.decode('utf-8')
-                    elif subchild.type == 'operator_name':
-                        return subchild.text.decode('utf-8')
-
         return '<anonymous>'
 
     def _extract_parameters(self, func_node: Node) -> dict[str, str]:
@@ -212,42 +208,48 @@ class CppAstAdapter(LanguageAstAdapter):
         param_name = None
         param_type_parts = []
 
+        param_type_types: list[str] = [
+            'type_qualifier',
+            'primitive_type',
+            'type_identifier'
+        ]
+
+        declarator_dict: dict[str, str] = {
+            'pointer_declarator': '*',
+            'reference_declarator': '&'
+        }
+
         for child in param_node.named_children:
+            child_type = child.type
+
             # Collect type information
-            if child.type == 'type_qualifier':
-                param_type_parts.append(child.text.decode('utf-8'))
-            elif child.type == 'primitive_type':
-                param_type_parts.append(child.text.decode('utf-8'))
-            elif child.type == 'type_identifier':
+            if child_type in param_type_types:
                 param_type_parts.append(child.text.decode('utf-8'))
 
-            # Extract name from declarators
-            elif child.type == 'identifier':
+            # Extract name from identifier
+            elif child_type == 'identifier':
                 param_name = child.text.decode('utf-8')
-            elif child.type == 'pointer_declarator':
-                # For pointers like "int* ptr"
+
+            # Handle pointer and reference declarators
+            elif child_type in declarator_dict:
                 for subchild in child.named_children:
                     if subchild.type == 'identifier':
                         param_name = subchild.text.decode('utf-8')
-                param_type_parts.append('*')
-            elif child.type == 'reference_declarator':
-                # For references like "int& ref"
-                for subchild in child.named_children:
-                    if subchild.type == 'identifier':
-                        param_name = subchild.text.decode('utf-8')
-                param_type_parts.append('&')
+                param_type_parts.append(declarator_dict[child_type])
 
         # Construct full type string
         param_type = ' '.join(param_type_parts) if param_type_parts else 'void'
-
         return param_name, param_type
 
     def _extract_return_type(self, func_node: Node) -> str | None:
         """Extract return type - None for constructors/destructors."""
+        return_types: list[str] = [
+            'primitive_type',
+            'type_identifier'
+        ]
+
         for child in func_node.named_children:
-            if child.type == 'primitive_type':
-                return child.text.decode('utf-8')
-            elif child.type == 'type_identifier':
+            if child.type in return_types :
                 return child.text.decode('utf-8')
 
         # No return type found (constructor/destructor)
