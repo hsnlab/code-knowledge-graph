@@ -612,7 +612,7 @@ meta = {
 }
 import json
 with open("cpp_augast_meta.json", "w", encoding="utf-8") as f:
-json.dump(meta, f)
+    json.dump(meta, f)
 print("Mentve: cpp_augast_meta.json")
 
 import json
