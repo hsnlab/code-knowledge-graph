@@ -254,3 +254,61 @@ class CppAstAdapter(LanguageAstAdapter):
 
         # No return type found (constructor/destructor)
         return None
+
+    def parse_calls(self, top_call_node: Node, file_id: str, cll_id: int,
+                    current_class_name: str, class_base_classes: list, class_id: int,
+                    fnc_id: int, func_name: str, func_params: dict) -> list[pd.DataFrame]:
+        """Parse C++ function/method calls."""
+        calls = []
+
+        call_name = self._extract_call_name(top_call_node)
+
+        if call_name:
+            import json
+            new_row = pd.DataFrame([{
+                'file_id': file_id,
+                'cll_id': cll_id,
+                'name': call_name,
+                'class': current_class_name,
+                'class_base_classes': class_base_classes,
+                'class_id': class_id,
+                'func_id': fnc_id,
+                'func_name': func_name,
+                'func_params': json.dumps(func_params) if func_params else '{}'
+            }])
+            calls.append(new_row)
+
+        return calls
+
+
+    def _extract_call_name(self, call_node: Node) -> str | None:
+        """Extract the call name from a call_expression node."""
+
+        if call_node.type == 'new_expression':
+            for child in call_node.named_children:
+                if child.type == 'type_identifier':
+                    return child.text.decode('utf-8')
+            return None
+
+        # Find the function being called (first named child that's not argument_list)
+        func_expr = None
+        for child in call_node.named_children:
+            if child.type != 'argument_list':
+                func_expr = child
+                break
+
+        if not func_expr:
+            return None
+
+        funct_types: set[str] = {
+            'identifier', # Simple call: func()
+            'field_expression', # Method call: obj.method() or ptr->method() or this->method()
+            'qualified_identifier', # Qualified call: Class::method() or namespace::func()
+            'template_function' # Template call: func<int>()
+        }
+        # Handle different call types
+        if func_expr.type in funct_types:
+
+            return func_expr.text.decode('utf-8')
+
+        return None
