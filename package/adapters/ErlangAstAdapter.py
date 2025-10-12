@@ -134,3 +134,8 @@ class ErlangAstAdapter(LanguageAstAdapter):
         # Recursively traverse children
         for child in node.named_children:
             self._collect_vars_from_node(child, params)
+
+    def parse_calls(self, top_call_node: Node, file_id: str, cll_id: int,
+                    current_class_name: str, class_base_classes: list, class_id: int,
+                    fnc_id: int, func_name: str, func_params: dict) -> list[pd.DataFrame]:
+        return []

@@ -45,3 +45,8 @@ class LanguageAstAdapter:
     def parse_functions(self, top_function_node: Node, current_class_name: str, class_base_classes: list, file_id: str,
                         fnc_id: int, class_id: int) -> list[pd.DataFrame]:
         raise NotImplementedError
+
+    def parse_calls(self, top_call_node: Node, file_id: str, cll_id: int,
+                    current_class_name: str, class_base_classes: list, class_id: int,
+                    fnc_id: int, func_name: str, func_params: dict) -> list[pd.DataFrame]:
+        raise NotImplementedError

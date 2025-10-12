@@ -185,3 +185,8 @@ class PythonAdapter(LanguageAstAdapter):
                 # Now strip quotes
                 return text.strip('"""').strip("'''").strip('"').strip("'")
         return None
+
+    def parse_calls(self, top_call_node: Node, file_id: str, cll_id: int,
+                    current_class_name: str, class_base_classes: list, class_id: int,
+                    fnc_id: int, func_name: str, func_params: dict) -> list[pd.DataFrame]:
+        return []
