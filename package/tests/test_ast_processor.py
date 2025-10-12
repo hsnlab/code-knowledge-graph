@@ -84,6 +84,27 @@ class TestAstProcessor(unittest.TestCase):
         assert_frame_equal(actual_normalized, expected_normalized,
                            check_dtype=False)
 
+    def _test_specific_call_scenario(self, language_adapter_class, mock, expected):
+        """
+
+        :param language_adapter_class: Language specifict adapter, used to initiate object for parsing
+        :param mock: Test script snippet
+        :param expected: List containing the expected values for the given testcase
+        :return:
+        """
+        processor = AstProcessor(language_adapter_class(), mock.encode('utf-8'))
+        processor.process_file_ast(None, {}, False)
+        expected_df = DataFrame(expected)
+        if len(expected) == 0:
+            expected_df = DataFrame(columns=['file_id', 'cll_id', 'name', 'class', 'class_base_classes', 'class_id', 'func_id', 'func_name',
+                     'func_params'])
+
+        actual_normalized = self.normalize_function_code_whitespace(processor.calls)
+        expected_normalized = self.normalize_function_code_whitespace(expected_df)
+
+        assert_frame_equal(actual_normalized, expected_normalized,
+                           check_dtype=False)
+
     def _test_language_functions(self, language):
         """Generic test method for any language"""
         # Get config
@@ -158,6 +179,18 @@ def generate_tests():
                 test_method.__name__ = f'test_{language}_{test_name}'
                 test_method.__doc__ = f'Test {language} {test_name} function extraction'
                 setattr(TestAstProcessor, test_method.__name__, test_method)
+
+        call_tests = config.get("standalone_calls_tests")
+        if call_tests is not None:
+            for test_name, test_data in call_tests.items():
+                # Capture test_data in closure properly
+                test_method = lambda self, adapter=adapter_class, mock=test_data.get("mock"), expected=test_data.get("expected"): \
+                    self._test_specific_call_scenario(adapter, mock, expected)
+
+                test_method.__name__ = f'test_{language}_{test_name}'
+                test_method.__doc__ = f'Test {language} {test_name} function extraction'
+                setattr(TestAstProcessor, test_method.__name__, test_method)
+
 
 
     # Store processors dict on the class

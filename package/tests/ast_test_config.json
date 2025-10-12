@@ -929,7 +929,336 @@
           }
         ]
       }
+    },
+     "standalone_calls_tests": {
+  "cpp_calls_standalone": {
+    "mock": "void standalone_function() {\n    helper();\n}\n\nvoid helper() {}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "helper",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "standalone_function",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_method_same_class": {
+    "mock": "class MyClass {\npublic:\n    void method_one() {\n        method_two();\n    }\n    void method_two() {}\n};",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "method_two",
+        "class": "MyClass",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "method_one",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_method_this": {
+    "mock": "class MyClass {\npublic:\n    void method_one() {\n        this->method_two();\n    }\n    void method_two() {}\n};",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "this->method_two",
+        "class": "MyClass",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "method_one",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_base_class_implicit": {
+    "mock": "class BaseClass {\npublic:\n    void base_method() {}\n};\n\nclass DerivedClass : public BaseClass {\npublic:\n    void derived_method() {\n        base_method();\n    }\n};",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "base_method",
+        "class": "DerivedClass",
+        "class_base_classes": ["BaseClass"],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "derived_method",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_base_class_explicit": {
+    "mock": "class BaseClass {\npublic:\n    void base_method() {}\n};\n\nclass DerivedClass : public BaseClass {\npublic:\n    void derived_method() {\n        BaseClass::base_method();\n    }\n};",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "BaseClass::base_method",
+        "class": "DerivedClass",
+        "class_base_classes": ["BaseClass"],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "derived_method",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_static_method": {
+    "mock": "class MyClass {\npublic:\n    static void static_method() {}\n};\n\nvoid caller() {\n    MyClass::static_method();\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "MyClass::static_method",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_namespace": {
+    "mock": "namespace MyNamespace {\n    void func() {}\n}\n\nvoid caller() {\n    MyNamespace::func();\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "MyNamespace::func",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_object_method": {
+    "mock": "class MyClass {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    MyClass obj;\n    obj.method();\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "obj.method",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_pointer_method": {
+  "mock": "class MyClass {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    MyClass* ptr = new MyClass();\n    ptr->method();\n    delete ptr;\n}",
+  "expected": [
+    {
+      "file_id": null,
+      "cll_id": null,
+      "name": "MyClass",
+      "class": "Global",
+      "class_base_classes": [],
+      "class_id": null,
+      "func_id": null,
+      "func_name": "caller",
+      "func_params": "{}"
+    },
+    {
+      "file_id": null,
+      "cll_id": null,
+      "name": "ptr->method",
+      "class": "Global",
+      "class_base_classes": [],
+      "class_id": null,
+      "func_id": null,
+      "func_name": "caller",
+      "func_params": "{}"
     }
+  ]
+},
+  "cpp_calls_parameter_object": {
+    "mock": "class MyClass {\npublic:\n    void method() {}\n};\n\nvoid caller(MyClass& obj) {\n    obj.method();\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "obj.method",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{\"obj\": \"MyClass &\"}"
+      }
+    ]
+  },
+  "cpp_calls_chained": {
+    "mock": "class Chainable {\npublic:\n    Chainable& set_value(int val) { return *this; }\n    Chainable& increment() { return *this; }\n};\n\nvoid caller() {\n    Chainable obj;\n    obj.set_value(10).increment();\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "obj.set_value(10).increment",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      },
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "obj.set_value",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_template_function": {
+    "mock": "template<typename T>\nT maximum(T a, T b) { return a; }\n\nvoid caller() {\n    int result = maximum<int>(5, 10);\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "maximum<int>",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_template_method": {
+    "mock": "template<typename T>\nclass Container {\npublic:\n    void add(T item) {}\n};\n\nvoid caller() {\n    Container<int> c;\n    c.add(42);\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "c.add",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_constructor_heap": {
+    "mock": "class Person {\npublic:\n    Person() {}\n    Person(int age) {}\n};\n\nvoid caller() {\n    Person* p1 = new Person();\n    Person* p2 = new Person(25);\n    delete p1;\n    delete p2;\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "Person",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      },
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "Person",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_constructor_stack": {
+    "mock": "class Person {\npublic:\n    Person() {}\n    Person(int age) {}\n};\n\nvoid caller() {\n    Person p1;\n    Person p2(25);\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "Person",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_nested": {
+    "mock": "int helper(int x) { return x; }\nint add(int a, int b) { return a + b; }\n\nvoid caller() {\n    int result = add(helper(5), helper(3));\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "add",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      },
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "helper",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      },
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "helper",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      }
+    ]
+  },
+  "cpp_calls_std_namespace": {
+    "mock": "#include <iostream>\n\nvoid caller() {\n    std::cout << \"test\";\n}",
+    "expected": [
+      {
+        "file_id": null,
+        "cll_id": null,
+        "name": "std::cout",
+        "class": "Global",
+        "class_base_classes": [],
+        "class_id": null,
+        "func_id": null,
+        "func_name": "caller",
+        "func_params": "{}"
+      }
+    ]
+  }
+}
   },
   "erlang": {
     "path": "fixtures/erlang/sample.erl",
