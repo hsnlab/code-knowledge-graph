@@ -1,6 +1,7 @@
 from package.adapters import LanguageAstAdapter, NodeType
 import pandas as pd
 from tree_sitter import Node, Tree, Parser
+import json
 
 class AstProcessor:
 
@@ -9,7 +10,7 @@ class AstProcessor:
         self.imports = pd.DataFrame(columns=['file_id', 'imp_id', 'name', 'from', 'as_name'])
         self.classes = pd.DataFrame(columns=['file_id', 'cls_id', 'name', 'base_classes'])
         self.functions = pd.DataFrame(columns=['file_id', 'fnc_id', 'name', 'class', 'class_base_classes', 'params', 'docstring', 'function_code', 'class_id', 'return_type'])
-        self.calls = pd.DataFrame(columns=['file_id', 'cll_id', 'name', 'class', 'class_base_classes'])
+        self.calls = pd.DataFrame(columns=['file_id', 'cll_id', 'name', 'class', 'class_base_classes', 'class_id', 'func_id', 'func_name', 'func_params'])
         self.adapter = adapter
         parser: Parser = adapter.get_tree_sitter_parser()
         self.tree: Tree = parser.parse(file_content)
@@ -52,28 +53,62 @@ class AstProcessor:
 
     def _handle_function_definitions(self, node: Node, current_class_name: str ,current_base_classes: list[str], file_id: str, fnc_id, class_id):
         if self.adapter.should_skip_function_node(node):
-            return
+            return None
 
         if self.__is_not_correct_type(node, NodeType.FUNCTION):
-            return
+            return None
         functions = self.adapter.parse_functions(top_function_node=node, current_class_name=current_class_name,
                     class_base_classes=current_base_classes, file_id=file_id, fnc_id=fnc_id, class_id=class_id)
         self.functions = self.__update_indexes_and_dataframe(functions, self.functions, "cls_id")
+        return functions[0] if len(functions) > 0 else None
 
+    def _handle_calls(self, node: Node, file_id: str, current_class_name: str, current_base_classes: list[str],
+                      class_id: int, fnc_id: int, func_name: str, func_params: dict, cll_id: int):
 
-    def __walk_ast(self, node: Node, file_id: str, class_name='Global', class_base_classes=list(), class_id=None ) -> None:
-        # todo update the id mapper
+        if self.__is_not_correct_type(node, NodeType.CALL):
+            return
+
+        calls = self.adapter.parse_calls(top_call_node=node, current_class_name=current_class_name,
+            class_base_classes=current_base_classes, file_id=file_id, fnc_id=fnc_id, class_id=class_id, cll_id=cll_id,
+            func_name=func_name, func_params=func_params)
+
+        self.calls = self.__update_indexes_and_dataframe(calls, self.calls, "cll_id")
+
+    def __walk_ast(self, node: Node, file_id: str, class_name='Global', class_base_classes=None, class_id=None,
+                   fnc_id=None, func_name=None, func_params=None) -> None:
+        #todo update id mapper
+
+        # Handle imports
         self._handle_imports(node, file_id=file_id, current_import_id=self.id_dict.get("imp_id", None))
-        current_class = self._handle_class_definitions(node, file_id=file_id, current_class_id=self.id_dict.get("cls_id", None))
-        class_name=class_name if not None else "Global"
-        class_base_classes=class_base_classes if not None else []
-        class_id=class_id if not None else None
+
+        # Handle classes
+        current_class = self._handle_class_definitions(node, file_id=file_id,
+                                                       current_class_id=self.id_dict.get("cls_id", None))
+        if class_base_classes is None:
+            class_base_classes = []
+
         if current_class is not None:
             current_class = current_class.iloc[0]
             class_name = current_class["name"]
             class_base_classes = current_class["base_classes"]
-            class_id=current_class["cls_id"]
-        self._handle_function_definitions(node, file_id=file_id, fnc_id=self.id_dict.get("fnc_id", None), current_class_name=class_name,
-                                          current_base_classes=class_base_classes,class_id=class_id)
+            class_id = current_class["cls_id"]
+
+        # Handle functions
+        current_function = self._handle_function_definitions(node, file_id=file_id, fnc_id=self.id_dict.get("fnc_id", None),
+            current_class_name=class_name, current_base_classes=class_base_classes, class_id=class_id)
+
+        if current_function is not None:
+            current_function = current_function.iloc[0]
+            func_name = current_function["name"]
+            func_params = json.loads(current_function["params"])
+            fnc_id = current_function["fnc_id"]
+
+        # Handle calls (using current function context)
+        self._handle_calls(node, file_id=file_id, cll_id=self.id_dict.get("cll_id", None),
+                           current_class_name=class_name, current_base_classes=class_base_classes,
+                           class_id=class_id, fnc_id=fnc_id, func_name=func_name, func_params=func_params)
+
+        # Recurse to children with updated context
         for child in node.children:
-            self.__walk_ast(child, file_id, class_name=class_name, class_base_classes=class_base_classes, class_id=class_id)
+            self.__walk_ast(child, file_id, class_name=class_name, class_base_classes=class_base_classes,
+                            class_id=class_id, fnc_id=fnc_id, func_name=func_name, func_params=func_params)
