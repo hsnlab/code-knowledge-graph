@@ -1258,7 +1258,129 @@
       }
     ]
   }
-}
+},
+
+  "standalone_resolution_tests": {
+    "cpp_resolve_this_pointer": {
+        "mock": "class MyClass {\n    void callee() {}\n    void caller() {\n        this->callee();\n    }\n};",
+        "expected": [
+          {
+            "name": "this->callee",
+            "combinedName": "MyClass.callee"
+          }
+        ]
+      },
+
+      "cpp_resolve_param_simple": {
+        "mock": "class Target {\n    void method() {}\n};\n\nvoid caller(Target obj) {\n    obj.method();\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_param_pointer": {
+        "mock": "class Target {\n    void method() {}\n};\n\nvoid caller(Target* ptr) {\n    ptr->method();\n}",
+        "expected": [
+          {
+            "name": "ptr->method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_param_const_ref": {
+        "mock": "class Target {\n    void method() {}\n};\n\nvoid caller(const Target& ref) {\n    ref.method();\n}",
+        "expected": [
+          {
+            "name": "ref.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_qualified_single": {
+        "mock": "class MyClass {\n    static void method() {}\n};\n\nvoid caller() {\n    MyClass::method();\n}",
+        "expected": [
+          {
+            "name": "MyClass::method",
+            "combinedName": "MyClass.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_simple_call": {
+        "mock": "void foo() {}\n\nvoid caller() {\n    foo();\n}",
+        "expected": [
+          {
+            "name": "foo",
+            "combinedName": "foo"
+          }
+        ]
+      },
+
+      "cpp_no_resolve_local_var": {
+        "mock": "class Target {\n    void method() {}\n};\n\nvoid caller() {\n    Target obj;\n    obj.method();\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "obj.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_chained_call": {
+        "mock": "class Type {\n    Type* getX() {}\n};\n\nvoid caller(Type obj) {\n    obj.getX();\n}",
+        "expected": [
+          {
+            "name": "obj.getX",
+            "combinedName": "Type.getX"
+          }
+        ]
+      },
+
+      "cpp_resolve_template_call": {
+        "mock": "template<typename T>\nvoid func() {}\n\nvoid caller() {\n    func<int>();\n}",
+        "expected": [
+          {
+            "name": "func<int>",
+            "combinedName": "func"
+          }
+        ]
+      },
+
+      "cpp_resolve_nested_qualified": {
+        "mock": "namespace ns {\n    class Outer {\n        public:\n        class Inner {\n            public:\n            static void method() {}\n        };\n    };\n}\n\nvoid caller() {\n    ns::Outer::Inner::method();\n}",
+        "expected": [
+          {
+            "name": "ns::Outer::Inner::method",
+            "combinedName": "ns.Outer.Inner.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_constructor": {
+        "mock": "class MyClass {};\n\nvoid caller() {\n    MyClass* obj = new MyClass();\n}",
+        "expected": [
+          {
+            "name": "MyClass",
+            "combinedName": "MyClass"
+          }
+        ]
+      },
+
+      "cpp_resolve_param_qualified_type": {
+        "mock": "namespace ns {\n    class Type {\n        public:\n        void method() {}\n    };\n}\n\nvoid caller(ns::Type obj) {\n    obj.method();\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "ns.Type.method"
+          }
+        ]
+      }
+    }
   },
   "erlang": {
     "path": "fixtures/erlang/sample.erl",

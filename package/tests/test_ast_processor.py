@@ -127,6 +127,28 @@ class TestAstProcessor(unittest.TestCase):
                            check_dtype=False,
                            obj=f"Actual:\n{actual_str}")
 
+    def _test_specific_resolution_scenario(self, adapter_class, mock, expected):
+        # Step 1: Parse the code (reuse existing infrastructure)
+        adapter = adapter_class()
+        processor = AstProcessor(adapter_class(), mock.encode('utf-8'))
+        processor.process_file_ast(None, {}, False)
+
+        # Step 2: THE NEW PART - Call resolve_calls()
+        adapter.resolve_calls(
+            calls=processor.calls,
+            functions=processor.functions,
+            classes=processor.classes,
+            imports=processor.imports
+        )
+
+        # Step 3: Verify combinedName was added correctly
+        expected_df = DataFrame(expected)
+        assert_frame_equal(
+            processor.calls[['name', 'combinedName']],
+            expected_df[['name', 'combinedName']],
+            check_dtype=False
+        )
+
     def tearDown(self):
         """Teardown Phase"""
         self.parser = None
@@ -188,7 +210,18 @@ def generate_tests():
                     self._test_specific_call_scenario(adapter, mock, expected)
 
                 test_method.__name__ = f'test_{language}_{test_name}'
-                test_method.__doc__ = f'Test {language} {test_name} function extraction'
+                test_method.__doc__ = f'Test {language} {test_name} call extraction'
+                setattr(TestAstProcessor, test_method.__name__, test_method)
+
+        resolve_tests = config.get("standalone_resolution_tests")
+        if resolve_tests is not None:
+            for test_name, test_data in resolve_tests.items():
+                # Capture test_data in closure properly
+                test_method = lambda self, adapter=adapter_class, mock=test_data.get("mock"), expected=test_data.get("expected"): \
+                    self._test_specific_resolution_scenario(adapter, mock, expected)
+
+                test_method.__name__ = f'test_{language}_{test_name}'
+                test_method.__doc__ = f'Test {language} {test_name} call resolution'
                 setattr(TestAstProcessor, test_method.__name__, test_method)
 
 
