@@ -50,3 +50,6 @@ class LanguageAstAdapter:
                     current_class_name: str, class_base_classes: list, class_id: int,
                     fnc_id: int, func_name: str, func_params: dict) -> list[pd.DataFrame]:
         raise NotImplementedError
+
+    def resolve_calls(self, imports: pd.DataFrame, classes: pd.DataFrame, functions: pd.DataFrame, calls: pd.DataFrame) -> None:
+        raise NotImplementedError

@@ -211,7 +211,8 @@ class CppAstAdapter(LanguageAstAdapter):
         param_type_types: list[str] = [
             'type_qualifier',
             'primitive_type',
-            'type_identifier'
+            'type_identifier',
+            'qualified_identifier'
         ]
 
         declarator_dict: dict[str, str] = {
@@ -312,3 +313,81 @@ class CppAstAdapter(LanguageAstAdapter):
             return func_expr.text.decode('utf-8')
 
         return None
+
+    def resolve_calls(self, imports: pd.DataFrame, classes: pd.DataFrame, functions: pd.DataFrame,
+                      calls: pd.DataFrame) -> None:
+        """
+        Resolve C++ call names to their targets and add 'combinedName' column.
+
+        Handles:
+        - this->method() -> ClassName.method()
+        - obj.method() / obj->method() -> resolve obj from func_params
+        - Class::method() -> Class.method (normalize :: to .)
+        - Simple calls -> keep as-is
+        """
+        import json
+
+        def resolve_single_call(row):
+            """Resolve a single call name to its target."""
+            call_name = row['name']
+            class_name = row.get('class', 'Global')
+            func_params_str = row.get('func_params', '{}')
+
+            # Parse func_params from JSON string
+            try:
+                func_params = json.loads(func_params_str) if func_params_str else {}
+            except (json.JSONDecodeError, TypeError):
+                func_params = {}
+
+            # Case 1: this->method() or this.method()
+            if call_name.startswith('this->') or call_name.startswith('this.'):
+                separator = '->' if '->' in call_name else '.'
+                method_name = call_name.split(separator, 1)[1]
+
+                if class_name and class_name != 'Global':
+                    return f"{class_name}.{method_name}"
+                return method_name
+
+            # Case 2: obj->method() or obj.method() - try to resolve obj from parameters
+            if '->' in call_name or ('.' in call_name and '::' not in call_name):
+                separator = '->' if '->' in call_name else '.'
+                parts = call_name.split(separator, 1)
+
+                if len(parts) == 2:
+                    obj_name, method_name = parts
+
+                    # Try to resolve obj_name from function parameters
+                    if obj_name in func_params:
+                        param_type = func_params[obj_name]
+
+                        # Clean up type: remove const, *, &, whitespace
+                        param_type = (param_type
+                                      .replace('const', '')
+                                      .replace('*', '')
+                                      .replace('&', '')
+                                      .strip())
+
+                        # Normalize :: to . in type
+                        param_type = param_type.replace('::', '.')
+
+                        return f"{param_type}.{method_name}"
+
+                    # If not in params, keep original (local variable)
+                    return call_name
+
+            # Case 3: Class::method() or namespace::func() - normalize :: to .
+            if '::' in call_name:
+                return call_name.replace('::', '.')
+
+            # Case 4: Template calls - strip template arguments
+            # func<int>() -> func
+            if '<' in call_name and '>' in call_name:
+                # Extract base name before template
+                base_name = call_name.split('<')[0]
+                return base_name
+
+            # Case 5: Simple function call or constructor - keep as-is
+            return call_name
+
+        # Apply resolution to all calls
+        calls['combinedName'] = calls.apply(resolve_single_call, axis=1)
