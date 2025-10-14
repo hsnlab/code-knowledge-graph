@@ -148,6 +148,8 @@ print('Arányok:\n', raw_df['label'].value_counts(normalize=True).rename('propor
 display_cols = raw_df.columns.tolist()
 print("Oszlopok:", display_cols)
 
+
+
 # =========================
 # 4) KÓDNORMALIZÁLÁS (alpha-renaming, literál-helyettesítés)
 # =========================
@@ -488,6 +490,129 @@ class GGNNClassifierFeatsNoEmb(nn.Module):
         h = self.drop(h)
         hg = self.pool(h, data.batch)
         return self.head(hg).view(-1)  # [B]
+
+
+# =========================
+# 3.5) EDA – GYORSELEMZÉS ÉS VIZUALIZÁCIÓ (train előtt)
+# =========================
+import os, re, math
+import matplotlib.pyplot as plt
+
+EDA_DIR = "eda_report"
+os.makedirs(EDA_DIR, exist_ok=True)
+
+print("\n[EDA] Alap statisztikák a kiegyensúlyozott mintán:")
+print("Mintaszám:", len(raw_df))
+print(raw_df['label'].value_counts().rename('count'))
+print(raw_df['label'].value_counts(normalize=True).rename('proportion').round(3))
+
+# --- Mérőszámok a kódokról (nyers + normalizált) ---
+def _safe_len(s): 
+    try: return len(s)
+    except: return 0
+
+def _num_lines(s):
+    try: return s.count("\n") + 1
+    except: return 1
+
+def _ratio(pattern, s):
+    if not s: return 0.0
+    return len(re.findall(pattern, s)) / max(1, _safe_len(s))
+
+def _count(pattern, s):
+    if not s: return 0
+    return len(re.findall(pattern, s))
+
+# Normalizált kódot is számolunk (a te normalize_code() függvényeddel)
+sample_codes = raw_df['code'].astype(str).tolist()
+norm_codes = [normalize_code(c) for c in sample_codes]
+
+eda_df = pd.DataFrame({
+    "label": raw_df["label"].astype(int).values,
+    "len_chars": [ _safe_len(c) for c in sample_codes ],
+    "num_lines": [ _num_lines(c) for c in sample_codes ],
+    "len_chars_norm": [ _safe_len(cn) for cn in norm_codes ],
+    # egyszerű tartalmi jellemzők (nyers kódból)
+    "digit_ratio": [ _ratio(r"\d", c) for c in sample_codes ],
+    "upper_ratio": [ _ratio(r"[A-Z]", c) for c in sample_codes ],
+    "lower_ratio": [ _ratio(r"[a-z]", c) for c in sample_codes ],
+    "sym_ratio":   [ _ratio(r"[{}()\[\];,]", c) for c in sample_codes ],
+    "num_string_literals": [ _count(r"\"([^\"\\]|\\.)*\"", c) for c in sample_codes ],
+    "num_char_literals":   [ _count(r"\'([^\'\\]|\\.)*\'", c) for c in sample_codes ],
+})
+
+# --- Összefoglaló táblák mentése ---
+eda_df.describe(include='all').to_csv(os.path.join(EDA_DIR, "eda_summary_describe.csv"))
+raw_df['label'].value_counts().to_csv(os.path.join(EDA_DIR, "label_counts.csv"))
+raw_df['label'].value_counts(normalize=True).to_csv(os.path.join(EDA_DIR, "label_proportions.csv"))
+
+# --- Segédfüggvény a gyors mentett plotokhoz ---
+def _hist(series, title, xlabel, filename, bins=50, logx=False):
+    plt.figure(figsize=(7,4))
+    data = pd.Series(series).dropna()
+    if logx:
+        # csak pozitív értékeket logolunk
+        data = data[data > 0]
+        plt.hist(np.log10(data), bins=bins)
+        plt.xlabel(f"log10({xlabel})")
+    else:
+        plt.hist(data, bins=bins)
+        plt.xlabel(xlabel)
+    plt.title(title)
+    plt.ylabel("count")
+    plt.tight_layout()
+    plt.savefig(os.path.join(EDA_DIR, filename), dpi=150)
+    plt.close()
+
+def _bar_counts(series, title, xlabel, filename):
+    plt.figure(figsize=(5,4))
+    vc = pd.Series(series).value_counts().sort_index()
+    vc.plot(kind="bar")
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel("count")
+    plt.tight_layout()
+    plt.savefig(os.path.join(EDA_DIR, filename), dpi=150)
+    plt.close()
+
+def _corr_heatmap(df_numeric, title, filename):
+    corr = df_numeric.corr()
+    plt.figure(figsize=(6.5,5.5))
+    plt.imshow(corr, interpolation='nearest')
+    plt.title(title)
+    plt.xticks(range(len(corr.columns)), corr.columns, rotation=45, ha='right')
+    plt.yticks(range(len(corr.columns)), corr.columns)
+    plt.colorbar()
+    plt.tight_layout()
+    plt.savefig(os.path.join(EDA_DIR, filename), dpi=150)
+    plt.close()
+
+# --- 1) Label eloszlás ---
+_bar_counts(eda_df["label"], "Címke-eloszlás", "label", "labels_bar.png")
+
+# --- 2) Kódhossz (karakter) + sorok ---
+_hist(eda_df["len_chars"], "Kódhossz (karakter)", "chars", "len_chars_hist.png", bins=60, logx=True)
+_hist(eda_df["num_lines"], "Sorszám a forrásban", "lines", "num_lines_hist.png", bins=60, logx=True)
+
+# --- 3) Normalizált kódhossz ---
+_hist(eda_df["len_chars_norm"], "Normalizált kódhossz (karakter)", "chars_norm", "len_chars_norm_hist.png", bins=60, logx=True)
+
+# --- 4) Egyszerű tartalmi arányok és számlálók ---
+_hist(eda_df["digit_ratio"], "Számjegy arány", "digit_ratio", "digit_ratio_hist.png", bins=50)
+_hist(eda_df["upper_ratio"], "Nagybetű arány", "upper_ratio", "upper_ratio_hist.png", bins=50)
+_hist(eda_df["lower_ratio"], "Kisbetű arány", "lower_ratio", "lower_ratio_hist.png", bins=50)
+_hist(eda_df["sym_ratio"],   "Szimbolikus jelek aránya", "sym_ratio", "sym_ratio_hist.png", bins=50)
+_hist(eda_df["num_string_literals"], "String literálok száma", "num_string_literals", "num_string_literals_hist.png", bins=50, logx=True)
+_hist(eda_df["num_char_literals"],   "Char literálok száma",   "num_char_literals",   "num_char_literals_hist.png", bins=50, logx=True)
+
+# --- 5) Korrelációs mátrix (csak numerikus oszlopok) ---
+num_cols = ["len_chars","num_lines","len_chars_norm","digit_ratio","upper_ratio","lower_ratio","sym_ratio","num_string_literals","num_char_literals","label"]
+_corr_heatmap(eda_df[num_cols], "Korrelációs mátrix (numerikus jellemzők)", "corr_matrix.png")
+
+print(f"[EDA] Kész! Fájlok az '{EDA_DIR}/' mappában:")
+for f in sorted(os.listdir(EDA_DIR)):
+    print(" -", f)
+
 
 # =========================
 # 9) TRÉNING LOOP (BCEWithLogitsLoss) + AMP
