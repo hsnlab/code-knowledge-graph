@@ -15,7 +15,7 @@ class AstProcessor:
         parser: Parser = adapter.get_tree_sitter_parser()
         self.tree: Tree = parser.parse(file_content)
 
-    def process_file_ast(self, file_id: str | None=None, id_dict: dict[str, int] = {}, return_dataframes: bool = True) -> None | tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def process_file_ast(self, file_id: str | None=None, id_dict: dict[str, int] = {}, return_dataframes: bool = True) -> None | tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, int]]:
         self.id_dict = id_dict
         root_node: Node = self.tree.root_node
         if root_node is None:
@@ -23,7 +23,12 @@ class AstProcessor:
 
         self.__walk_ast(root_node, file_id=file_id)
         if return_dataframes:
-            return self.imports, self.classes, self.functions, self.calls
+            return self.imports, self.classes, self.functions, self.calls, {
+                "imp_id": self.id_dict.get("imp_id"),
+                "cls_id": self.id_dict.get("cls_id"),
+                "fnc_id": self.id_dict.get("fnc_id"),
+                "cll_id": self.id_dict.get("cll_id")
+            }
 
     def __is_not_correct_type(self, node: Node, type_expected: NodeType):
         normalized_type: NodeType = self.adapter.map_node_type(node.type)
@@ -59,7 +64,7 @@ class AstProcessor:
             return None
         functions = self.adapter.parse_functions(top_function_node=node, current_class_name=current_class_name,
                     class_base_classes=current_base_classes, file_id=file_id, fnc_id=fnc_id, class_id=class_id)
-        self.functions = self.__update_indexes_and_dataframe(functions, self.functions, "cls_id")
+        self.functions = self.__update_indexes_and_dataframe(functions, self.functions, "fnc_id")
         return functions[0] if len(functions) > 0 else None
 
     def _handle_calls(self, node: Node, file_id: str, current_class_name: str, current_base_classes: list[str],
