@@ -103,6 +103,27 @@ class CppAstAdapter(LanguageAstAdapter):
             # Skip function_definition or nested template_declaration inside a template
             return node.type in ['function_definition', 'template_declaration']
         return False
+    
+    def _extract_class_from_qualified_name(self, func_node: Node) -> str | None:
+        """Extract class name from qualified function definition like MyClass::method()."""
+        for child in func_node.named_children:
+            if child.type == 'function_declarator':
+                for subchild in child.named_children:
+                    if subchild.type in ['qualified_identifier', 'scoped_identifier']:
+                        text = subchild.text.decode('utf-8')
+                        
+                        # MyClass::method -> MyClass
+                        # Outer::Inner::method -> Outer::Inner
+                        # Container<T>::add -> Container
+                        if '::' in text:
+                            # Remove template args if present
+                            if '<' in text:
+                                text = text.split('<')[0] + text.split('>')[-1]
+                            
+                            parts = text.split('::')
+                            # Return everything except the last part (method name)
+                            return '::'.join(parts[:-1]) if len(parts) > 1 else None
+        return None
 
     def parse_functions(self, top_function_node: Node, current_class_name: str, class_base_classes: list,
                         file_id: str, fnc_id: int, class_id: int) -> list[pd.DataFrame]:
@@ -111,25 +132,22 @@ class CppAstAdapter(LanguageAstAdapter):
 
         # Check if field_declaration is actually a function (pure virtual)
         if top_function_node.type == 'field_declaration':
-            # Only process if it contains a function_declarator
             has_function_declarator = any(
                 child.type == 'function_declarator'
                 for child in top_function_node.named_children
             )
             if not has_function_declarator:
-                return []  # Not a function, skip
+                return []
 
         # Unwrap template declarations
         actual_function_node = top_function_node
         if top_function_node.type == 'template_declaration':
-            # Find the function_definition inside (skip if it's a template class)
             for child in top_function_node.named_children:
                 if child.type == 'function_definition':
                     actual_function_node = child
                     break
                 elif child.type in ['class_specifier', 'struct_specifier']:
-                    # This is a template class/struct, not a function template
-                    return []  # Return empty, skip this node
+                    return []
 
         # Handle friend declarations
         if actual_function_node.type == 'friend_declaration':
@@ -140,6 +158,14 @@ class CppAstAdapter(LanguageAstAdapter):
 
         # Extract function components
         name = self._extract_function_name(actual_function_node, current_class_name)
+        
+        # EXTRACT CLASS NAME FROM QUALIFIED IDENTIFIER
+        extracted_class_name = self._extract_class_from_qualified_name(actual_function_node)
+        if extracted_class_name:
+            current_class_name = extracted_class_name
+            # Also clear class_id since this is defined outside
+            class_id = None
+        
         params = self._extract_parameters(actual_function_node)
         return_type = self._extract_return_type(actual_function_node)
         function_code = top_function_node.text.decode('utf-8')
@@ -161,13 +187,21 @@ class CppAstAdapter(LanguageAstAdapter):
 
     def _extract_function_name(self, func_node: Node, current_class_name: str) -> str:
         """Extract function name from function_definition or declaration."""
-        # Look for function_declarator
+        
         for child in func_node.named_children:
             if child.type == 'function_declarator':
                 # Extract name from inside declarator
                 for subchild in child.named_children:
-                    if subchild.type in ['identifier', 'field_identifier', 'destructor_name', 'operator_name']:
-                        return subchild.text.decode('utf-8')
+                    # ADD qualified_identifier and scoped_identifier:
+                    if subchild.type in ['identifier', 'field_identifier', 'destructor_name', 
+                                        'operator_name', 'qualified_identifier', 'scoped_identifier']:
+                        text = subchild.text.decode('utf-8')
+                        
+                        # If qualified (MyClass::method or Outer::Inner::method), extract just the method name
+                        if '::' in text:
+                            return text.split('::')[-1]  # "MyClass::method" -> "method"
+                        
+                        return text
         return '<anonymous>'
 
     def _extract_parameters(self, func_node: Node) -> dict[str, str]:
