@@ -8,6 +8,8 @@ import tree_sitter_python as tspython
 from tree_sitter import Language, Parser
 from pyvis.network import Network
 
+from package.adapters import LanguageAstAdapter
+
 PY_LANGUAGE = Language(tspython.language())
 parser = Parser(PY_LANGUAGE)
 
@@ -23,7 +25,8 @@ import torch
 import copy, uuid, json
 import os
 
-
+from package.constants import REVERSE_EXTENSION_MAP
+from package.adapters import LanguageAstAdapterRegistry
 
 class CallGraphBuilder:
 
@@ -72,20 +75,28 @@ class CallGraphBuilder:
 
         for dirpath, _, filenames in os.walk(path):
             for filename in filenames:
-                if filename.endswith(".py"):
-                    
-                    file_id = str(uuid.uuid1())
-                    file_name_and_path = os.path.join(dirpath, filename)
+                """
+                name, file_extension = os.path.splitext(filename)
+                if file_extension is None:
+                    continue
 
-                    filename_lookup[file_id] = file_name_and_path
+                language: str = REVERSE_EXTENSION_MAP[file_extension]
+                language_adapter:  LanguageAstAdapter = LanguageAstAdapterRegistry.get_adapter(language)
 
-                    file_path = os.path.join(dirpath, filename)
-                    python_code = ''
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        python_code += f.read()
+                """
 
-                    tree = ast.parse(python_code)
-                    self.process_file_ast(tree, return_dataframes=False, file_id=file_id)
+                file_id = str(uuid.uuid1())
+                file_name_and_path = os.path.join(dirpath, filename)
+
+                filename_lookup[file_id] = file_name_and_path
+
+                file_path = os.path.join(dirpath, filename)
+                python_code = ''
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    python_code += f.read()
+
+                tree = ast.parse(python_code)
+                self.process_file_ast(tree, return_dataframes=False, file_id=file_id)
 
         split_columns = self.calls['name'].str.split('.', n=1, expand=True)
 
