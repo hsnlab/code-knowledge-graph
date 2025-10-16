@@ -76,6 +76,7 @@ class KnowledgeGraphBuilder():
 
         # Get repository issues, pull requests, artifacts and actions
         cluster_nodes, cluster_edges = self.__cluster_function_nodes(cg_nodes)
+        ensemble_cluster_nodes, ensemble_cluster_edges = self.__create_ensemble_clusters(cg_edges, cg_nodes, cluster_nodes) 
         issues = self.__get_repo_issues(self.repository)
         print('Issues scraped.')
         prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
@@ -145,7 +146,9 @@ class KnowledgeGraphBuilder():
             "artifacts": artifacts,
             "actions": actions,
             "cluster_nodes": cluster_nodes,
-            "cluster_function_edges": cluster_edges
+            "cluster_function_edges": cluster_edges,
+            "cluster_ensemble_nodes": ensemble_cluster_nodes,
+            "cluster_ensemble_edges": ensemble_cluster_edges
         }
         
         if developer_mode and not developers_df.empty:
@@ -663,8 +666,6 @@ class KnowledgeGraphBuilder():
 
 
 
-
-
     def __cluster_function_nodes(self, cg_nodes):
         """
         Clusters function nodes based on their names using semantic clustering.
@@ -683,9 +684,23 @@ class KnowledgeGraphBuilder():
         cluster_edges = cluster_df[['cluster', 'func_id']].drop_duplicates().rename(columns={'cluster': 'source', 'func_id': 'target'})
 
         return cluster_nodes, cluster_edges
-
-
-
+    
+    
+    def __create_ensemble_clusters(self, cg_edges, cg_nodes, semantic_clusters):
+        """
+        Creates ensemble clusters by combining semantic and algorithmic clustering methods.
+        :param cg_edges: DataFrame containing call graph edges.
+        :param cg_nodes: DataFrame containing call graph nodes.
+        :param semantic_clusters: DataFrame containing semantic clusters.
+        :return: DataFrame with ensemble clustered nodes and edges.
+        """
+        sc = SemanticClustering(hugging_face_token=self.hugging_face_token)
+        
+        algorithmic_clusters = sc.apply_clustering_methods(cg_edges, cg_nodes)
+        ensemble_cluster_nodes = sc.ensemble(algorithmic_clusters, semantic_clusters)
+        ensemble_cluster_edges = sc.agreement_graph(semantic_clusters, algorithmic_clusters)
+        
+        return ensemble_cluster_nodes, ensemble_cluster_edges
 
 
     def __get_issue_to_pr_edges(self, issue_df, pr_df):
