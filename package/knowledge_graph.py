@@ -145,7 +145,9 @@ class KnowledgeGraphBuilder():
             "artifacts": artifacts,
             "actions": actions,
             "cluster_nodes": cluster_nodes,
-            "cluster_function_edges": cluster_edges
+            "cluster_function_edges": cluster_edges,
+            "developer_node": developers_df,
+            "developer_function_edges": dev_edges_df
         }
         
         if developer_mode and not developers_df.empty:
