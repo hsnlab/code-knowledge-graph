@@ -72,8 +72,24 @@ class KnowledgeGraphBuilder():
 
         # Build hierarchical graph (CG + CFG/AST)
         hg = HierarchicalGraphBuilder()
-        cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type, create_embedding=create_embedding)
+        (
+            cg_nodes,
+            cg_edges,
+            sg_nodes,
+            sg_edges,
+            hier_1,
+            hier_2,
+            imports,
+            function_version_nodes,
+            version_edges,
+            functionversion_function_edges,
+        ) = hg.create_hierarchical_graph(
+            repo_path,
+            graph_type=graph_type,
+            create_embedding=create_embedding
+        )
 
+        
         # Get repository issues, pull requests, artifacts and actions
         cluster_nodes, cluster_edges = self.__cluster_function_nodes(cg_nodes)
         issues = self.__get_repo_issues(self.repository)
@@ -129,6 +145,9 @@ class KnowledgeGraphBuilder():
 
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2)
 
+        
+
+
         self.knowledge_graph = {
             "function_nodes": cg_nodes,
             "function_edges": cg_edges,
@@ -146,6 +165,9 @@ class KnowledgeGraphBuilder():
             "actions": actions,
             "cluster_nodes": cluster_nodes,
             "cluster_function_edges": cluster_edges,
+            "function_version_nodes": function_version_nodes,
+            "version_edges": version_edges,
+            "functionversion_function_edges": functionversion_function_edges,
             "developer_node": developers_df,
             "developer_function_edges": dev_edges_df
         }
