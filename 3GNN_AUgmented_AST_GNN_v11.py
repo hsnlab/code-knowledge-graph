@@ -118,7 +118,7 @@ def load_any_dataset(select: str) -> pd.DataFrame:
         raise ValueError(select)
 
 raw_df = load_any_dataset(SELECT_DATASET)
-# --- Kiegyensúlyozás: ~10% pozitív (összes pozitív megtartása, negatívakból mintavétel) ---
+# --- Kiegyensúlyozás:  pozitív (összes pozitív megtartása, negatívakból mintavétel) ---
 def make_about_10pct_pos(df: pd.DataFrame, seed: int = SEED, neg_per_pos: int = 9) -> pd.DataFrame:
     df = df.copy()
     df['label'] = df['label'].astype(int)
@@ -127,7 +127,7 @@ def make_about_10pct_pos(df: pd.DataFrame, seed: int = SEED, neg_per_pos: int = 
     if len(df_pos) == 0:
         raise ValueError("Nincs pozitív minta a datasetben, nem lehet kiegyensúlyozni.")
 
-    target_neg = min(len(df_neg), neg_per_pos * len(df_pos))   # ~10% pozitív → 1 : 9 arány
+    target_neg = min(len(df_neg), neg_per_pos * len(df_pos))   
     df_neg_sampled = df_neg.sample(target_neg, random_state=seed)
 
     df_bal = pd.concat([df_pos, df_neg_sampled]).sample(frac=1, random_state=seed).reset_index(drop=True)
