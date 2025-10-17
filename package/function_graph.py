@@ -13,7 +13,7 @@ parser = Parser(PY_LANGUAGE)
 import json
 
 
-
+from package.adapters import LanguageAstAdapterRegistry
 
 class FunctionGraphBuilder():
 
@@ -25,7 +25,7 @@ class FunctionGraphBuilder():
         self.edges = pd.DataFrame(columns=['source_id', 'target_id'])
 
 
-    def create_graph(self, code, graph_type="AST", package='ts', edge_set='default', visualize=False):
+    def create_graph(self, code, graph_type="AST", package='ts', edge_set='default', visualize=False, language: str | None = None):
         """
         Parse the given code and return the AST.
         Parameters:
@@ -35,13 +35,19 @@ class FunctionGraphBuilder():
             - edge_set (str): The type of edges to create. Can be 'default' or 'extended'. Only applicable for AST.
         """
         
-        cleaned_code = self._remove_docstring(code)
-
+        # todo remove this line. only placed here to test cpp parsing
+        if language == 'python':
+            cleaned_code = self._remove_docstring(code)
+        else:
+            cleaned_code = code
         # -------------------------------------
         # Create AST
         if graph_type in ["AST", "ast"]:
 
             if package == 'ts':
+                 # todo remove this line, we skip language specific docstring removal
+                if language == 'cpp':
+                    parser = LanguageAstAdapterRegistry.get_adapter("cpp")().get_tree_sitter_parser()
                 tree = parser.parse(bytes(cleaned_code, "utf8"))
                 self._TS_create_ast(tree, source_code=bytes(cleaned_code, "utf8"))
             else:

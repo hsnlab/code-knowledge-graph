@@ -928,8 +928,134 @@
             "return_type": "void"
           }
         ]
-      }
+      },
+      "cpp_method_declaration_vs_definition": {
+  "mock": "class MyClass {\npublic:\n    void method();\n};\n\nvoid MyClass::method() {\n    std::cout << \"Defined outside\";\n}",
+  "expected": [
+    {
+      "file_id": null,
+      "fnc_id": null,
+      "name": "method",
+      "class": "MyClass",
+      "class_base_classes": [],
+      "params": "{}",
+      "docstring": null,
+      "function_code": "void MyClass::method() {\n    std::cout << \"Defined outside\";\n}",
+      "class_id": null,
+      "return_type": "void"
+    }
+  ]
+},
+
+"cpp_constructor_outside_class": {
+  "mock": "class Person {\npublic:\n    Person(int age);\n};\n\nPerson::Person(int age) {\n    std::cout << age;\n}",
+  "expected": [
+    {
+      "file_id": null,
+      "fnc_id": null,
+      "name": "Person",
+      "class": "Person",
+      "class_base_classes": [],
+      "params": "{\"age\": \"int\"}",
+      "docstring": null,
+      "function_code": "Person::Person(int age) {\n    std::cout << age;\n}",
+      "class_id": null,
+      "return_type": null
+    }
+  ]
+},
+
+"cpp_destructor_outside_class": {
+  "mock": "class MyClass {\npublic:\n    ~MyClass();\n};\n\nMyClass::~MyClass() {\n    std::cout << \"Destroyed\";\n}",
+  "expected": [
+    {
+      "file_id": null,
+      "fnc_id": null,
+      "name": "~MyClass",
+      "class": "MyClass",
+      "class_base_classes": [],
+      "params": "{}",
+      "docstring": null,
+      "function_code": "MyClass::~MyClass() {\n    std::cout << \"Destroyed\";\n}",
+      "class_id": null,
+      "return_type": null
+    }
+  ]
+},
+
+"cpp_namespace_function_definition": {
+  "mock": "namespace MyNamespace {\n    void func();\n}\n\nvoid MyNamespace::func() {\n    std::cout << \"NS\";\n}",
+  "expected": [
+    {
+      "file_id": null,
+      "fnc_id": null,
+      "name": "func",
+      "class": "MyNamespace",
+      "class_base_classes": [],
+      "params": "{}",
+      "docstring": null,
+      "function_code": "void MyNamespace::func() {\n    std::cout << \"NS\";\n}",
+      "class_id": null,
+      "return_type": "void"
+    }
+  ]
+},
+
+"cpp_nested_class_method_outside": {
+  "mock": "class Outer {\npublic:\n    class Inner {\n    public:\n        void method();\n    };\n};\n\nvoid Outer::Inner::method() {\n    std::cout << \"Nested\";\n}",
+  "expected": [
+    {
+      "file_id": null,
+      "fnc_id": null,
+      "name": "method",
+      "class": "Outer::Inner",
+      "class_base_classes": [],
+      "params": "{}",
+      "docstring": null,
+      "function_code": "void Outer::Inner::method() {\n    std::cout << \"Nested\";\n}",
+      "class_id": null,
+      "return_type": "void"
+    }
+  ]
+},
+
+"cpp_template_method_outside": {
+  "mock": "template<typename T>\nclass Container {\npublic:\n    void add(T item);\n};\n\ntemplate<typename T>\nvoid Container<T>::add(T item) {\n    std::cout << item;\n}",
+  "expected": [
+    {
+      "file_id": null,
+      "fnc_id": null,
+      "name": "add",
+      "class": "Container",
+      "class_base_classes": [],
+      "params": "{\"item\": \"T\"}",
+      "docstring": null,
+      "function_code": "template<typename T>\nvoid Container<T>::add(T item) {\n    std::cout << item;\n}",
+      "class_id": null,
+      "return_type": "void"
+    }
+  ]
+},
+
+"cpp_method_with_params_outside": {
+  "mock": "class Calculator {\npublic:\n    int add(int a, int b);\n};\n\nint Calculator::add(int a, int b) {\n    return a + b;\n}",
+  "expected": [
+    {
+      "file_id": null,
+      "fnc_id": null,
+      "name": "add",
+      "class": "Calculator",
+      "class_base_classes": [],
+      "params": "{\"a\": \"int\", \"b\": \"int\"}",
+      "docstring": null,
+      "function_code": "int Calculator::add(int a, int b) {\n    return a + b;\n}",
+      "class_id": null,
+      "return_type": "int"
+    }
+  ]
+}
     },
+
      "standalone_calls_tests": {
   "cpp_calls_standalone": {
     "mock": "void standalone_function() {\n    helper();\n}\n\nvoid helper() {}",
@@ -1258,6 +1384,7 @@
       }
     ]
   }
+  
 },
 
   "standalone_resolution_tests": {

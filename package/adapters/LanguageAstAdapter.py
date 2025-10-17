@@ -53,3 +53,6 @@ class LanguageAstAdapter:
 
     def resolve_calls(self, imports: pd.DataFrame, classes: pd.DataFrame, functions: pd.DataFrame, calls: pd.DataFrame) -> None:
         raise NotImplementedError
+    
+    def create_import_edges(self, import_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        raise NotImplementedError

@@ -425,3 +425,49 @@ class CppAstAdapter(LanguageAstAdapter):
 
         # Apply resolution to all calls
         calls['combinedName'] = calls.apply(resolve_single_call, axis=1)
+
+    def create_import_edges(self, import_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Creates import nodes and edges for C++.
+        C++ includes don't have 'from' module, so we group by (name, as_name) only.
+        """
+        if import_df.empty:
+            imports = pd.DataFrame(columns=['ID', 'import_name', 'import_from', 'import_as_name', 'import_file_ids'])
+            imp_edges = pd.DataFrame(columns=['source', 'target'])
+            return imports, imp_edges
+        
+        # C++: Group by name and as_name (from is always None for #include)
+        # Note: in C++, name = as_name for most cases
+        imports_grouped = (
+            import_df.groupby(['name', 'as_name'], dropna=False)['file_id']
+            .apply(lambda x: list(set(x)))
+            .reset_index()
+        )
+
+        # Add unique IDs for each import
+        imports_grouped.insert(0, 'import_id', range(1, len(imports_grouped) + 1))
+
+        # Format import nodes
+        imports = imports_grouped.rename(columns={
+            'name': 'import_name',
+            'as_name': 'import_as_name',
+            'file_id': 'import_file_ids'
+        })
+        imports['import_from'] = None  # C++ doesn't have 'from' concept
+
+        # Create edges: Import -> Functions (via file_id)
+        imp_edges = imports[['import_id', 'import_file_ids']].explode('import_file_ids')
+        imp_edges = imp_edges.rename(columns={'import_file_ids': 'file_id'})
+
+        # Connect imports to functions in the same file
+        imp_edges = imp_edges.merge(
+            cg_nodes[['func_id', 'file_id']], 
+            on='file_id', 
+            how='left'
+        )
+        
+        # Keep only valid edges and rename columns
+        imp_edges = imp_edges[['import_id', 'func_id']].dropna().reset_index(drop=True)
+        imp_edges = imp_edges.rename(columns={'import_id': 'source', 'func_id': 'target'})
+
+        return imports, imp_edges

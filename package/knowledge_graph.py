@@ -15,6 +15,8 @@ from .hierarchical_graph import HierarchicalGraphBuilder
 from .semantic_clustering import SemanticClustering
 from .pr_function_collector import extract_changed_functions_from_pr
 
+from package.adapters import LanguageAstAdapterRegistry
+
 
 class KnowledgeGraphBuilder():
 
@@ -38,7 +40,8 @@ class KnowledgeGraphBuilder():
         repo_path_modifier: str = None,
         URI: str = None,
         user: str = None,
-        password: str = None
+        password: str = None,
+        project_language: str | None = None 
     ):
         """
         Builds a knowledge graph from the given repository.
@@ -64,12 +67,28 @@ class KnowledgeGraphBuilder():
         # Initialize repository
         self.repository = self.git.get_repo(repo_name)
 
-        # Build hierarchical graph (CG + CFG/AST)
+        # Build hierarchical graph (CG + CFG/AST)        
         hg = HierarchicalGraphBuilder()
-        cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type, create_embedding=create_embedding)
+        cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type, create_embedding=create_embedding, project_language=project_language)
 
         # Get repository issues, pull requests, artifacts and actions
-        cluster_nodes, cluster_edges = self.__cluster_function_nodes(cg_nodes)
+        if create_embedding:
+            cluster_nodes, cluster_edges = self.__cluster_function_nodes(cg_nodes)
+            print('Function nodes clustered.')
+        else:
+            # Skip clustering
+            cluster_nodes = pd.DataFrame(columns=['ID', 'summary'])
+            cluster_edges = pd.DataFrame(columns=['source', 'target'])
+            print('Clustering skipped (create_embedding=False).')
+        """
+        print('Skipping GitHub data (issues, PRs, artifacts, actions).')
+        issues = pd.DataFrame(columns=['ID', 'issue_title', 'issue_body', 'issue_labels', 'issue_state'])
+        prs = pd.DataFrame(columns=['ID', 'pr_title', 'pr_body', 'pr_open'])
+        pr_edges = pd.DataFrame(columns=['source', 'target'])
+        artifacts = pd.DataFrame(columns=['ID', 'artifact_name', 'artifact_size', 'created_at', 'updated_at'])
+        actions = pd.DataFrame(columns=['name', 'path', 'triggers', 'platforms', 'actions_used'])
+        issue_to_pr_edges = pd.DataFrame(columns=['source', 'target'])   
+        """ 
         issues = self.__get_repo_issues(self.repository)
         print('Issues scraped.')
         prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
@@ -78,13 +97,21 @@ class KnowledgeGraphBuilder():
         print('Artifacts scraped.')
         actions = self.__get_repo_actions()
         print('Actions scraped.')
-        imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
-        print('Imports and import edges created.')
+       
+       
         issue_to_pr_edges = self.__get_issue_to_pr_edges(issues, prs)
         print('Issue to PR edges created.')
 
+        # todo remove cpp specific import_edge_creation after demo
+        if project_language == "cpp":
+            adapter_class = LanguageAstAdapterRegistry.get_adapter(project_language)
+            adapter = adapter_class()
+            imports, imp_edges = adapter.create_import_edges(imports, cg_nodes)
+        else:
+            imports, imp_edges = self.__create_import_edges()
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2)
-
+        print('Imports and import edges created.')
+        
         self.knowledge_graph = {
             "function_nodes": cg_nodes,
             "function_edges": cg_edges,
@@ -252,6 +279,8 @@ class KnowledgeGraphBuilder():
             # Load edges
             for key, df in knowledge_graph.items():
                 if key.endswith("_edges"):
+                    if df.empty or 'source' not in df.columns or 'target' not in df.columns:
+                        continue
                     rel_type = key.replace("_edges", "").upper()
 
                     # Determine source and target node labels based on the key
@@ -388,6 +417,12 @@ class KnowledgeGraphBuilder():
 
         PR_df = pd.concat([df_open, df_closed], ignore_index=True).reset_index(drop=True)
         changed_functions_df = pd.concat([changed_functions_df_open, changed_functions_df_closed], ignore_index=True).reset_index(drop=True)
+
+        # handle repositories without pr-s
+        if changed_functions_df.empty:
+            PR_df = PR_df.rename(columns={'pr_number': 'ID'})
+            PR_df = PR_df[['ID', 'pr_title', 'pr_body', 'pr_open']].drop_duplicates().reset_index(drop=True) if not PR_df.empty else pd.DataFrame(columns=['ID', 'pr_title', 'pr_body', 'pr_open'])
+            return PR_df, pd.DataFrame(columns=['source', 'target'])
 
         # String formatting
         changed_functions_df['file_path'] = changed_functions_df['file_path'].str.replace(r'\\', '/', regex=True)
@@ -622,6 +657,9 @@ class KnowledgeGraphBuilder():
 
 
     def __get_issue_to_pr_edges(self, issue_df, pr_df):
+        
+        if issue_df.empty or 'ID' not in issue_df.columns or pr_df.empty or 'ID' not in pr_df.columns:
+                return pd.DataFrame(columns=['source', 'target'])
 
         # Issue to PR edges
         linked_issues = []
@@ -681,7 +719,7 @@ class KnowledgeGraphBuilder():
                         'pr_number': pr_number,
                     })
 
-        return pd.DataFrame(records)
+        return pd.DataFrame(records, columns=['issue_number', 'pr_number'])
 
 
 
