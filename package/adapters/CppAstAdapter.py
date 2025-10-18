@@ -123,6 +123,21 @@ class CppAstAdapter(LanguageAstAdapter):
                             parts = text.split('::')
                             # Return everything except the last part (method name)
                             return '::'.join(parts[:-1]) if len(parts) > 1 else None
+        
+            elif child.type == 'pointer_declarator':
+                for subchild in child.named_children:
+                    if subchild.type == 'function_declarator':
+                        for inner_child in subchild.named_children:
+                            if inner_child.type in ['qualified_identifier', 'scoped_identifier']:
+                                text = inner_child.text.decode('utf-8')
+                                
+                                if '::' in text:
+                                    if '<' in text:
+                                        text = text.split('<')[0] + text.split('>')[-1]
+                                    
+                                    parts = text.split('::')
+                                    return '::'.join(parts[:-1]) if len(parts) > 1 else None
+
         return None
 
     def parse_functions(self, top_function_node: Node, current_class_name: str, class_base_classes: list,
@@ -211,13 +226,26 @@ class CppAstAdapter(LanguageAstAdapter):
                             if template_child.type == 'identifier':
                                 return template_child.text.decode('utf-8')
 
-            # ADD THIS BLOCK - Handle pointer_declarator for functions returning pointers
             elif child.type == 'pointer_declarator':
                 for subchild in child.named_children:
                     if subchild.type == 'function_declarator':
                         for inner_child in subchild.named_children:
-                            if inner_child.type == 'identifier':
+                            # Egyszerű identifier vagy field_identifier
+                            if inner_child.type in ['identifier', 'field_identifier']:
                                 return inner_child.text.decode('utf-8')
+                            
+                            # Qualified identifier - keress benne identifier gyereket
+                            elif inner_child.type in ['qualified_identifier', 'scoped_identifier']:
+                                # Nézd meg a gyerekeket, keress 'identifier'-t
+                                for qual_child in inner_child.named_children:
+                                    if qual_child.type == 'identifier':
+                                        return qual_child.text.decode('utf-8')
+                                
+                                # Ha nem találtál identifier gyereket, fallback: split :: alapján
+                                text = inner_child.text.decode('utf-8')
+                                if '::' in text:
+                                    return text.split('::')[-1]
+                                return text
 
             if func_node.type == 'field_declaration':
                 for child in func_node.named_children:
@@ -227,7 +255,6 @@ class CppAstAdapter(LanguageAstAdapter):
                                 return subchild.text.decode('utf-8')
 
         return '<lambda>' if 'lambda' in func_node.text.decode('utf-8') else '<inline_function>'
-
 
     def _extract_parameters(self, func_node: Node) -> dict[str, str]:
         """Extract function parameters with types."""
@@ -486,6 +513,18 @@ class CppAstAdapter(LanguageAstAdapter):
             if '<' in call_name and '>' in call_name:
                 base_name = call_name.split('<')[0]
                 return base_name
+
+            if class_name and class_name != 'Global' and '::' not in call_name and '->' not in call_name and '.' not in call_name:
+                # Check if this function name exists as a method in the current class
+                potential_method = f"{class_name}.{call_name}"
+                
+                # Check if potential_method exists in functions dataframe
+                if not functions.empty and 'combinedName' in functions.columns:
+                    if potential_method in functions['combinedName'].values:
+                        return potential_method
+                
+                # If not found as a method, keep as-is (might be a global function)
+                return call_name
 
             # Case 5: Simple function call or constructor - keep as-is
             return call_name
