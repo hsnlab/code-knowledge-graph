@@ -171,6 +171,8 @@ class CppAstAdapter(LanguageAstAdapter):
         function_code = top_function_node.text.decode('utf-8')
         docstring = None
 
+        local_vars = self.extract_local_variables(actual_function_node)
+
         import json
         return [pd.DataFrame([{
             'file_id': file_id,
@@ -179,6 +181,7 @@ class CppAstAdapter(LanguageAstAdapter):
             'class': current_class_name,
             'class_base_classes': class_base_classes,
             'params': json.dumps(params),
+            'local_vars': json.dumps(local_vars), 
             'docstring': docstring,
             'function_code': function_code,
             'class_id': class_id,
@@ -202,7 +205,29 @@ class CppAstAdapter(LanguageAstAdapter):
                             return text.split('::')[-1]  # "MyClass::method" -> "method"
                         
                         return text
-        return '<anonymous>'
+
+                    elif subchild.type == 'template_function':
+                        for template_child in subchild.named_children:
+                            if template_child.type == 'identifier':
+                                return template_child.text.decode('utf-8')
+
+            # ADD THIS BLOCK - Handle pointer_declarator for functions returning pointers
+            elif child.type == 'pointer_declarator':
+                for subchild in child.named_children:
+                    if subchild.type == 'function_declarator':
+                        for inner_child in subchild.named_children:
+                            if inner_child.type == 'identifier':
+                                return inner_child.text.decode('utf-8')
+
+            if func_node.type == 'field_declaration':
+                for child in func_node.named_children:
+                    if child.type == 'function_declarator':
+                        for subchild in child.named_children:
+                            if subchild.type == 'identifier':
+                                return subchild.text.decode('utf-8')
+
+        return '<lambda>' if 'lambda' in func_node.text.decode('utf-8') else '<inline_function>'
+
 
     def _extract_parameters(self, func_node: Node) -> dict[str, str]:
         """Extract function parameters with types."""
@@ -360,18 +385,47 @@ class CppAstAdapter(LanguageAstAdapter):
         - Simple calls -> keep as-is
         """
         import json
+    
+        if 'local_vars' in functions.columns and not functions.empty:
+            try:
+                
+                func_lookup = functions.set_index('fnc_id')['local_vars'].to_dict()
+                
+                
+                
+                calls['local_vars'] = calls['func_id'].map(func_lookup).fillna('{}')
+                
+                
+                
+            except Exception as e:
+                
+                import traceback
+                traceback.print_exc()
+                calls['local_vars'] = '{}'
+        else:
+            # No local_vars column or empty functions df
+            calls['local_vars'] = '{}'
+
 
         def resolve_single_call(row):
             """Resolve a single call name to its target."""
             call_name = row['name']
             class_name = row.get('class', 'Global')
             func_params_str = row.get('func_params', '{}')
+            local_vars_str = row.get('local_vars', '{}')
 
             # Parse func_params from JSON string
             try:
                 func_params = json.loads(func_params_str) if func_params_str else {}
-            except (json.JSONDecodeError, TypeError):
+                local_vars = json.loads(local_vars_str) if local_vars_str else {}
+                all_vars = {**func_params, **local_vars}
+                
+               
+            except (json.JSONDecodeError, TypeError) as e:
+             
                 func_params = {}
+                local_vars = {}
+                all_vars = {}
 
             # Case 1: this->method() or this.method()
             if call_name.startswith('this->') or call_name.startswith('this.'):
@@ -382,31 +436,46 @@ class CppAstAdapter(LanguageAstAdapter):
                     return f"{class_name}.{method_name}"
                 return method_name
 
-            # Case 2: obj->method() or obj.method() - try to resolve obj from parameters
+            # Case 2: obj->method() or obj.method() - resolve from ALL vars (params + locals)
             if '->' in call_name or ('.' in call_name and '::' not in call_name):
                 separator = '->' if '->' in call_name else '.'
                 parts = call_name.split(separator, 1)
 
                 if len(parts) == 2:
                     obj_name, method_name = parts
+                    
+                    
 
-                    # Try to resolve obj_name from function parameters
-                    if obj_name in func_params:
-                        param_type = func_params[obj_name]
+                    
+                    if obj_name in all_vars:
+                        var_type = all_vars[obj_name]
+
+                        if var_type.strip() == 'auto':
+                            return call_name
+                        
+                        if 'unique_ptr<' in var_type or 'shared_ptr<' in var_type or 'weak_ptr<' in var_type:
+                            # Extract what's between < and >
+                            start = var_type.find('<')
+                            end = var_type.rfind('>')
+                            if start != -1 and end != -1 and end > start:
+                                var_type = var_type[start + 1:end]
 
                         # Clean up type: remove const, *, &, whitespace
-                        param_type = (param_type
-                                      .replace('const', '')
-                                      .replace('*', '')
-                                      .replace('&', '')
-                                      .strip())
+                        var_type = (var_type
+                                    .replace('const', '')
+                                    .replace('*', '')
+                                    .replace('&', '')
+                                    .strip())
 
                         # Normalize :: to . in type
-                        param_type = param_type.replace('::', '.')
+                        var_type = var_type.replace('::', '.')
 
-                        return f"{param_type}.{method_name}"
+                        result = f"{var_type}.{method_name}"
+                    
+                        return result
+                    
 
-                    # If not in params, keep original (local variable)
+                    # If not in all_vars, keep original (unknown variable)
                     return call_name
 
             # Case 3: Class::method() or namespace::func() - normalize :: to .
@@ -414,9 +483,7 @@ class CppAstAdapter(LanguageAstAdapter):
                 return call_name.replace('::', '.')
 
             # Case 4: Template calls - strip template arguments
-            # func<int>() -> func
             if '<' in call_name and '>' in call_name:
-                # Extract base name before template
                 base_name = call_name.split('<')[0]
                 return base_name
 
@@ -471,3 +538,173 @@ class CppAstAdapter(LanguageAstAdapter):
         imp_edges = imp_edges.rename(columns={'import_id': 'source', 'func_id': 'target'})
 
         return imports, imp_edges
+    
+    def extract_local_variables(self, func_node: Node) -> dict[str, str]:
+        """
+        Extract local variable declarations from function body.
+        Walks entire function body tree, later definitions override earlier ones (simple shadowing).
+
+        LIMITATION: Does not handle scope shadowing. If the same variable name
+        is declared in nested scopes, only the last declaration is kept.
+
+        Returns dict of {var_name: var_type}
+        """
+        local_vars = {}
+        
+        # Find function body (compound_statement)
+        body = None
+        for child in func_node.named_children:
+            
+            if child.type == 'compound_statement':
+                body = child
+                break
+        
+        if not body:
+            
+            return local_vars
+        
+        # Walk entire tree to find all variable declarations
+        def walk_for_declarations(node: Node, depth: int = 0):
+            # Limit recursion depth to avoid infinite loops
+            if depth > 20:
+                return
+            
+            # Found a declaration
+            if node.type == 'declaration':
+                 
+                var_name, var_type = self._extract_var_from_declaration(node)
+                
+                if var_name and var_type:
+                    # Later declarations override (simple shadowing handling)
+                    local_vars[var_name] = var_type
+            
+            # Recurse into children
+            for child in node.named_children:
+                walk_for_declarations(child, depth + 1)
+        
+        walk_for_declarations(body)
+        
+        return local_vars
+
+
+    def _extract_var_from_declaration(self, decl_node: Node) -> tuple[str | None, str]:
+        """
+        Extract variable name and type from a declaration node.
+        Handles: Type var; Type* var; Type var = new Type(); etc.
+        Returns: (var_name, var_type)
+        """
+        var_type_parts = []
+        var_name = None
+        
+        for child in decl_node.named_children:
+            # Collect type information
+            if child.type in ['type_identifier', 'primitive_type', 'qualified_identifier', 'type_qualifier']:
+                var_type_parts.append(child.text.decode('utf-8'))
+            
+            elif child.type == 'placeholder_type_specifier':
+                var_type_parts.append('auto')
+
+            elif child.type == 'template_type':
+                # Check if it's a smart pointer template
+                template_text = child.text.decode('utf-8')
+                if 'unique_ptr' in template_text or 'shared_ptr' in template_text or 'weak_ptr' in template_text:
+                    # Extract just the inner type
+                    inner_type = self._extract_template_inner_type(child)
+                    if inner_type:
+                        var_type_parts.append(inner_type)
+                    else:
+                        var_type_parts.append(template_text)
+                else:
+                    # Not a smart pointer, keep full template type
+                    var_type_parts.append(template_text)
+            
+            # Handle simple identifier (stack allocation: Type obj;)
+            elif child.type == 'identifier':
+                var_name = child.text.decode('utf-8')
+            
+            elif child.type == 'identifier' and not var_name:
+            # Skip if this identifier is part of the type (shouldn't happen, but safe)
+                var_name = child.text.decode('utf-8')
+
+            # Handle declarators (where the variable name lives)
+            elif child.type in ['init_declarator', 'pointer_declarator', 'reference_declarator']:
+                name, extra_type = self._extract_from_declarator(child)
+                if name:
+                    var_name = name
+                if extra_type:
+                    var_type_parts.extend(extra_type)
+        
+        var_type = ' '.join(var_type_parts) if var_type_parts else 'auto'
+        return var_name, var_type
+
+
+    def _extract_from_declarator(self, declarator_node: Node) -> tuple[str | None, list[str]]:
+        """
+        Extract variable name and any additional type info (like * or &) from declarator.
+        Returns: (var_name, [extra_type_parts])
+        """
+        var_name = None
+        extra_type = []
+        
+        for child in declarator_node.named_children:
+            # Direct identifier
+            if child.type == 'identifier':
+                var_name = child.text.decode('utf-8')
+            
+            # Pointer: Type* var
+            elif child.type == 'pointer_declarator':
+                extra_type.append('*')
+                # Recurse to find the actual identifier
+                nested_name, nested_type = self._extract_from_declarator(child)
+                if nested_name:
+                    var_name = nested_name
+                extra_type.extend(nested_type)
+            
+            # Reference: Type& var
+            elif child.type == 'reference_declarator':
+                extra_type.append('&')
+                nested_name, nested_type = self._extract_from_declarator(child)
+                if nested_name:
+                    var_name = nested_name
+                extra_type.extend(nested_type)
+            
+            elif child.type == 'new_expression':
+                # Skip: The type was already collected from the declaration's type_identifier
+                # We only need the * from the pointer_declarator
+                pass
+            
+            # Template type: std::unique_ptr<Target>
+            elif child.type == 'template_type':
+                pass
+        
+        return var_name, extra_type
+
+
+    def _extract_type_from_new_expression(self, new_node: Node) -> str | None:
+        """
+        Extract type from new expression: new MyClass() -> MyClass
+        """
+        for child in new_node.named_children:
+            if child.type in ['type_identifier', 'qualified_identifier']:
+                return child.text.decode('utf-8')
+            elif child.type == 'template_type':
+                # new MyClass<T>() -> extract MyClass
+                for subchild in child.named_children:
+                    if subchild.type in ['type_identifier', 'qualified_identifier']:
+                        return subchild.text.decode('utf-8')
+        return None
+
+
+    def _extract_template_inner_type(self, template_node: Node) -> str | None:
+        """
+        Extract inner type from template: std::unique_ptr<Target> -> Target
+        """
+        for child in template_node.named_children:
+            if child.type == 'template_argument_list':
+                for arg in child.named_children:
+                    if arg.type in ['type_identifier', 'qualified_identifier']:
+                        return arg.text.decode('utf-8')
+                    elif arg.type == 'template_type':
+                        # Nested template: std::vector<std::string>
+                        return arg.text.decode('utf-8')
+        return None

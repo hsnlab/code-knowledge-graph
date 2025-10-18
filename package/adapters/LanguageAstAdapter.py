@@ -56,3 +56,12 @@ class LanguageAstAdapter:
     
     def create_import_edges(self, import_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         raise NotImplementedError
+    
+    def extract_local_variables(self, func_node) -> dict[str, str]:
+        """
+        Extract local variable declarations from function body.
+        Returns dict of {var_name: var_type}
+        
+        Override in language-specific adapters.
+        """
+        raise NotImplementedError
