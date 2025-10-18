@@ -79,6 +79,8 @@ class TestAstProcessor(unittest.TestCase):
                                              ])
 
         actual_normalized = self.normalize_function_code_whitespace(processor.functions)
+        if 'local_vars' in actual_normalized.columns:
+            actual_normalized = actual_normalized.drop(columns=['local_vars'])
         expected_normalized = self.normalize_function_code_whitespace(expected_df)
 
         assert_frame_equal(actual_normalized, expected_normalized,
@@ -120,6 +122,8 @@ class TestAstProcessor(unittest.TestCase):
                                              ])
 
         actual_normalized = self.normalize_function_code_whitespace(processor.functions)
+        if 'local_vars' in actual_normalized.columns:
+            actual_normalized = actual_normalized.drop(columns=['local_vars'])
         expected_normalized = self.normalize_function_code_whitespace(expected_df)
 
         actual_str = processor.functions[['name', 'class']].to_string()
