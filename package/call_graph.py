@@ -239,7 +239,7 @@ class CallGraphBuilder:
             self.edges['target_id'] = self.edges['target_id'].astype(int)
 
         if return_type == "pandas":
-            return self.nodes, self.edges, self.imports, project_language
+            return self.nodes, self.edges, self.imports, self.classes, project_language
         
         elif return_type == "networkx":
             G = nx.from_pandas_edgelist(self.edges, source='source_id', target='target_id', create_using=nx.DiGraph())

@@ -17,7 +17,7 @@ from .pr_function_collector import extract_changed_functions_from_pr
 
 from package.adapters import LanguageAstAdapterRegistry
 
-
+from tqdm import tqdm
 class KnowledgeGraphBuilder():
 
     git = None
@@ -86,6 +86,7 @@ class KnowledgeGraphBuilder():
             function_version_nodes,
             version_edges,
             functionversion_function_edges,
+            classes
         ) = hg.create_hierarchical_graph(
             repo_path,
             graph_type=graph_type,
@@ -116,7 +117,9 @@ class KnowledgeGraphBuilder():
         print('Issues scraped.')
         prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
         print('PRs scraped.')
-        artifacts = self.__get_repo_CI_artifacts(self.repository)
+        # todo change back this line
+        #artifacts = self.__get_repo_CI_artifacts(self.repository)
+        artifacts = pd.DataFrame(columns=['ID', 'artifact_name', 'artifact_size', 'created_at', 'updated_at'])
         print('Artifacts scraped.')
         actions = self.__get_repo_actions()
         print('Actions scraped.')
@@ -170,7 +173,7 @@ class KnowledgeGraphBuilder():
             imports, imp_edges = adapter.create_import_edges(imports, cg_nodes)
         else:
             imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
-        cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2)
+        cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2)
 
         self.knowledge_graph = {
             "function_nodes": cg_nodes,
@@ -180,6 +183,7 @@ class KnowledgeGraphBuilder():
             "subgraph_function_edges": hier_1,
             "function_subgraph_edges": hier_2,
             "import_nodes": imports,
+            "class_nodes": classes,
             "import_function_edges": imp_edges,
             "pr_nodes": prs,
             "pr_function_edges": pr_edges,
@@ -339,10 +343,11 @@ class KnowledgeGraphBuilder():
             session.run("MATCH (n) DETACH DELETE n")
 
             # Load nodes with global id
-            for key, df in knowledge_graph.items():
+            for key, df in tqdm(knowledge_graph.items(), desc="Loading nodes to neo4j"):
                 if key.endswith("_nodes"):
                     label = key.replace("_nodes", "").upper()
-
+                    if label.lower() == "class":
+                        pass
                     if "id" in df.columns:
                         df["id"] = df["id"].astype(int)
                     elif "ID" in df.columns:
@@ -367,7 +372,7 @@ class KnowledgeGraphBuilder():
                         )
 
             # Load edges
-            for key, df in knowledge_graph.items():
+            for key, df in tqdm(knowledge_graph.items(), desc="Loading edges to neo4j"):
                 if key.endswith("_edges"):
                     if df.empty or 'source' not in df.columns or 'target' not in df.columns:
                         continue
@@ -937,8 +942,8 @@ class KnowledgeGraphBuilder():
         dev_edges_df = pd.DataFrame(edge_rows).drop_duplicates().reset_index(drop=True) if edge_rows else pd.DataFrame(columns=['dev_id', 'func_id', 'commit_sha'])
         return developers_df, dev_edges_df
     
-
-    def __format_dfs(self, cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2):
+    # todo form classes as well
+    def __format_dfs(self, cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2):
         """
         Formats the DataFrames for the knowledge graph.
 
@@ -953,7 +958,7 @@ class KnowledgeGraphBuilder():
         sg_edges = sg_edges.rename(columns={'source_id': 'source', 'target_id': 'target'})
         imports = imports.rename(columns={'import_id': 'ID'})
         imp_edges = imp_edges.rename(columns={'import_id': 'source', 'func_id': 'target'})
-
+        classes = classes.rename(columns={'cls_id': 'ID'})
         hier_1 = hier_1.rename(columns={'source_id': 'source', 'target_id': 'target'})
         hier_2 = hier_2.rename(columns={'source_id': 'source', 'target_id': 'target'})
 
@@ -962,4 +967,4 @@ class KnowledgeGraphBuilder():
 
         cg_nodes['docstring'] = cg_nodes['docstring'].fillna("")
 
-        return cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2
+        return cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2
