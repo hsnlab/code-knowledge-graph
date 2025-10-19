@@ -28,6 +28,7 @@ from tqdm import tqdm
 
 from .call_graph import CallGraphBuilder
 from .function_graph import FunctionGraphBuilder
+from .function_versioning import FunctionVersioning
 
 # ignore warnings
 
@@ -42,6 +43,10 @@ class HierarchicalGraphBuilder:
 
     hierarchical_sub_to_main_edges = None
     hierarchical_main_to_sub_edges = None
+    
+    function_version_nodes = None
+    version_edges = None
+    functionversion_function_edges = None
 
 
     def __init__(self):
@@ -60,7 +65,8 @@ class HierarchicalGraphBuilder:
         remove_subgraph_missing=True,
         batch_size=64,
         create_embedding=False,
-        project_language=None
+        project_language=None,
+        repo_root_override=None
     ):
         """
         Create a hierarchical graph from the given code.
@@ -156,17 +162,52 @@ class HierarchicalGraphBuilder:
             pass
         
         print("Hierarchical graph building successful.")
-
+        
+        # ---- Function Versioning: mindig a GIT GYÖKÉREN nyissuk a repót ----
+        git_root = repo_root_override or self._find_git_root(path)
+        fv = FunctionVersioning(repo_path=git_root)
+        fv_out = fv.build(function_nodes_df=self.nodes, branch_ref="HEAD", only_changed_files=True, max_commits=300)
+        self.function_version_nodes = fv_out["function_version_nodes"]
+        # ÚJ séma: commit meta az éleken
+        self.version_edges = fv_out["version_edges"]
+        # Megtartjuk a verzió->függvény kötést a CG-hez
+        self.functionversion_function_edges = fv_out["functionversion_function_edges"]
 
 
         if return_type.lower() in ["pandas", "pandas_df", 'pd', 'df', 'dataframe']:
-            return self.nodes, self.edges, self.subgraph_nodes, self.subgraph_edges, self.hierarchical_sub_to_main_edges, self.hierarchical_main_to_sub_edges, self.imports
+            return (
+                self.nodes,
+                self.edges,
+                self.subgraph_nodes,
+                self.subgraph_edges,
+                self.hierarchical_sub_to_main_edges,
+                self.hierarchical_main_to_sub_edges,
+                self.imports,
+                self.function_version_nodes,
+                self.version_edges,
+                self.functionversion_function_edges,
+            )
         
         else:
             return self._create_hetero_data()
         
 
-
+    def _find_git_root(self, start_path: str) -> str:
+        """
+        Felmászik a könyvtárstruktúrában, amíg meg nem találja a .git mappát.
+        Visszaadja a repo gyökerét. Ha nem található, az eredeti path-ot adja vissza.
+        """
+        p = os.path.abspath(start_path)
+        if os.path.isfile(p):
+            p = os.path.dirname(p)
+        while True:
+            if os.path.isdir(os.path.join(p, ".git")):
+                return p
+            parent = os.path.dirname(p)
+            if parent == p:
+                # nem talált .git-et — utolsó esély: a kiinduló path
+                return os.path.abspath(start_path)
+            p = parent
 
 
     def _embed_graph_nodes(self, batch_size=128):
