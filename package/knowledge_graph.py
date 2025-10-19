@@ -173,7 +173,12 @@ class KnowledgeGraphBuilder():
             imports, imp_edges = adapter.create_import_edges(imports, cg_nodes)
         else:
             imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
+        
+        classes, class_edges = self.__create_class_edges(classes, cg_nodes)
+
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2)
+
+        
 
         self.knowledge_graph = {
             "function_nodes": cg_nodes,
@@ -184,6 +189,7 @@ class KnowledgeGraphBuilder():
             "function_subgraph_edges": hier_2,
             "import_nodes": imports,
             "class_nodes": classes,
+            "class_function_edges": class_edges,
             "import_function_edges": imp_edges,
             "pr_nodes": prs,
             "pr_function_edges": pr_edges,
@@ -723,7 +729,59 @@ class KnowledgeGraphBuilder():
         return imports, imp_edges
 
 
-
+    def __create_class_edges(self, class_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Create class nodes with proper IDs and edges connecting classes to their methods.
+        Extracts class name from function's combinedName (e.g., "MyClass.method" -> "MyClass").
+        
+        :param class_df: DataFrame with columns [file_id, cls_id, name, base_classes]
+        :param cg_nodes: DataFrame with function nodes (must have func_id, combinedName, file_id)
+        :return: (classes_df, class_function_edges_df)
+        """
+        if class_df.empty:
+            classes = pd.DataFrame(columns=['ID', 'name', 'base_classes', 'file_ids'])
+            class_edges = pd.DataFrame(columns=['source', 'target'])
+            return classes, class_edges
+        
+        # Group classes by name
+        classes_grouped = (
+            class_df.groupby(['name'], dropna=False)
+            .agg({
+                'file_id': lambda x: list(set(x)),
+                'base_classes': 'first'
+            })
+            .reset_index()
+        )
+        
+        # Assign sequential IDs
+        classes_grouped.insert(0, 'ID', range(1, len(classes_grouped) + 1))
+        classes_grouped = classes_grouped.rename(columns={'file_id': 'file_ids'})
+        
+        # Extract class name from combinedName
+        cg_nodes['class_from_name'] = cg_nodes['combinedName'].apply(
+            lambda x: x.split('.')[0] if '.' in str(x) else None
+        )
+        
+        # Create edges: Class -> Functions
+        class_edges_list = []
+        
+        for _, class_row in classes_grouped.iterrows():
+            class_id = class_row['ID']
+            class_name = class_row['name']
+            
+            # Match by extracted class name
+            matching_functions = cg_nodes[cg_nodes['class_from_name'] == class_name]['func_id'].tolist()
+            
+            for func_id in matching_functions:
+                class_edges_list.append({
+                    'source': class_id,
+                    'target': func_id
+                })
+        
+        class_edges = pd.DataFrame(class_edges_list) if class_edges_list else pd.DataFrame(columns=['source', 'target'])
+        classes = classes_grouped[['ID', 'name', 'base_classes', 'file_ids']]
+        
+        return classes, class_edges
 
 
     def __cluster_function_nodes(self, cg_nodes):
@@ -958,7 +1016,6 @@ class KnowledgeGraphBuilder():
         sg_edges = sg_edges.rename(columns={'source_id': 'source', 'target_id': 'target'})
         imports = imports.rename(columns={'import_id': 'ID'})
         imp_edges = imp_edges.rename(columns={'import_id': 'source', 'func_id': 'target'})
-        classes = classes.rename(columns={'cls_id': 'ID'})
         hier_1 = hier_1.rename(columns={'source_id': 'source', 'target_id': 'target'})
         hier_2 = hier_2.rename(columns={'source_id': 'source', 'target_id': 'target'})
 
