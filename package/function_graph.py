@@ -48,6 +48,8 @@ class FunctionGraphBuilder():
                  # todo remove this line, we skip language specific docstring removal
                 if language == 'cpp':
                     parser = LanguageAstAdapterRegistry.get_adapter("cpp")().get_tree_sitter_parser()
+                if language == 'python': 
+                    parser = Parser(PY_LANGUAGE)
                 tree = parser.parse(bytes(cleaned_code, "utf8"))
                 self._TS_create_ast(tree, source_code=bytes(cleaned_code, "utf8"))
             else:

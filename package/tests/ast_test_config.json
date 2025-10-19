@@ -1453,7 +1453,7 @@
         "expected": [
           {
             "name": "obj.method",
-            "combinedName": "obj.method"
+            "combinedName": "Target.method"
           }
         ]
       },
@@ -1506,7 +1506,291 @@
             "combinedName": "ns.Type.method"
           }
         ]
+      },
+      "cpp_resolve_local_var_stack": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    Target obj;\n    obj.method();\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_local_var_heap": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    Target* ptr = new Target();\n    ptr->method();\n    delete ptr;\n}",
+        "expected": [
+          {
+            "name": "Target",
+            "combinedName": "Target"
+          },
+          {
+            "name": "ptr->method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_local_var_reference": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nTarget getTarget() { return Target(); }\n\nvoid caller() {\n    Target& ref = getTarget();\n    ref.method();\n}",
+        "expected": [
+          {
+            "name": "Target",
+            "combinedName": "Target"
+          },
+          {
+            "name": "getTarget",
+            "combinedName": "getTarget"
+          },
+          {
+            "name": "ref.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_local_var_const": {
+        "mock": "class Target {\npublic:\n    void method() const {}\n};\n\nvoid caller() {\n    const Target obj;\n    obj.method();\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_local_var_qualified_type": {
+        "mock": "namespace ns {\n    class Target {\n    public:\n        void method() {}\n    };\n}\n\nvoid caller() {\n    ns::Target obj;\n    obj.method();\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "ns.Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_local_var_auto": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nTarget getTarget() { return Target(); }\n\nvoid caller() {\n    auto obj = getTarget();\n    obj.method();\n}",
+        "expected": [
+            {"name": "Target", "combinedName": "Target"},
+            {"name": "getTarget", "combinedName": "getTarget"},
+            {"name": "obj.method", "combinedName": "obj.method"}
+        ]
+      },
+
+      "cpp_resolve_local_var_shadowing": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller(Target param) {\n    Target local;\n    local.method();\n}",
+        "expected": [
+          {
+            "name": "local.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_multiple_local_vars": {
+        "mock": "class TypeA {\npublic:\n    void methodA() {}\n};\n\nclass TypeB {\npublic:\n    void methodB() {}\n};\n\nvoid caller() {\n    TypeA a;\n    TypeB b;\n    a.methodA();\n    b.methodB();\n}",
+        "expected": [
+          {
+            "name": "a.methodA",
+            "combinedName": "TypeA.methodA"
+          },
+          {
+            "name": "b.methodB",
+            "combinedName": "TypeB.methodB"
+          }
+        ]
+      },
+
+      "cpp_resolve_local_var_smart_pointer": {
+        "mock": "#include <memory>\n\nclass Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    std::unique_ptr<Target> ptr(new Target());\n    ptr->method();\n}",
+        "expected": [
+          {
+            "name": "Target",
+            "combinedName": "Target"
+          },
+          {
+            "name": "ptr->method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_local_var_chained": {
+        "mock": "class Inner {\npublic:\n    void innerMethod() {}\n};\n\nclass Outer {\npublic:\n    Inner* getInner() { return nullptr; }\n};\n\nvoid caller() {\n    Outer obj;\n    obj.getInner()->innerMethod();\n}",
+        "expected": [
+          {
+            "name": "obj.getInner()->innerMethod",
+            "combinedName": "Outer.getInner()->innerMethod"
+          },
+          {
+            "name": "obj.getInner",
+            "combinedName": "Outer.getInner"
+          }
+        ]
+      },
+
+      "cpp_resolve_param_vs_local": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller(Target param) {\n    param.method();\n    Target local;\n    local.method();\n}",
+        "expected": [
+          {
+            "name": "param.method",
+            "combinedName": "Target.method"
+          },
+          {
+            "name": "local.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+      "cpp_resolve_nested_scope_inner": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    {\n        Target obj;\n        obj.method();\n    }\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_nested_scope_outer_accessible": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    Target outer;\n    {\n        outer.method();\n    }\n}",
+        "expected": [
+          {
+            "name": "outer.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_shadowing_inner_wins": {
+        "mock": "class TypeA {\npublic:\n    void method() {}\n};\n\nclass TypeB {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    TypeA obj;\n    obj.method();\n    {\n        TypeB obj;\n        obj.method();\n    }\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "TypeA.method"
+          },
+          {
+            "name": "obj.method",
+            "combinedName": "TypeB.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_shadowing_param_by_local": {
+        "mock": "class ParamType {\npublic:\n    void method() {}\n};\n\nclass LocalType {\npublic:\n    void method() {}\n};\n\nvoid caller(ParamType obj) {\n    obj.method();\n    {\n        LocalType obj;\n        obj.method();\n    }\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "ParamType.method"
+          },
+          {
+            "name": "obj.method",
+            "combinedName": "LocalType.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_if_block_scope": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    if (true) {\n        Target obj;\n        obj.method();\n    }\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_for_loop_scope": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    for (int i = 0; i < 10; i++) {\n        Target obj;\n        obj.method();\n    }\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_while_loop_scope": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    while (true) {\n        Target obj;\n        obj.method();\n        break;\n    }\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_switch_case_scope": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller(int x) {\n    switch(x) {\n        case 1: {\n            Target obj;\n            obj.method();\n            break;\n        }\n    }\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_multiple_nested_levels": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    Target level1;\n    {\n        Target level2;\n        {\n            Target level3;\n            level1.method();\n            level2.method();\n            level3.method();\n        }\n    }\n}",
+        "expected": [
+          {
+            "name": "level1.method",
+            "combinedName": "Target.method"
+          },
+          {
+            "name": "level2.method",
+            "combinedName": "Target.method"
+          },
+          {
+            "name": "level3.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_scope_exit_variable_gone": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    {\n        Target inner;\n        inner.method();\n    }\n    Target outer;\n    outer.method();\n}",
+        "expected": [
+          {
+            "name": "inner.method",
+            "combinedName": "Target.method"
+          },
+          {
+            "name": "outer.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_same_type_different_scopes": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    {\n        Target a;\n        a.method();\n    }\n    {\n        Target b;\n        b.method();\n    }\n}",
+        "expected": [
+          {
+            "name": "a.method",
+            "combinedName": "Target.method"
+          },
+          {
+            "name": "b.method",
+            "combinedName": "Target.method"
+          }
+        ]
+      },
+
+      "cpp_resolve_try_catch_scope": {
+        "mock": "class Target {\npublic:\n    void method() {}\n};\n\nvoid caller() {\n    try {\n        Target obj;\n        obj.method();\n    } catch(...) {\n        Target err;\n        err.method();\n    }\n}",
+        "expected": [
+          {
+            "name": "obj.method",
+            "combinedName": "Target.method"
+          },
+          {
+            "name": "err.method",
+            "combinedName": "Target.method"
+          }
+        ]
       }
+
     }
   },
   "erlang": {

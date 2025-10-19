@@ -108,7 +108,7 @@ class KnowledgeGraphBuilder():
             adapter = adapter_class()
             imports, imp_edges = adapter.create_import_edges(imports, cg_nodes)
         else:
-            imports, imp_edges = self.__create_import_edges()
+            imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2)
         print('Imports and import edges created.')
         
