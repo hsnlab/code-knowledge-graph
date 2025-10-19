@@ -8,6 +8,8 @@ import tree_sitter_python as tspython
 from tree_sitter import Language, Parser
 from pyvis.network import Network
 
+from package.adapters import LanguageAstAdapter
+
 PY_LANGUAGE = Language(tspython.language())
 parser = Parser(PY_LANGUAGE)
 
@@ -23,7 +25,9 @@ import torch
 import copy, uuid, json
 import os
 
-
+from package.constants import REVERSE_EXTENSION_MAP
+from package.adapters import LanguageAstAdapterRegistry
+from package.ast_processor import AstProcessor
 
 class CallGraphBuilder:
 
@@ -48,12 +52,20 @@ class CallGraphBuilder:
         self.calls = pd.DataFrame(columns=['file_id', 'cll_id', 'name', 'class', 'class_base_classes'])
 
 
+    def __concat_df(self, df1, df2):
+        # Handle if df2 is a list or a single dataframe
+        if isinstance(df2, list):
+            df_combined = [df1] + df2
+        else:
+            df_combined = [df1, df2]
+        return pd.concat(df_combined, ignore_index=True)
+
     # Return type can be :
     #   - "pandas": for pandas DataFrames 
     #   - "original" for original pandas dataframes (imports, classes, functions, calls)
     #   - "networkx" for a NetworkX graph
     #   - "pytorch" for a PyTorch Geometric graph
-    def build_call_graph(self, path, return_type="pandas", repo_functions_only=True):
+    def build_call_graph(self, path, return_type="pandas", repo_functions_only=True, project_language=None):
         """
         Build a call graph from the given file path.
         Parameters:
@@ -70,56 +82,121 @@ class CallGraphBuilder:
 
         filename_lookup = {}
 
+
+
         for dirpath, _, filenames in os.walk(path):
             for filename in filenames:
-                if filename.endswith(".py"):
-                    
-                    file_id = str(uuid.uuid1())
-                    file_name_and_path = os.path.join(dirpath, filename)
 
-                    filename_lookup[file_id] = file_name_and_path
+                name, file_extension = os.path.splitext(filename)
+                if file_extension is None:
+                    continue
 
-                    file_path = os.path.join(dirpath, filename)
-                    python_code = ''
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        python_code += f.read()
+                language: str = REVERSE_EXTENSION_MAP.get(file_extension, None)
+                if language is None:
+                    continue
+               
+                if project_language is None:
+                    project_language = language
+                
+                if project_language is not None and language != project_language:
+                    continue # in case project language is set skip other files 
 
-                    tree = ast.parse(python_code)
+                file_id = str(uuid.uuid1())
+                file_name_and_path = os.path.join(dirpath, filename)
+
+                filename_lookup[file_id] = file_name_and_path
+
+                file_path = os.path.join(dirpath, filename)
+                code = ''
+                with open(file_path, 'rb') as f:
+                    code = f.read()
+
+                if language == "cpp":
+
+                    language_adapter:  LanguageAstAdapter = LanguageAstAdapterRegistry.get_adapter(language)
+                    ast_processor = AstProcessor(language_adapter(), code)
+                    imports, classes, functions, calls, id_dict = ast_processor.process_file_ast(file_id=file_id, id_dict={
+                        "imp_id": self.imp_id,
+                        "cls_id": self.cls_id,
+                        "fnc_id": self.fnc_id,
+                        "cll_id": self.cll_id
+                    })
+
+                    self.imports = self.__concat_df(self.imports, imports)
+                    self.classes = self.__concat_df(self.classes, classes)
+                    self.functions = self.__concat_df(self.functions, functions)
+                    self.calls = self.__concat_df(self.calls, calls)
+
+                    self.imp_id = id_dict.get("imp_id")
+                    self.cls_id = id_dict.get("cls_id")
+                    self.fnc_id = id_dict.get("fnc_id")
+                    self.cll_id = id_dict.get("cll_id")
+
+                elif language == "python":
+                
+
+                    tree = ast.parse(code)
                     self.process_file_ast(tree, return_dataframes=False, file_id=file_id)
+                
+                else:
+                    pass
+        
+        if project_language == "python":
+            split_columns = self.calls['name'].str.split('.', n=1, expand=True)
 
-        split_columns = self.calls['name'].str.split('.', n=1, expand=True)
+            # Add combined name column to functions dataframe
+            self.functions['combinedName'] = self.functions.apply(
+                lambda x: (
+                    x["name"] if x["class"] == 'Global' else
+                    str(x["class"]) + '.' + str(x['name'])
+                ), axis=1
+            )
 
-        # Add combined name column to functions dataframe
-        self.functions['combinedName'] = self.functions.apply(
-            lambda x: (
-                x["name"] if x["class"] == 'Global' else
-                str(x["class"]) + '.' + str(x['name'])
-            ), axis=1
-        )
+            self.functions['function_location'] = self.functions.apply(
+                lambda x: (
+                    filename_lookup.get(x['file_id'], None) if pd.notnull(x['file_id']) else None
+                ), axis=1
+            )
 
-        self.functions['function_location'] = self.functions.apply(
-            lambda x: (
-                filename_lookup.get(x['file_id'], None) if pd.notnull(x['file_id']) else None
-            ), axis=1
-        )
+            # Columns to store the split results
+            self.calls['call_object'] = split_columns[0]
+            self.calls['call_functiondot'] = split_columns[1]  # Automatically None if no dot is present
 
-        # Columns to store the split results
-        self.calls['call_object'] = split_columns[0]
-        self.calls['call_functiondot'] = split_columns[1]  # Automatically None if no dot is present
+            # Resolve caller object
+            self._resolve_caller_object()
 
-        # Resolve caller object
-        self._resolve_caller_object()
-
-        # Calls resolved combined name
-        self.calls['combinedName'] = self.calls.apply(
-            lambda x: (
-                str(x["resolved_call_object"]) if x["call_functiondot"] is None else
-                str(x["resolved_call_object"]) + '.' + str(x['call_functiondot'])
-            ), axis=1
-        )
+            # Calls resolved combined name
+            self.calls['combinedName'] = self.calls.apply(
+                lambda x: (
+                    str(x["resolved_call_object"]) if x["call_functiondot"] is None else
+                    str(x["resolved_call_object"]) + '.' + str(x['call_functiondot'])
+                ), axis=1
+            )
+        elif project_language == "cpp":
+            # Get C++ adapter
+            language_adapter = LanguageAstAdapterRegistry.get_adapter("cpp")
+            language_adapter = language_adapter()
+            
+            # 1. Add combinedName to functions
+            self.functions['combinedName'] = self.functions.apply(
+                lambda x: (
+                    x["name"] if x["class"] == 'Global' else
+                    f"{x['class']}.{x['name']}"
+                ), axis=1
+            )
+            
+            # 2. Add function_location
+            self.functions['function_location'] = self.functions.apply(
+                lambda x: (
+                    filename_lookup.get(x['file_id'], None) if pd.notnull(x['file_id']) else None
+                ), axis=1
+            )
+            
+            # 3. Resolve calls (adds combinedName to calls)
+            language_adapter.resolve_calls(self.imports, self.classes, self.functions, self.calls)
 
         if return_type == "original":
-            return self.imports, self.classes, self.functions, self.calls
+            return self.imports, self.classes, self.functions, self.calls, project_language
 
         # Create nodes and edges for the call graph
         self.nodes = copy.deepcopy(self.functions)
@@ -162,7 +239,7 @@ class CallGraphBuilder:
             self.edges['target_id'] = self.edges['target_id'].astype(int)
 
         if return_type == "pandas":
-            return self.nodes, self.edges, self.imports
+            return self.nodes, self.edges, self.imports, project_language
         
         elif return_type == "networkx":
             G = nx.from_pandas_edgelist(self.edges, source='source_id', target='target_id', create_using=nx.DiGraph())

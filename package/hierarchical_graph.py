@@ -65,6 +65,7 @@ class HierarchicalGraphBuilder:
         remove_subgraph_missing=True,
         batch_size=64,
         create_embedding=False,
+        project_language=None,
         repo_root_override=None
     ):
         """
@@ -92,7 +93,8 @@ class HierarchicalGraphBuilder:
             - A PyTorch Geometric HeteroData object containing the hierarchical graph.
         """
         print("Building CG...")
-        self.nodes, self.edges, self.imports = CallGraphBuilder().build_call_graph(path, return_type="pandas", repo_functions_only=repo_functions_only)
+        # return the project language
+        self.nodes, self.edges, self.imports, language = CallGraphBuilder().build_call_graph(path, return_type="pandas", repo_functions_only=repo_functions_only, project_language=project_language)
 
         # Convert function IDs to integers
         self.nodes['fnc_id'] = self.nodes['fnc_id'].astype(int)
@@ -121,7 +123,8 @@ class HierarchicalGraphBuilder:
                 graph_type=graph_type, 
                 package=package, 
                 edge_set=edge_set,
-                visualize=False
+                visualize=False,
+                language=language
             )
 
             subg_nodes['func_id'] = row['fnc_id']
