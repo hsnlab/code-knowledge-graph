@@ -175,8 +175,6 @@ class KnowledgeGraphBuilder():
         
         classes, class_edges = self.__create_class_edges(classes, cg_nodes)
 
-        import_class_edges = self.__create_import_class_edges(imports, classes)
-
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2)
 
         
@@ -191,7 +189,6 @@ class KnowledgeGraphBuilder():
             "import_nodes": imports,
             "class_nodes": classes,
             "class_function_edges": class_edges,
-            "import_class_edges": import_class_edges,
             "import_function_edges": imp_edges,
             "pr_nodes": prs,
             "pr_function_edges": pr_edges,
@@ -386,8 +383,6 @@ class KnowledgeGraphBuilder():
         # Load edges with batching
         for key, df in tqdm(knowledge_graph.items(), desc="Loading edges to neo4j"):
             if key.endswith("_edges"):
-                if "import_class_edges" in key:
-                    continue
                 if df.empty or 'source' not in df.columns or 'target' not in df.columns:
                     continue
                 
@@ -804,57 +799,6 @@ class KnowledgeGraphBuilder():
         classes = classes_grouped[['ID', 'name', 'base_classes', 'file_ids']]
         
         return classes, class_edges
-
-
-    def __create_import_class_edges(self, import_df: pd.DataFrame, class_df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Create Import -> Class edges when import references a class defined elsewhere.
-        
-        Matching strategy:
-        1. Exact name match: import.name == class.name
-        2. File-based match: import references file where class is defined
-        """
-        if import_df.empty or class_df.empty:
-            return pd.DataFrame(columns=['source', 'target'])
-        
-        edges_list = []
-        
-        for _, imp_row in import_df.iterrows():
-            import_id = imp_row['import_id']
-            import_name = imp_row['import_name']
-            import_from = imp_row.get('import_from', None)
-            
-            for _, cls_row in class_df.iterrows():
-                class_id = cls_row['ID']
-                class_name = cls_row['name']
-                class_file_ids = cls_row['file_ids']
-                
-                matched = False
-            
-                if import_name == class_name:
-                    matched = True
-                
-             
-                elif import_from or import_name:
-                    for file_id in class_file_ids:
-                 
-                        filename = file_id.split('/')[-1] if isinstance(file_id, str) else ''
-                        basename = filename.split('.')[0] if '.' in filename else filename
-                        
-                        if import_from and (basename in str(import_from) or filename in str(import_from)):
-                            matched = True
-                            break
-                        if import_name and (basename in str(import_name) or filename in str(import_name)):
-                            matched = True
-                            break
-                
-                if matched:
-                    edges_list.append({
-                        'source': import_id,
-                        'target': class_id
-                    })
-        
-        return pd.DataFrame(edges_list).drop_duplicates().reset_index(drop=True) if edges_list else pd.DataFrame(columns=['source', 'target'])
 
     def __cluster_function_nodes(self, cg_nodes):
         """
