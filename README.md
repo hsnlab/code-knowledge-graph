@@ -32,6 +32,7 @@ repograph = kgb.build_knowledge_graph(repo_name='scikit-learn/scikit-learn')
 - *URI* (optional): URI for the Neo4J data saving.
 - *user* (optional): Username for the Neo4J data saving.
 - *password* (optional): Password for the Neo4J data saving.
+- *project_language* (optional): Programming language of the project (e.g., "python", "cpp", "java"). If not specified, the tool will attempt to auto-detect the language. Specifying the language ensures more accurate parsing and graph generation
 
 Returns:
 - *object*: Returns a collection of dataframes.
@@ -47,6 +48,13 @@ The knowledge graph object has the following keys:
 - *function_subgraph_edges*: Callgraph-node to Subgraph-node edges
 - *import_nodes*: Imported packages used in the repository (nodes in the graph)
 - *import_function_edges*: Import nodes connected to functions that use them
+- *class_nodes*: Class definitions found in the codebase
+- *class_function_edges*: Connects class nodes to their member functions/methods
+- *file_nodes*: Files and directories in the repository structure
+- *file_file_edges*: Directory hierarchy - connects parent directories to their contained files/subdirectories
+- *file_function_edges*: Connects file nodes to functions defined within them
+- *file_class_edges*: Connects file nodes to classes defined within them
+- *file_import_edges*: Connects file nodes to import statements they contain
 - *issues*: Open issues about the repositoy
 - *pr_nodes*: Pull requests. The summary text is stored
 - *pr_function_edges*: Connects PR nodes to functions of files that were modified in that PR. Modification status and added/deleted rows are stored.
