@@ -478,30 +478,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-"""
-README: How to produce the 'meta' JSON from your training code
-----------------------------------------------------------------
-Add these lines *after* training and right before/after saving the model:
 
-    meta = {
-        "vocab_map": type_vocab.map,   # dict: node_type -> int
-        "tok_dim": TOK_DIM,            # e.g., 128
-        "num_edge_types": len(EDGE_TYPES),
-        "steps": 10,
-        "blocks": 5,
-        "dropout": 0.3
-    }
-    import json
-    with open("cpp_augast_meta.json", "w", encoding="utf-8") as f:
-        json.dump(meta, f)
-    print("Mentve: cpp_augast_meta.json")
-
-Then run inference like:
-
-    python infer_cpp_bugprob.py \
-        --model cpp_augast_GGNN_bce_best.pt \
-        --meta cpp_augast_meta.json \
-        --input my_func.txt
-
-The script will print a single float in [0,1] = P(buggy).
-"""
