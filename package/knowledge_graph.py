@@ -117,13 +117,12 @@ class KnowledgeGraphBuilder():
         print('Issues scraped.')
         prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
         print('PRs scraped.')
-        # todo change back this line
+        
         artifacts = self.__get_repo_CI_artifacts(self.repository)
         print('Artifacts scraped.')
-        actions = self.__get_repo_actions()
+        # todo change back this line
+        actions = pd.DataFrame(columns=['name', 'path', 'triggers', 'platforms', 'actions_used'])
         print('Actions scraped.')
-       
-       
         issue_to_pr_edges = self.__get_issue_to_pr_edges(issues, prs)
         print('Issue to PR edges created.')
         
