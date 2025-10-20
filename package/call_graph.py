@@ -43,14 +43,14 @@ class CallGraphBuilder:
     cls_id = 0
     fnc_id = 0
     cll_id = 0
-
+    fl_id = 0
 
     def __init__(self):
         self.imports = pd.DataFrame(columns=['file_id', 'imp_id', 'name', 'from', 'as_name'])
         self.classes = pd.DataFrame(columns=['file_id', 'cls_id', 'name', 'base_classes'])
         self.functions = pd.DataFrame(columns=['file_id', 'fnc_id', 'name', 'class', 'class_base_classes', 'params'])
         self.calls = pd.DataFrame(columns=['file_id', 'cll_id', 'name', 'class', 'class_base_classes'])
-
+        self.files = pd.DataFrame(columns=['fl_id','file_id', 'name', 'path', 'is_folder', 'directory_id'])
 
     def __concat_df(self, df1, df2):
         # Handle if df2 is a list or a single dataframe
@@ -59,6 +59,18 @@ class CallGraphBuilder:
         else:
             df_combined = [df1, df2]
         return pd.concat(df_combined, ignore_index=True)
+
+    def add_directory_node(self, path: str, dir_mapper: dict[str, str], fl_id: int) -> str:
+        dirpath, basename = os.path.split(path)
+        if len(dir_mapper)==0:
+            directory_id = None
+        else:
+            directory_id = dir_mapper.get(dirpath)
+        own_id = str(uuid.uuid1())
+        dir_mapper[path] = own_id 
+        df = pd.DataFrame([{'fl_id': fl_id,'file_id': own_id, 'name': basename, 'path': path, 'is_folder': True, 'directory_id': directory_id}])
+        
+        return own_id, df
 
     # Return type can be :
     #   - "pandas": for pandas DataFrames 
@@ -79,12 +91,16 @@ class CallGraphBuilder:
         self.cls_id = 0
         self.fnc_id = 0
         self.cll_id = 0
+        self.fl_id = 0
 
         filename_lookup = {}
 
-
+        directory_mapper: dict[str, str] = {}
 
         for dirpath, _, filenames in os.walk(path):
+            directory_used = False
+            dir_id, dir_df = self.add_directory_node(dirpath, directory_mapper, self.fl_id)
+            self.fl_id += 1
             for filename in filenames:
 
                 name, file_extension = os.path.splitext(filename)
@@ -107,6 +123,10 @@ class CallGraphBuilder:
                 filename_lookup[file_id] = file_name_and_path
 
                 file_path = os.path.join(dirpath, filename)
+                file_df = pd.DataFrame([{'fl_id': self.fl_id,'file_id': file_id, 'name': filename, 'path': path, 'is_folder': False, 'directory_id': dir_id}])
+                self.fl_id += 1
+                self.files = self.__concat_df(self.files, file_df)
+                directory_used = True
                 code = ''
                 with open(file_path, 'rb') as f:
                     code = f.read()
@@ -140,7 +160,8 @@ class CallGraphBuilder:
                 
                 else:
                     pass
-        
+            if directory_used is True:
+                self.files = self.__concat_df(self.files, dir_df)
         if project_language == "python":
             split_columns = self.calls['name'].str.split('.', n=1, expand=True)
 
@@ -196,7 +217,7 @@ class CallGraphBuilder:
             language_adapter.resolve_calls(self.imports, self.classes, self.functions, self.calls)
 
         if return_type == "original":
-            return self.imports, self.classes, self.functions, self.calls, project_language
+            return self.imports, self.classes, self.functions, self.calls, self.files, project_language
 
         # Create nodes and edges for the call graph
         self.nodes = copy.deepcopy(self.functions)
@@ -239,7 +260,7 @@ class CallGraphBuilder:
             self.edges['target_id'] = self.edges['target_id'].astype(int)
 
         if return_type == "pandas":
-            return self.nodes, self.edges, self.imports, self.classes, project_language
+            return self.nodes, self.edges, self.imports, self.classes, self.files, project_language
         
         elif return_type == "networkx":
             G = nx.from_pandas_edgelist(self.edges, source='source_id', target='target_id', create_using=nx.DiGraph())

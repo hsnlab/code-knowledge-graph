@@ -86,7 +86,8 @@ class KnowledgeGraphBuilder():
             function_version_nodes,
             version_edges,
             functionversion_function_edges,
-            classes
+            classes,
+            repo_files
         ) = hg.create_hierarchical_graph(
             repo_path,
             graph_type=graph_type,
@@ -177,6 +178,8 @@ class KnowledgeGraphBuilder():
         
         classes, class_edges = self.__create_class_edges(classes, cg_nodes)
 
+        files_nodes, file_file_edges = self.__create_file_nodes_and_edges(repo_files)
+
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2)
 
         
@@ -184,13 +187,15 @@ class KnowledgeGraphBuilder():
         self.knowledge_graph = {
             "function_nodes": cg_nodes,
             "function_edges": cg_edges,
-            "subgraph_nodes": sg_nodes,
-            "subgraph_edges": sg_edges,
-            "subgraph_function_edges": hier_1,
-            "function_subgraph_edges": hier_2,
+            #"subgraph_nodes": sg_nodes,
+            #"subgraph_edges": sg_edges,
+            #"subgraph_function_edges": hier_1,
+            #"function_subgraph_edges": hier_2,
             "import_nodes": imports,
             "class_nodes": classes,
             "class_function_edges": class_edges,
+            "file_nodes": files_nodes,
+            "file_file_edges": file_file_edges,
             "import_function_edges": imp_edges,
             "pr_nodes": prs,
             "pr_function_edges": pr_edges,
@@ -748,6 +753,49 @@ class KnowledgeGraphBuilder():
         return imports, imp_edges
 
 
+    def __create_file_nodes_and_edges(self, repo_files: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Create file nodes and edges representing the directory structure.
+        Edges connect directories to their contained files/subdirectories.
+        
+        :param repo_files: DataFrame with columns [fl_id, file_id, name, path, is_folder, directory_id]
+        :return: (file_nodes_df, file_file_edges_df)
+        """
+        if repo_files.empty:
+            file_nodes = pd.DataFrame(columns=['ID', 'file_id', 'name', 'path', 'is_folder'])
+            file_edges = pd.DataFrame(columns=['source', 'target'])
+            return file_nodes, file_edges
+        
+        # Create file nodes (use fl_id as ID, keep file_id for joins)
+        file_nodes = repo_files[['fl_id', 'file_id', 'name', 'path', 'is_folder']].copy()
+        file_nodes = file_nodes.rename(columns={'fl_id': 'ID'})
+        
+        # Create a mapping: file_id (UUID) -> fl_id (int)
+        file_id_to_fl_id = dict(zip(repo_files['file_id'], repo_files['fl_id']))
+        
+        # Create edges: Directory -> File/Subdirectory
+        # Use fl_id (integer) for both source and target
+        file_edges_list = []
+        
+        for _, row in repo_files.iterrows():
+            directory_id = row['directory_id']  # UUID of parent directory
+            fl_id = row['fl_id']  # Integer ID of current file/folder
+            
+            # If this file/folder has a parent directory, create edge
+            if pd.notna(directory_id):
+                # Look up the fl_id of the parent directory
+                parent_fl_id = file_id_to_fl_id.get(directory_id)
+                
+                if parent_fl_id is not None:
+                    file_edges_list.append({
+                        'source': int(parent_fl_id),  # Parent directory's fl_id
+                        'target': int(fl_id)          # Current file's fl_id
+                    })
+        
+        file_edges = pd.DataFrame(file_edges_list) if file_edges_list else pd.DataFrame(columns=['source', 'target'])
+        
+        return file_nodes, file_edges
+
     def __create_class_edges(self, class_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
         Create class nodes with proper IDs and edges connecting classes to their methods.
@@ -1086,6 +1134,7 @@ class KnowledgeGraphBuilder():
         sg_nodes = sg_nodes.rename(columns={'node_id': 'ID'})
         sg_edges = sg_edges.rename(columns={'source_id': 'source', 'target_id': 'target'})
         imports = imports.rename(columns={'import_id': 'ID'})
+        
         imp_edges = imp_edges.rename(columns={'import_id': 'source', 'func_id': 'target'})
         hier_1 = hier_1.rename(columns={'source_id': 'source', 'target_id': 'target'})
         hier_2 = hier_2.rename(columns={'source_id': 'source', 'target_id': 'target'})
