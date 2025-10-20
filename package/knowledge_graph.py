@@ -1072,7 +1072,6 @@ class KnowledgeGraphBuilder():
         dev_edges_df = pd.DataFrame(edge_rows).drop_duplicates().reset_index(drop=True) if edge_rows else pd.DataFrame(columns=['dev_id', 'func_id', 'commit_sha'])
         return developers_df, dev_edges_df
     
-    # todo form classes as well
     def __format_dfs(self, cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2):
         """
         Formats the DataFrames for the knowledge graph.
