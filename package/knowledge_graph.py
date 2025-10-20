@@ -86,7 +86,8 @@ class KnowledgeGraphBuilder():
             function_version_nodes,
             version_edges,
             functionversion_function_edges,
-            classes
+            classes,
+            repo_files
         ) = hg.create_hierarchical_graph(
             repo_path,
             graph_type=graph_type,
@@ -177,6 +178,10 @@ class KnowledgeGraphBuilder():
         
         classes, class_edges = self.__create_class_edges(classes, cg_nodes)
 
+        files_nodes, file_file_edges = self.__create_file_nodes_and_edges(repo_files)
+
+        file_function_edges, file_class_edges, file_import_edges = self.__create_file_connection_edges(repo_files, cg_nodes, imports, classes)
+
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2)
 
         
@@ -191,6 +196,11 @@ class KnowledgeGraphBuilder():
             "import_nodes": imports,
             "class_nodes": classes,
             "class_function_edges": class_edges,
+            "file_nodes": files_nodes,
+            "file_file_edges": file_file_edges,
+            "file_function_edges": file_function_edges, 
+            "file_class_edges": file_class_edges, 
+            "file_import_edges": file_import_edges,
             "import_function_edges": imp_edges,
             "pr_nodes": prs,
             "pr_function_edges": pr_edges,
@@ -747,6 +757,137 @@ class KnowledgeGraphBuilder():
 
         return imports, imp_edges
 
+    def __create_file_connection_edges(
+        self, 
+        repo_files: pd.DataFrame, 
+        cg_nodes: pd.DataFrame,
+        imports: pd.DataFrame,
+        classes: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Create edges connecting files to their contained functions, classes, and imports.
+        
+        :param repo_files: DataFrame with columns [fl_id, file_id, name, path, is_folder, directory_id]
+        :param cg_nodes: DataFrame with function nodes (must have func_id, file_id)
+        :param imports: DataFrame with import nodes (must have import_id, import_file_ids) BEFORE format_dfs
+        :param classes: DataFrame with class nodes (must have ID, file_ids)
+        :return: (file_function_edges_df, file_class_edges_df, file_import_edges_df)
+        """
+        
+        # Create mapping: file_id (UUID) -> fl_id (int)
+        file_id_to_fl_id = dict(zip(repo_files['file_id'].astype(str), repo_files['fl_id']))
+        
+        # ========== File -> Function Edges ==========
+        file_function_edges_list = []
+        
+        if not cg_nodes.empty and 'file_id' in cg_nodes.columns and 'func_id' in cg_nodes.columns:
+            for _, row in cg_nodes.iterrows():
+                file_id = str(row['file_id'])
+                func_id = row['func_id']
+                
+                fl_id = file_id_to_fl_id.get(file_id)
+                
+                if fl_id is not None and pd.notna(func_id):
+                    file_function_edges_list.append({
+                        'source': int(fl_id),
+                        'target': int(func_id)
+                    })
+        
+        file_function_edges = pd.DataFrame(file_function_edges_list) if file_function_edges_list else pd.DataFrame(columns=['source', 'target'])
+        
+        # ========== File -> Class Edges ==========
+        file_class_edges_list = []
+        
+        if not classes.empty and 'file_ids' in classes.columns and 'ID' in classes.columns:
+            for _, row in classes.iterrows():
+                class_id = row['ID']
+                file_ids = row['file_ids']
+                
+                if isinstance(file_ids, list):
+                    for file_id in file_ids:
+                        fl_id = file_id_to_fl_id.get(str(file_id))
+                        
+                        if fl_id is not None and pd.notna(class_id):
+                            file_class_edges_list.append({
+                                'source': int(fl_id),
+                                'target': int(class_id)
+                            })
+        
+        file_class_edges = pd.DataFrame(file_class_edges_list) if file_class_edges_list else pd.DataFrame(columns=['source', 'target'])
+        
+        # ========== File -> Import Edges ==========
+        file_import_edges_list = []
+        
+        id_column = 'import_id' if 'import_id' in imports.columns else 'ID'
+        
+        if not imports.empty and 'import_file_ids' in imports.columns and id_column in imports.columns:
+            for _, row in imports.iterrows():
+                import_id = row[id_column]  # Use the correct column name
+                import_file_ids = row['import_file_ids']
+                
+                # Handle both list and string cases
+                if isinstance(import_file_ids, list):
+                    file_id_list = import_file_ids
+                elif isinstance(import_file_ids, str):
+                    file_id_list = [import_file_ids]
+                else:
+                    continue
+                    
+                for file_id in file_id_list:
+                    fl_id = file_id_to_fl_id.get(str(file_id))
+                    
+                    if fl_id is not None and pd.notna(import_id):
+                        file_import_edges_list.append({
+                            'source': int(fl_id),
+                            'target': int(import_id)
+                        })
+        
+        file_import_edges = pd.DataFrame(file_import_edges_list) if file_import_edges_list else pd.DataFrame(columns=['source', 'target'])
+        
+        return file_function_edges, file_class_edges, file_import_edges
+
+    def __create_file_nodes_and_edges(self, repo_files: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Create file nodes and edges representing the directory structure.
+        Edges connect directories to their contained files/subdirectories.
+        
+        :param repo_files: DataFrame with columns [fl_id, file_id, name, path, is_folder, directory_id]
+        :return: (file_nodes_df, file_file_edges_df)
+        """
+        if repo_files.empty:
+            file_nodes = pd.DataFrame(columns=['ID', 'file_id', 'name', 'path', 'is_folder'])
+            file_edges = pd.DataFrame(columns=['source', 'target'])
+            return file_nodes, file_edges
+        
+        # Create file nodes (use fl_id as ID, keep file_id for joins)
+        file_nodes = repo_files[['fl_id', 'file_id', 'name', 'path', 'is_folder']].copy()
+        file_nodes = file_nodes.rename(columns={'fl_id': 'ID'})
+        
+        # Create a mapping: file_id (UUID) -> fl_id (int)
+        file_id_to_fl_id = dict(zip(repo_files['file_id'], repo_files['fl_id']))
+        
+        # Create edges: Directory -> File/Subdirectory
+        # Use fl_id (integer) for both source and target
+        file_edges_list = []
+        
+        for _, row in repo_files.iterrows():
+            directory_id = row['directory_id']  # UUID of parent directory
+            fl_id = row['fl_id']  # Integer ID of current file/folder
+            
+            # If this file/folder has a parent directory, create edge
+            if pd.notna(directory_id):
+                # Look up the fl_id of the parent directory
+                parent_fl_id = file_id_to_fl_id.get(directory_id)
+                
+                if parent_fl_id is not None:
+                    file_edges_list.append({
+                        'source': int(parent_fl_id),  # Parent directory's fl_id
+                        'target': int(fl_id)          # Current file's fl_id
+                    })
+        
+        file_edges = pd.DataFrame(file_edges_list) if file_edges_list else pd.DataFrame(columns=['source', 'target'])
+        
+        return file_nodes, file_edges
 
     def __create_class_edges(self, class_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -1086,6 +1227,7 @@ class KnowledgeGraphBuilder():
         sg_nodes = sg_nodes.rename(columns={'node_id': 'ID'})
         sg_edges = sg_edges.rename(columns={'source_id': 'source', 'target_id': 'target'})
         imports = imports.rename(columns={'import_id': 'ID'})
+        
         imp_edges = imp_edges.rename(columns={'import_id': 'source', 'func_id': 'target'})
         hier_1 = hier_1.rename(columns={'source_id': 'source', 'target_id': 'target'})
         hier_2 = hier_2.rename(columns={'source_id': 'source', 'target_id': 'target'})
