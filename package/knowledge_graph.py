@@ -637,8 +637,6 @@ class KnowledgeGraphBuilder():
 
 
 
-
-
     def __create_import_edges(self, import_df, cg_nodes):
         """
         Creates edges for imports in the graph.
@@ -688,18 +686,58 @@ class KnowledgeGraphBuilder():
     
     def __create_ensemble_clusters(self, cg_edges, cg_nodes, semantic_clusters):
         """
-        Creates ensemble clusters by combining semantic and algorithmic clustering methods.
+        Creates ensemble clusters by combining semantic and algorithmic clustering methods,
+        and adds a short textual summary for each resulting cluster.
+
         :param cg_edges: DataFrame containing call graph edges.
         :param cg_nodes: DataFrame containing call graph nodes.
-        :param semantic_clusters: DataFrame containing semantic clusters.
-        :return: DataFrame with ensemble clustered nodes and edges.
+        :param semantic_clusters: DataFrame containing semantic clusters (with summaries).
+        :return: DataFrame with ensemble clustered nodes and edges, including summaries.
         """
         sc = SemanticClustering(hugging_face_token=self.hugging_face_token)
         
+        # Step 1: Apply graph-based algorithmic clustering
         algorithmic_clusters = sc.apply_clustering_methods(cg_edges, cg_nodes)
+        
+        # Step 2: Combine algorithmic + semantic clusters into ensemble clusters
         ensemble_cluster_nodes = sc.ensemble(algorithmic_clusters, semantic_clusters)
         ensemble_cluster_edges = sc.agreement_graph(semantic_clusters, algorithmic_clusters)
         
+        # Step 3: Generate textual summaries for the ensemble clusters
+        # ------------------------------------------------------------
+        # Merge ensemble nodes back to get representative function names
+        merged_df = ensemble_cluster_nodes.merge(
+            cg_nodes[['func_id', 'combinedName']], on='func_id', how='left'
+        )
+
+        # Create a prompt for each ensemble cluster
+        prompts = []
+        for cluster_id in merged_df['cluster'].unique():
+            cluster_funcs = merged_df[merged_df['cluster'] == cluster_id]['combinedName'].dropna().tolist()
+            sample_funcs = "; ".join(cluster_funcs[:50])
+            prompt = (
+                f"These function names belong to one ensemble cluster:\n{sample_funcs}\n\n"
+                f"Write a concise one-sentence summary describing what these functions might have in common."
+            )
+            prompts.append((cluster_id, prompt))
+
+        # Use your existing text-generation pipeline
+        responses = sc.pipe(
+            [p for _, p in prompts],
+            max_new_tokens=50,
+            temperature=0.3,
+            batch_size=16
+        )
+
+        # Map responses to clusters
+        cluster_summaries = {}
+        for (cluster_id, prompt), resp in zip(prompts, responses):
+            summary = resp[0]["generated_text"].replace(prompt, "").strip()
+            cluster_summaries[cluster_id] = summary
+
+        # Add summaries to ensemble_cluster_nodes
+        ensemble_cluster_nodes['cluster_summary'] = ensemble_cluster_nodes['cluster'].map(cluster_summaries)
+
         return ensemble_cluster_nodes, ensemble_cluster_edges
 
 
