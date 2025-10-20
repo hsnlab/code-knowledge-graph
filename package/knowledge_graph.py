@@ -118,8 +118,7 @@ class KnowledgeGraphBuilder():
         prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
         print('PRs scraped.')
         # todo change back this line
-        #artifacts = self.__get_repo_CI_artifacts(self.repository)
-        artifacts = pd.DataFrame(columns=['ID', 'artifact_name', 'artifact_size', 'created_at', 'updated_at'])
+        artifacts = self.__get_repo_CI_artifacts(self.repository)
         print('Artifacts scraped.')
         actions = self.__get_repo_actions()
         print('Actions scraped.')
@@ -176,6 +175,8 @@ class KnowledgeGraphBuilder():
         
         classes, class_edges = self.__create_class_edges(classes, cg_nodes)
 
+        import_class_edges = self.__create_import_class_edges(imports, classes)
+
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2)
 
         
@@ -190,6 +191,7 @@ class KnowledgeGraphBuilder():
             "import_nodes": imports,
             "class_nodes": classes,
             "class_function_edges": class_edges,
+            "import_class_edges": import_class_edges,
             "import_function_edges": imp_edges,
             "pr_nodes": prs,
             "pr_function_edges": pr_edges,
@@ -296,7 +298,7 @@ class KnowledgeGraphBuilder():
                 target = f"F_{row['target'].astype(int)}"
                 if source in G.nodes and target in G.nodes:
                     G.add_edge(source, target, color="#21c795", dashes=True)
-
+            
             for _, row in knowledge_graph['function_subgraph_edges'].iterrows():
                 source = f"F_{row['source'].astype(int)}"
                 target = f"S_{row['target'].astype(int)}"
@@ -342,74 +344,94 @@ class KnowledgeGraphBuilder():
 
     
 
-    def store_knowledge_graph_in_neo4j(self, uri, user, password, knowledge_graph):
+    def store_knowledge_graph_in_neo4j(self, uri, user, password, knowledge_graph, batch_size=500):
         driver = GraphDatabase.driver(uri, auth=(user, password))
 
         with driver.session() as session:
             session.run("MATCH (n) DETACH DELETE n")
 
-            # Load nodes with global id
-            for key, df in tqdm(knowledge_graph.items(), desc="Loading nodes to neo4j"):
-                if key.endswith("_nodes"):
-                    label = key.replace("_nodes", "").upper()
-                    if label.lower() == "class":
-                        pass
-                    if "id" in df.columns:
-                        df["id"] = df["id"].astype(int)
-                    elif "ID" in df.columns:
-                        df["ID"] = df["ID"].astype(int)
+        # Load nodes with batching
+        for key, df in tqdm(knowledge_graph.items(), desc="Loading nodes to neo4j"):
+            if key.endswith("_nodes"):
+                label = key.replace("_nodes", "").upper()
+                if "id" in df.columns:
+                    df["id"] = df["id"].astype(int)
+                elif "ID" in df.columns:
+                    df["ID"] = df["ID"].astype(int)
 
-                    for _, row in df.iterrows():
-                        props = {}
-                        for k, v in row.items():
-                            # Csak NaN float-ot szűrjük ki, minden más marad
-                            if not (isinstance(v, float) and pd.isna(v)):
-                                props[k] = v
+                # Prepare all node data
+                nodes_data = []
+                for _, row in df.iterrows():
+                    props = {}
+                    for k, v in row.items():
+                        if not (isinstance(v, float) and pd.isna(v)):
+                            props[k] = v
 
-                        local_id = props.get("id") or props.get("ID")
-                        if local_id is None:
-                            raise ValueError(f"A(z) {label} node-nak nincs id mezője.")
+                    local_id = props.get("id") or props.get("ID")
+                    if local_id is None:
+                        raise ValueError(f"A(z) {label} node-nak nincs id mezője.")
 
-                        props["global_id"] = f"{label}:{local_id}"
+                    props["global_id"] = f"{label}:{local_id}"
+                    nodes_data.append(props)
 
+                # Insert in batches
+                for i in range(0, len(nodes_data), batch_size):
+                    batch = nodes_data[i:i + batch_size]
+                    with driver.session() as session:
                         session.run(
-                            f"CREATE (n:{label} $props)",
-                            props=props
+                            f"UNWIND $batch AS props CREATE (n:{label}) SET n = props",
+                            batch=batch
                         )
 
-            # Load edges
-            for key, df in tqdm(knowledge_graph.items(), desc="Loading edges to neo4j"):
-                if key.endswith("_edges"):
-                    if df.empty or 'source' not in df.columns or 'target' not in df.columns:
-                        continue
-                    rel_type = key.replace("_edges", "").upper()
+        # Load edges with batching
+        for key, df in tqdm(knowledge_graph.items(), desc="Loading edges to neo4j"):
+            if key.endswith("_edges"):
+                if "import_class_edges" in key:
+                    continue
+                if df.empty or 'source' not in df.columns or 'target' not in df.columns:
+                    continue
+                
+                rel_type = key.replace("_edges", "").upper()
 
-                    # Determine source and target node labels based on the key
-                    parts = key.replace("_edges", "").split("_")
-                    if len(parts) == 1:
-                        src_label = tgt_label = parts[0].upper()
-                    elif len(parts) == 2:
-                        src_label, tgt_label = parts[0].upper(), parts[1].upper()
-                    else:
-                        raise ValueError(f"Nem tudom értelmezni az edge nevet: {key}")
+                # Determine source and target node labels
+                parts = key.replace("_edges", "").split("_")
+                if len(parts) == 1:
+                    src_label = tgt_label = parts[0].upper()
+                elif len(parts) == 2:
+                    src_label, tgt_label = parts[0].upper(), parts[1].upper()
+                else:
+                    raise ValueError(f"Nem tudom értelmezni az edge nevet: {key}")
 
-                    df["source"] = df["source"].astype(int)
-                    df["target"] = df["target"].astype(int)
+                df["source"] = df["source"].astype(int)
+                df["target"] = df["target"].astype(int)
 
-                    for _, row in df.iterrows():
-                        start_id = f"{src_label}:{row['source']}"
-                        end_id = f"{tgt_label}:{row['target']}"
-                        edge_props = {k: v for k, v in row.items() if k not in ["source", "target"] and pd.notna(v)}
+                # Prepare all edge data
+                edges_data = []
+                for _, row in df.iterrows():
+                    start_id = f"{src_label}:{row['source']}"
+                    end_id = f"{tgt_label}:{row['target']}"
+                    edge_props = {k: v for k, v in row.items() 
+                                if k not in ["source", "target"] and pd.notna(v)}
+                    
+                    edges_data.append({
+                        'start_id': start_id,
+                        'end_id': end_id,
+                        'props': edge_props
+                    })
 
+                # Insert edges in batches
+                for i in range(0, len(edges_data), batch_size):
+                    batch = edges_data[i:i + batch_size]
+                    with driver.session() as session:
                         session.run(
                             f"""
-                            MATCH (a:{src_label} {{global_id: $start_id}}),
-                                (b:{tgt_label} {{global_id: $end_id}})
-                            CREATE (a)-[r:{rel_type} $props]->(b)
+                            UNWIND $batch AS edge
+                            MATCH (a:{src_label} {{global_id: edge.start_id}})
+                            MATCH (b:{tgt_label} {{global_id: edge.end_id}})
+                            CREATE (a)-[r:{rel_type}]->(b)
+                            SET r = edge.props
                             """,
-                            start_id=start_id,
-                            end_id=end_id,
-                            props=edge_props
+                            batch=batch
                         )
 
         driver.close()
@@ -783,6 +805,56 @@ class KnowledgeGraphBuilder():
         
         return classes, class_edges
 
+
+    def __create_import_class_edges(self, import_df: pd.DataFrame, class_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Create Import -> Class edges when import references a class defined elsewhere.
+        
+        Matching strategy:
+        1. Exact name match: import.name == class.name
+        2. File-based match: import references file where class is defined
+        """
+        if import_df.empty or class_df.empty:
+            return pd.DataFrame(columns=['source', 'target'])
+        
+        edges_list = []
+        
+        for _, imp_row in import_df.iterrows():
+            import_id = imp_row['import_id']
+            import_name = imp_row['import_name']
+            import_from = imp_row.get('import_from', None)
+            
+            for _, cls_row in class_df.iterrows():
+                class_id = cls_row['ID']
+                class_name = cls_row['name']
+                class_file_ids = cls_row['file_ids']
+                
+                matched = False
+            
+                if import_name == class_name:
+                    matched = True
+                
+             
+                elif import_from or import_name:
+                    for file_id in class_file_ids:
+                 
+                        filename = file_id.split('/')[-1] if isinstance(file_id, str) else ''
+                        basename = filename.split('.')[0] if '.' in filename else filename
+                        
+                        if import_from and (basename in str(import_from) or filename in str(import_from)):
+                            matched = True
+                            break
+                        if import_name and (basename in str(import_name) or filename in str(import_name)):
+                            matched = True
+                            break
+                
+                if matched:
+                    edges_list.append({
+                        'source': import_id,
+                        'target': class_id
+                    })
+        
+        return pd.DataFrame(edges_list).drop_duplicates().reset_index(drop=True) if edges_list else pd.DataFrame(columns=['source', 'target'])
 
     def __cluster_function_nodes(self, cg_nodes):
         """
