@@ -5,7 +5,7 @@
 EXTENSION_MAP: dict[str, list[str]] = {
     "python": [".py", ".pyw", ".pyi"],
     "cpp": [".cpp", ".cc", ".cxx", ".c++", ".C",
-            ".hpp", ".hh", ".hxx", ".h++", ".H"],
+            ".hpp", ".hh", ".hxx", ".h++", ".H", ".h"],
     "erlang": [".erl", ".hrl"],
 }
 
