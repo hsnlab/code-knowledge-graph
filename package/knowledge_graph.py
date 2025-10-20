@@ -189,10 +189,10 @@ class KnowledgeGraphBuilder():
         self.knowledge_graph = {
             "function_nodes": cg_nodes,
             "function_edges": cg_edges,
-            #"subgraph_nodes": sg_nodes,
-            #"subgraph_edges": sg_edges,
-            #"subgraph_function_edges": hier_1,
-            #"function_subgraph_edges": hier_2,
+            "subgraph_nodes": sg_nodes,
+            "subgraph_edges": sg_edges,
+            "subgraph_function_edges": hier_1,
+            "function_subgraph_edges": hier_2,
             "import_nodes": imports,
             "class_nodes": classes,
             "class_function_edges": class_edges,
@@ -818,7 +818,6 @@ class KnowledgeGraphBuilder():
         # ========== File -> Import Edges ==========
         file_import_edges_list = []
         
-        # FIXED: Check for 'import_id' (before format_dfs) not 'ID'
         id_column = 'import_id' if 'import_id' in imports.columns else 'ID'
         
         if not imports.empty and 'import_file_ids' in imports.columns and id_column in imports.columns:
