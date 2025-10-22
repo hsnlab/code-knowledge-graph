@@ -484,7 +484,7 @@ class KnowledgeGraphBuilder():
 
 
 
-    def __get_repo_issues(self, repo, labels=["bug"]):
+    def __get_repo_issues(self, repo, labels=None):
         """
         Retrieves issues from the repository.
         
@@ -503,29 +503,36 @@ class KnowledgeGraphBuilder():
     
 
     def __get_issue_from_git(self, repo, labels, issue_state):
-
-        issues = repo.get_issues(state=issue_state, sort='created', direction='desc', labels=labels)
+        if labels:
+            issues = repo.get_issues(state=issue_state, sort='created', direction='desc', labels=labels)
+        else:
+            issues = repo.get_issues(state=issue_state, sort='created', direction='desc')
 
         data = []
-
         for issue in issues:
-            issue_number = issue.number
-            issue_title = issue.title
-            issue_body = issue.body if issue.body else ""
-            issue_labels = [label.name for label in issue.labels]
-            issue_state = issue.state
+            comments = []
+            try:
+                for c in issue.get_comments():
+                    comments.append({
+                        "id": c.id,
+                        "user": getattr(c.user, "login", None),
+                        "created_at": c.created_at,
+                        "updated_at": getattr(c, "updated_at", None),
+                        "body": c.body or ""
+                    })
+            except Exception as e:
+                print(f"Figyelem: nem sikerült kommenteket lekérni az issue #{issue.number}-hoz: {e}")
 
             data.append({
-                "ID": issue_number,
-                "issue_title": issue_title,
-                "issue_body": issue_body,
-                "issue_labels": issue_labels,
-                "issue_state": issue_state
+                "ID": issue.number,
+                "issue_title": issue.title,
+                "issue_body": issue.body if issue.body else "",
+                "issue_labels": [label.name for label in issue.labels],
+                "issue_state": issue.state,
+                "issue_comments": comments
             })
 
-        issues_df = pd.DataFrame(data)
-
-        return issues_df
+        return pd.DataFrame(data)
 
 
 
@@ -580,7 +587,6 @@ class KnowledgeGraphBuilder():
     
 
     def __get_PR_from_git(self, repo, num_of_PRs: int, PR_state: str, done_prs: list):
-
         pulls = repo.get_pulls(state=PR_state, sort='created', direction='desc')
 
         changed_functions = []
@@ -589,7 +595,6 @@ class KnowledgeGraphBuilder():
         num_pulls = 0
 
         for pull in pulls:
-
             if done_prs and pull.number in done_prs:
                 continue
 
@@ -597,6 +602,21 @@ class KnowledgeGraphBuilder():
             pr_number = pr.number
             pr_title = pr.title
             pr_body = pr.body if pr.body else ""
+
+            # --- ÚJ: kommentek begyűjtése egy listába ---
+            pr_comments = []
+            try:
+                for c in pr.get_issue_comments():
+                    pr_comments.append({
+                        "id": c.id,
+                        "user": getattr(c.user, "login", None),
+                        "created_at": c.created_at,
+                        "updated_at": getattr(c, "updated_at", None),
+                        "body": c.body or ""
+                    })
+            except Exception as e:
+                print(f"Figyelem: nem sikerült kommenteket lekérni a PR #{pr_number}-hoz: {e}")
+            # --- ÚJ RÉSZ VÉGE ---
 
             try:
                 changed = extract_changed_functions_from_pr(pr)
@@ -632,7 +652,8 @@ class KnowledgeGraphBuilder():
                     "filename": f.filename,
                     "status": f.status,
                     "additions": f.additions,
-                    "deletions": f.deletions
+                    "deletions": f.deletions,
+                    "pr_comments": pr_comments   # ÚJ OSZLOP
                 })
                 self.pr_file_data.append({
                     "pr_number": pr_number,
@@ -646,14 +667,14 @@ class KnowledgeGraphBuilder():
                 })
             
             num_pulls += 1
-            if num_of_PRs > 0:
-                if num_pulls >= num_of_PRs:
-                    break
+            if num_of_PRs > 0 and num_pulls >= num_of_PRs:
+                break
 
         PR_df = pd.DataFrame(data)
         changed_functions_df = pd.DataFrame(changed_functions)
 
         return PR_df, changed_functions_df
+
 
 
 
