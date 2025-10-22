@@ -172,6 +172,8 @@ class KnowledgeGraphBuilder():
             imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
         cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2)
 
+        question_nodes, question_edges = self.__create_question_nodes(cluster_nodes)
+
         self.knowledge_graph = {
             "function_nodes": cg_nodes,
             "function_edges": cg_edges,
@@ -189,11 +191,13 @@ class KnowledgeGraphBuilder():
             "actions": actions,
             "cluster_nodes": cluster_nodes,
             "cluster_function_edges": cluster_edges,
-            "function_version_nodes": function_version_nodes,
-            "version_edges": version_edges,
+            "functionversion_nodes": function_version_nodes,
+            "functionversion_edges": version_edges,
             "functionversion_function_edges": functionversion_function_edges,
             "developer_node": developers_df,
-            "developer_function_edges": dev_edges_df
+            "developer_function_edges": dev_edges_df,
+            "question_nodes": question_nodes,
+            "question_cluster_edges": question_edges,
         }
         
         if developer_mode and not developers_df.empty:
@@ -963,3 +967,28 @@ class KnowledgeGraphBuilder():
         cg_nodes['docstring'] = cg_nodes['docstring'].fillna("")
 
         return cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2
+    
+
+
+    def __create_question_nodes(self, cluster_nodes):
+
+        questions = pd.DataFrame([
+            [0, "general"],
+            [1, " bug report/issue/PR"],
+            [2, "performance"],
+            [3, "feature request"],
+        ], columns=["ID", "type"])
+
+        question_edges = []
+
+        for _, row in cluster_nodes.iterrows():
+            question_edges.extend([
+                {"source": 0, "target": row["ID"]},
+                {"source": 1, "target": row["ID"]},
+                {"source": 2, "target": row["ID"]}
+            ])
+
+        question_edges = pd.DataFrame(question_edges, columns=["source", "target"])
+
+        return questions, question_edges
+
