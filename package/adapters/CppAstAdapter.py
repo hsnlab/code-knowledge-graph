@@ -52,7 +52,7 @@ class CppAstAdapter(LanguageAstAdapter):
 
 
     def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
-        """Parse C++ class/struct definitions."""
+        """Parse C++ class/struct definitions with full inheritance support."""
         classes = []
         name = None
         base_classes = []
@@ -63,12 +63,36 @@ class CppAstAdapter(LanguageAstAdapter):
 
             elif child.type == 'base_class_clause':
                 for base in child.named_children:
-                    if base.type in ['type_identifier', 'qualified_identifier']:
+                    # Skip modifiers
+                    if base.type in ['access_specifier', 'virtual']:
+                        continue
+                    
+                    # Direct type_identifier
+                    if base.type == 'type_identifier':
                         base_classes.append(base.text.decode('utf-8'))
+                    
+                    # Qualified identifier (e.g., ns::Class)
+                    elif base.type == 'qualified_identifier':
+                        base_classes.append(base.text.decode('utf-8'))
+                    
+                    # Template type (e.g., Base<T>)
+                    elif base.type == 'template_type':
+                        # Extract base template name: Base<T> -> Base
+                        template_name = self._extract_template_base_name(base)
+                        if template_name:
+                            base_classes.append(template_name)
+                    
+                    # base_class_specifier (nested structure)
                     elif base.type == 'base_class_specifier':
                         for specifier_child in base.named_children:
-                            if specifier_child.type in ['type_identifier', 'qualified_identifier']:
+                            if specifier_child.type == 'type_identifier':
                                 base_classes.append(specifier_child.text.decode('utf-8'))
+                            elif specifier_child.type == 'qualified_identifier':
+                                base_classes.append(specifier_child.text.decode('utf-8'))
+                            elif specifier_child.type == 'template_type':
+                                template_name = self._extract_template_base_name(specifier_child)
+                                if template_name:
+                                    base_classes.append(template_name)
 
         base_classes_str = base_classes if base_classes else []
 
@@ -82,6 +106,13 @@ class CppAstAdapter(LanguageAstAdapter):
 
         return classes
 
+
+    def _extract_template_base_name(self, template_node: Node) -> str | None:
+        """Extract base class name from template_type: Base<T> -> Base"""
+        for child in template_node.named_children:
+            if child.type in ['type_identifier', 'qualified_identifier']:
+                return child.text.decode('utf-8')
+        return None
 
     def should_skip_function_node(self, node: Node) -> bool:
         """Skip function nodes inside template_declaration to avoid duplicates."""

@@ -140,8 +140,8 @@ class SemanticClustering():
                 G.nodes[node]['label'] = label_dict[node]
 
         return G
-        
-    def apply_methods(self, edges_df, nodes_df):
+
+    def apply_clustering_methods(self, edges_df, nodes_df):
             """Apply multiple community detection algorithms from CDlib."""
             G = self.create_graph_from_dfs(edges_df, nodes_df)
             
