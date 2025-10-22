@@ -62,7 +62,7 @@ class HierarchicalGraphBuilder:
         package='ts', 
         edge_set='default', 
         remove_isolated=False,
-        remove_subgraph_missing=True,
+        remove_subgraph_missing=False,
         batch_size=64,
         create_embedding=False,
         project_language=None,
