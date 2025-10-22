@@ -182,7 +182,7 @@ class KnowledgeGraphBuilder():
 
         file_function_edges, file_class_edges, file_import_edges = self.__create_file_connection_edges(repo_files, cg_nodes, imports, classes)
 
-        cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2)
+        cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2)
 
         
 
@@ -219,8 +219,8 @@ class KnowledgeGraphBuilder():
             "developer_function_edges": dev_edges_df,
             "question_nodes": question_nodes,
             "question_cluster_edges": question_edges,
-            "cluster_ensemble_nodes": ensemble_cluster_nodes,
-            "cluster_ensemble_edges": ensemble_cluster_edges
+            "clusterensemble_nodes": ensemble_cluster_nodes,
+            "clusterensemble_edges": ensemble_cluster_edges
         }
         
         if developer_mode and not developers_df.empty:
