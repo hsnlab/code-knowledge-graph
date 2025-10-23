@@ -1,3 +1,5 @@
+import json
+
 from package.adapters import LanguageAstAdapter
 from package.adapters import NodeType
 
@@ -222,7 +224,6 @@ class CppAstAdapter(LanguageAstAdapter):
         docstring = None
         local_vars = self.extract_local_variables(actual_function_node)
 
-        import json
         return [pd.DataFrame([{
             'file_id': file_id,
             'fnc_id': fnc_id,
@@ -419,11 +420,11 @@ class CppAstAdapter(LanguageAstAdapter):
         call_name = self._extract_call_name(top_call_node)
 
         if call_name:
-            import json
             new_row = pd.DataFrame([{
                 'file_id': file_id,
                 'cll_id': cll_id,
                 'name': call_name,
+                'call_position': top_call_node.start_byte,
                 'class': current_class_name,
                 'class_base_classes': class_base_classes,
                 'class_id': class_id,
@@ -467,44 +468,76 @@ class CppAstAdapter(LanguageAstAdapter):
 
 
     def resolve_calls(self, imports: pd.DataFrame, classes: pd.DataFrame, functions: pd.DataFrame,
-                      calls: pd.DataFrame) -> None:
+                    calls: pd.DataFrame) -> None:
         """Resolve C++ call names to their targets."""
-        import json
-    
+
         if 'local_vars' in functions.columns and not functions.empty:
             try:
                 func_lookup = functions.set_index('fnc_id')['local_vars'].to_dict()
-                calls['local_vars'] = calls['func_id'].map(func_lookup).fillna('{}')
+                calls['local_vars'] = calls['func_id'].map(func_lookup).fillna('[]')
             except Exception as e:
-                import traceback
-                traceback.print_exc()
-                calls['local_vars'] = '{}'
+                calls['local_vars'] = '[]'
         else:
-            calls['local_vars'] = '{}'
+            calls['local_vars'] = '[]'
 
         def resolve_single_call(row):
             call_name = row['name']
             class_name = row.get('class', 'Global')
             func_params_str = row.get('func_params', '{}')
-            local_vars_str = row.get('local_vars', '{}')
+            local_vars_str = row.get('local_vars', '[]')
+            call_position = row.get('call_position', 0)
 
             try:
                 func_params = json.loads(func_params_str) if func_params_str else {}
-                local_vars = json.loads(local_vars_str) if local_vars_str else {}
-                all_vars = {**func_params, **local_vars}
+                
+                # Parse local vars (might be double-encoded)
+                local_vars_data = json.loads(local_vars_str) if local_vars_str else []
+                # If still a string, parse again
+                if isinstance(local_vars_data, str):
+                    local_vars_data = json.loads(local_vars_data)
+                
+                # Handle both old dict format and new list format
+                if isinstance(local_vars_data, dict):
+                    # Old format: {"obj": "TypeA"} - convert to list
+                    local_vars_list = [
+                        {"name": k, "type": v, "start": 0, "end": float('inf')}
+                        for k, v in local_vars_data.items()
+                    ]
+                else:
+                    # New format: [{"name": "obj", "type": "TypeA", "start": 100, "end": 200}]
+                    local_vars_list = local_vars_data
+                
+                # Find the variable in scope at this call position
+                def find_var_in_scope(var_name, position):
+                    """Find variable that's in scope at given position."""
+                    # Iterate from most recent to oldest (shadowing priority)
+                    for var_info in reversed(local_vars_list):
+                        if (var_info['name'] == var_name and 
+                            var_info['start'] <= position <= var_info['end']):
+                            return var_info['type']
+                    
+                    # Check function parameters
+                    if var_name in func_params:
+                        return func_params[var_name]
+                    
+                    return None
+                
             except (json.JSONDecodeError, TypeError):
                 func_params = {}
-                local_vars = {}
-                all_vars = {}
+                local_vars_list = []
+                
+                def find_var_in_scope(var_name, position):
+                    return func_params.get(var_name)
 
+            # Handle this-> calls
             if call_name.startswith('this->') or call_name.startswith('this.'):
                 separator = '->' if '->' in call_name else '.'
                 method_name = call_name.split(separator, 1)[1]
-
                 if class_name and class_name != 'Global':
                     return f"{class_name}.{method_name}"
                 return method_name
 
+            # Handle object.method() or object->method() calls
             if '->' in call_name or ('.' in call_name and '::' not in call_name):
                 separator = '->' if '->' in call_name else '.'
                 parts = call_name.split(separator, 1)
@@ -512,12 +545,14 @@ class CppAstAdapter(LanguageAstAdapter):
                 if len(parts) == 2:
                     obj_name, method_name = parts
 
-                    if obj_name in all_vars:
-                        var_type = all_vars[obj_name]
-
+                    # Use scope-aware lookup
+                    var_type = find_var_in_scope(obj_name, call_position)
+                    
+                    if var_type:
                         if var_type.strip() == 'auto':
                             return call_name
                         
+                        # Handle smart pointers
                         if 'unique_ptr<' in var_type or 'shared_ptr<' in var_type or 'weak_ptr<' in var_type:
                             start = var_type.find('<')
                             end = var_type.rfind('>')
@@ -531,18 +566,20 @@ class CppAstAdapter(LanguageAstAdapter):
                                     .strip())
 
                         var_type = var_type.replace('::', '.')
-                        result = f"{var_type}.{method_name}"
-                        return result
+                        return f"{var_type}.{method_name}"
 
                     return call_name
 
+            # Handle :: namespace calls
             if '::' in call_name:
                 return call_name.replace('::', '.')
 
+            # Handle template calls
             if '<' in call_name and '>' in call_name:
                 base_name = call_name.split('<')[0]
                 return base_name
 
+            # Handle method calls without object (implicit this)
             if class_name and class_name != 'Global' and '::' not in call_name and '->' not in call_name and '.' not in call_name:
                 potential_method = f"{class_name}.{call_name}"
                 
@@ -595,8 +632,8 @@ class CppAstAdapter(LanguageAstAdapter):
     
 
     def extract_local_variables(self, func_node: Node) -> dict[str, str]:
-        """Extract local variable declarations from function body."""
-        local_vars = {}
+        """Extract local variable declarations with scope tracking."""
+        local_vars_with_scopes = []  # List of (var_name, var_type, start_byte, end_byte)
         
         body = None
         for child in func_node.named_children:
@@ -605,25 +642,38 @@ class CppAstAdapter(LanguageAstAdapter):
                 break
         
         if not body:
-            return local_vars
+            return {}
         
-        def walk_for_declarations(node: Node, depth: int = 0):
+        def walk_for_declarations(node: Node, scope_start: int, scope_end: int, depth: int = 0):
+            """Walk AST and track variable scopes."""
             if depth > 20:
                 return
+            
+            # Track compound statements (new scopes)
+            if node.type == 'compound_statement':
+                scope_start = node.start_byte
+                scope_end = node.end_byte
             
             if node.type == 'declaration':
                 var_name, var_type = self._extract_var_from_declaration(node)
                 
                 if var_name and var_type:
-                    local_vars[var_name] = var_type
+                    # Store variable with its scope range
+                    local_vars_with_scopes.append({
+                        'name': var_name,
+                        'type': var_type,
+                        'start': scope_start,
+                        'end': scope_end
+                    })
             
             for child in node.named_children:
-                walk_for_declarations(child, depth + 1)
+                walk_for_declarations(child, scope_start, scope_end, depth + 1)
         
-        walk_for_declarations(body)
+        # Start with function body scope
+        walk_for_declarations(body, body.start_byte, body.end_byte)
         
-        return local_vars
-
+       
+        return json.dumps(local_vars_with_scopes)
 
     def _extract_var_from_declaration(self, decl_node: Node) -> tuple[str | None, str]:
         """Extract variable name and type from declaration."""
