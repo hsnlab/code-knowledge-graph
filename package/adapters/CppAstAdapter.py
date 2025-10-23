@@ -162,7 +162,7 @@ class CppAstAdapter(LanguageAstAdapter):
 
         if top_function_node.type == 'friend_declaration':
             has_function_def = any(
-                child.type == 'function_definition'
+                child.type in ['function_definition', 'declaration']
                 for child in top_function_node.named_children
             )
             if not has_function_def:
