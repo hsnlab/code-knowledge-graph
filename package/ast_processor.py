@@ -10,7 +10,7 @@ class AstProcessor:
         self.imports = pd.DataFrame(columns=['file_id', 'imp_id', 'name', 'from', 'as_name'])
         self.classes = pd.DataFrame(columns=['file_id', 'cls_id', 'name', 'base_classes'])
         self.functions = pd.DataFrame(columns=['file_id', 'fnc_id', 'name', 'class', 'class_base_classes', 'params', 'docstring', 'function_code', 'class_id', 'return_type'])
-        self.calls = pd.DataFrame(columns=['file_id', 'cll_id', 'name', 'class', 'class_base_classes', 'class_id', 'func_id', 'func_name', 'func_params'])
+        self.calls = pd.DataFrame(columns=['file_id', 'cll_id', 'name', 'call_position', 'class', 'class_base_classes', 'class_id', 'func_id', 'func_name', 'func_params'])
         self.adapter = adapter
         parser: Parser = adapter.get_tree_sitter_parser()
         self.tree: Tree = parser.parse(file_content)
