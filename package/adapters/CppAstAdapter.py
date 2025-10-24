@@ -479,6 +479,9 @@ class CppAstAdapter(LanguageAstAdapter):
                 calls['local_vars'] = '[]'
         else:
             calls['local_vars'] = '[]'
+        
+        # Store new split calls
+        split_calls = []
 
         def resolve_single_call(row):
             call_name = row['name']
@@ -492,34 +495,26 @@ class CppAstAdapter(LanguageAstAdapter):
                 
                 # Parse local vars (might be double-encoded)
                 local_vars_data = json.loads(local_vars_str) if local_vars_str else []
-                # If still a string, parse again
                 if isinstance(local_vars_data, str):
                     local_vars_data = json.loads(local_vars_data)
                 
                 # Handle both old dict format and new list format
                 if isinstance(local_vars_data, dict):
-                    # Old format: {"obj": "TypeA"} - convert to list
                     local_vars_list = [
                         {"name": k, "type": v, "start": 0, "end": float('inf')}
                         for k, v in local_vars_data.items()
                     ]
                 else:
-                    # New format: [{"name": "obj", "type": "TypeA", "start": 100, "end": 200}]
                     local_vars_list = local_vars_data
                 
-                # Find the variable in scope at this call position
                 def find_var_in_scope(var_name, position):
                     """Find variable that's in scope at given position."""
-                    # Iterate from most recent to oldest (shadowing priority)
                     for var_info in reversed(local_vars_list):
                         if (var_info['name'] == var_name and 
                             var_info['start'] <= position <= var_info['end']):
                             return var_info['type']
-                    
-                    # Check function parameters
                     if var_name in func_params:
                         return func_params[var_name]
-                    
                     return None
                 
             except (json.JSONDecodeError, TypeError):
@@ -528,6 +523,21 @@ class CppAstAdapter(LanguageAstAdapter):
                 
                 def find_var_in_scope(var_name, position):
                     return func_params.get(var_name)
+
+            # Check if this is a chained call and split it
+            if ('->' in call_name or '.' in call_name) and '::' not in call_name:
+                arrow_count = call_name.count('->')
+                dot_count = call_name.count('.')
+                
+                if arrow_count + dot_count > 1:
+                    # This is a chained call - split it into separate calls
+                    new_calls = self._split_and_resolve_chained_call(
+                        call_name, call_position, local_vars_list, 
+                        func_params, functions, row
+                    )
+                    
+                    if new_calls:
+                        split_calls.extend(new_calls)  # Mark for removal
 
             # Handle this-> calls
             if call_name.startswith('this->') or call_name.startswith('this.'):
@@ -545,7 +555,6 @@ class CppAstAdapter(LanguageAstAdapter):
                 if len(parts) == 2:
                     obj_name, method_name = parts
 
-                    # Use scope-aware lookup
                     var_type = find_var_in_scope(obj_name, call_position)
                     
                     if var_type:
@@ -592,6 +601,12 @@ class CppAstAdapter(LanguageAstAdapter):
             return call_name
 
         calls['combinedName'] = calls.apply(resolve_single_call, axis=1)
+
+
+        # Add split calls as new rows
+        if split_calls:
+            for call_dict in split_calls:
+                calls.loc[len(calls)] = call_dict
 
 
     def create_import_edges(self, import_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -760,3 +775,232 @@ class CppAstAdapter(LanguageAstAdapter):
                     elif arg.type == 'template_type':
                         return arg.text.decode('utf-8')
         return None
+    
+    def _lookup_return_type(self, class_name: str, method_name: str, functions: pd.DataFrame) -> str | None:
+        """Look up the return type of a method in the functions DataFrame."""
+        if functions.empty:
+            return None
+        
+        # Look for function with matching class and name
+        matches = functions[
+            (functions['class'] == class_name) & 
+            (functions['name'] == method_name)
+        ]
+        
+        if matches.empty:
+            return None
+        
+        # Get return type and clean it up
+        return_type = matches.iloc[0]['return_type']
+        
+        if return_type is None or pd.isna(return_type):
+            return None
+        
+        # Clean up return type (remove pointers, references, const)
+        return_type = (str(return_type)
+                    .replace('const', '')
+                    .replace('*', '')
+                    .replace('&', '')
+                    .strip())
+        
+        # Convert :: to .
+        return_type = return_type.replace('::', '.')
+        
+        return return_type if return_type else None
+    
+    def _resolve_chained_call(self, call_name: str, call_position: int, 
+                            local_vars_list: list, func_params: dict,
+                            functions: pd.DataFrame) -> str:
+        """Resolve a chained call using return types."""
+        
+        # Split by both -> and . to get all parts with their separators
+        parts = []
+        current_part = ""
+        i = 0
+        
+        while i < len(call_name):
+            if i < len(call_name) - 1 and call_name[i:i+2] == '->':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '->'})
+                    current_part = ""
+                i += 2
+            elif call_name[i] == '.':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '.'})
+                    current_part = ""
+                i += 1
+            else:
+                current_part += call_name[i]
+                i += 1
+        
+        if current_part:
+            parts.append({'part': current_part, 'sep': None})
+        
+        if not parts:
+            return call_name
+        
+        # Helper to find variable type
+        def find_var_in_scope(var_name, position):
+            for var_info in reversed(local_vars_list):
+                if (var_info['name'] == var_name and 
+                    var_info['start'] <= position <= var_info['end']):
+                    return var_info['type']
+            if var_name in func_params:
+                return func_params[var_name]
+            return None
+        
+        # Build resolved call step by step
+        result_parts = []
+        current_type = None
+        
+        for idx, item in enumerate(parts):
+            part = item['part']
+            next_sep = item['sep']
+            
+            # Remove () from method names for lookups
+            clean_part = part.replace('()', '').replace('(', '').replace(')', '')
+            
+            if idx == 0:
+                # First part is always a variable - resolve it to a type
+                var_type = find_var_in_scope(clean_part, call_position)
+                
+                if var_type:
+                    # Clean up type
+                    current_type = (var_type
+                                .replace('const', '')
+                                .replace('*', '')
+                                .replace('&', '')
+                                .strip()
+                                .replace('::', '.'))
+                else:
+                    # Can't resolve, just keep original
+                    result_parts.append(part)
+                    current_type = None
+            else:
+                # This is a method call - add it with the current type
+                if current_type:
+                    result_parts.append(f"{current_type}.{clean_part}")
+                    
+                    # Look up return type for next iteration
+                    return_type = self._lookup_return_type(current_type, clean_part, functions)
+                    current_type = return_type
+                else:
+                    # No type info - just add the method
+                    result_parts.append(clean_part)
+            
+            # Add separator if there's a next part
+            if next_sep and idx < len(parts) - 1 and idx > 0:
+                result_parts.append(next_sep)
+        
+        return ''.join(result_parts)
+    
+    def _split_and_resolve_chained_call(self, call_name: str, call_position: int, 
+                                     local_vars_list: list, func_params: dict,
+                                     functions: pd.DataFrame, original_row: pd.Series) -> list[dict]:
+        """Split a chained call into separate individual calls and resolve each."""
+        
+        # Parse the chain into parts
+        parts = []
+        current_part = ""
+        i = 0
+        
+        while i < len(call_name):
+            if i < len(call_name) - 1 and call_name[i:i+2] == '->':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '->'})
+                    current_part = ""
+                i += 2
+            elif call_name[i] == '.':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '.'})
+                    current_part = ""
+                i += 1
+            else:
+                current_part += call_name[i]
+                i += 1
+        
+        if current_part:
+            parts.append({'part': current_part, 'sep': None})
+        
+        if len(parts) <= 1:
+            return []
+        
+        # Helper to find variable type
+        def find_var_in_scope(var_name, position):
+            for var_info in reversed(local_vars_list):
+                if (var_info['name'] == var_name and 
+                    var_info['start'] <= position <= var_info['end']):
+                    return var_info['type']
+            if var_name in func_params:
+                return func_params[var_name]
+            return None
+        
+        # Create separate call entries
+        new_calls = []
+        current_type = None
+        
+        for idx, item in enumerate(parts):
+            part = item['part']
+            separator = item['sep']
+            
+            # Remove () from method names
+            clean_part = part.replace('()', '').replace('(', '').replace(')', '')
+            
+            if idx == 0:
+                # First part - resolve variable to type
+                var_type = find_var_in_scope(clean_part, call_position)
+                
+                if var_type:
+                    current_type = (var_type
+                                .replace('const', '')
+                                .replace('*', '')
+                                .replace('&', '')
+                                .strip()
+                                .replace('::', '.'))
+                else:
+                    # Can't resolve - stop here
+                    return []
+            else:
+                # This is a method call - create a separate call entry
+                if current_type:
+                    # Build the call name (previous_part.method or previous_part->method)
+                    if idx == 1:
+                        # First method - include the variable
+                        prev_part = parts[0]['part']
+                        call_display_name = f"{prev_part}{parts[0]['sep']}{part}"
+                    else:
+                        # Subsequent methods - show as method()->nextMethod
+                        prev_part = parts[idx-1]['part']
+                        call_display_name = f"{prev_part}{parts[idx-1]['sep']}{part}"
+                    
+                    resolved_name = f"{current_type}.{clean_part}"
+                    
+                    # Create new call entry
+                    new_call = {
+                        'file_id': original_row.get('file_id'),
+                        'cll_id': None,  # Will be assigned new IDs later
+                        'name': call_display_name,
+                        'call_position': call_position,
+                        'class': original_row.get('class'),
+                        'class_base_classes': original_row.get('class_base_classes'),
+                        'class_id': original_row.get('class_id'),
+                        'func_id': original_row.get('func_id'),
+                        'func_name': original_row.get('func_name'),
+                        'func_params': original_row.get('func_params'),
+                        'combinedName': resolved_name
+                    }
+                    
+                    new_calls.append(new_call)
+                    
+                    # Look up return type for next iteration
+                    return_type = self._lookup_return_type(current_type, clean_part, functions)
+                    current_type = return_type
+                else:
+                    # Can't resolve further
+                    break
+        
+        print(f"DEBUG: Returning {len(new_calls)} split calls:")  # ← ADD
+        for call in new_calls:
+            print(f"  - {call['name']} → {call['combinedName']}")  # ← ADD
+        
+        return new_calls
