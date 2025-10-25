@@ -108,15 +108,7 @@ class KnowledgeGraphBuilder():
             ensemble_cluster_nodes = pd.DataFrame(columns=['ID', 'summary'])
             ensemble_cluster_edges = pd.DataFrame(columns=['source', 'target'])
             print('Clustering skipped (create_embedding=False).')
-        """
-        print('Skipping GitHub data (issues, PRs, artifacts, actions).')
-        issues = pd.DataFrame(columns=['ID', 'issue_title', 'issue_body', 'issue_labels', 'issue_state'])
-        prs = pd.DataFrame(columns=['ID', 'pr_title', 'pr_body', 'pr_open'])
-        pr_edges = pd.DataFrame(columns=['source', 'target'])
-        artifacts = pd.DataFrame(columns=['ID', 'artifact_name', 'artifact_size', 'created_at', 'updated_at'])
-        actions = pd.DataFrame(columns=['name', 'path', 'triggers', 'platforms', 'actions_used'])
-        issue_to_pr_edges = pd.DataFrame(columns=['source', 'target'])   
-        """ 
+        
         issues = self.__get_repo_issues(self.repository)
         print('Issues scraped.')
         prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
