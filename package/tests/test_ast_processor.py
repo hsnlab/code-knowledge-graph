@@ -83,6 +83,7 @@ class TestAstProcessor(unittest.TestCase):
             actual_normalized = actual_normalized.drop(columns=['local_vars'])
         expected_normalized = self.normalize_function_code_whitespace(expected_df)
 
+
         assert_frame_equal(actual_normalized, expected_normalized,
                            check_dtype=False)
 
@@ -99,13 +100,18 @@ class TestAstProcessor(unittest.TestCase):
         expected_df = DataFrame(expected)
         if len(expected) == 0:
             expected_df = DataFrame(columns=['file_id', 'cll_id', 'name', 'class', 'class_base_classes', 'class_id', 'func_id', 'func_name',
-                     'func_params'])
+                    'func_params'])
 
         actual_normalized = self.normalize_function_code_whitespace(processor.calls)
+        
+        # Drop call_position if it exists (internal column for resolution)
+        if 'call_position' in actual_normalized.columns:
+            actual_normalized = actual_normalized.drop(columns=['call_position'])
+        
         expected_normalized = self.normalize_function_code_whitespace(expected_df)
 
         assert_frame_equal(actual_normalized, expected_normalized,
-                           check_dtype=False)
+                        check_dtype=False)
 
     def _test_language_functions(self, language):
         """Generic test method for any language"""

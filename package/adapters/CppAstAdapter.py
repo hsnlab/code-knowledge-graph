@@ -1,3 +1,5 @@
+import json
+
 from package.adapters import LanguageAstAdapter
 from package.adapters import NodeType
 
@@ -160,7 +162,7 @@ class CppAstAdapter(LanguageAstAdapter):
 
         if top_function_node.type == 'friend_declaration':
             has_function_def = any(
-                child.type == 'function_definition'
+                child.type in ['function_definition', 'declaration']
                 for child in top_function_node.named_children
             )
             if not has_function_def:
@@ -222,7 +224,6 @@ class CppAstAdapter(LanguageAstAdapter):
         docstring = None
         local_vars = self.extract_local_variables(actual_function_node)
 
-        import json
         return [pd.DataFrame([{
             'file_id': file_id,
             'fnc_id': fnc_id,
@@ -419,11 +420,11 @@ class CppAstAdapter(LanguageAstAdapter):
         call_name = self._extract_call_name(top_call_node)
 
         if call_name:
-            import json
             new_row = pd.DataFrame([{
                 'file_id': file_id,
                 'cll_id': cll_id,
                 'name': call_name,
+                'call_position': top_call_node.start_byte,
                 'class': current_class_name,
                 'class_base_classes': class_base_classes,
                 'class_id': class_id,
@@ -467,44 +468,95 @@ class CppAstAdapter(LanguageAstAdapter):
 
 
     def resolve_calls(self, imports: pd.DataFrame, classes: pd.DataFrame, functions: pd.DataFrame,
-                      calls: pd.DataFrame) -> None:
+                    calls: pd.DataFrame) -> None:
         """Resolve C++ call names to their targets."""
-        import json
-    
+
         if 'local_vars' in functions.columns and not functions.empty:
             try:
                 func_lookup = functions.set_index('fnc_id')['local_vars'].to_dict()
-                calls['local_vars'] = calls['func_id'].map(func_lookup).fillna('{}')
+                calls['local_vars'] = calls['func_id'].map(func_lookup).fillna('[]')
             except Exception as e:
-                import traceback
-                traceback.print_exc()
-                calls['local_vars'] = '{}'
+                calls['local_vars'] = '[]'
         else:
-            calls['local_vars'] = '{}'
+            calls['local_vars'] = '[]'
+        
+        # Store new split calls
+        split_calls = []
 
         def resolve_single_call(row):
             call_name = row['name']
             class_name = row.get('class', 'Global')
             func_params_str = row.get('func_params', '{}')
-            local_vars_str = row.get('local_vars', '{}')
+            local_vars_str = row.get('local_vars', '[]')
+            call_position = row.get('call_position', 0)
 
             try:
                 func_params = json.loads(func_params_str) if func_params_str else {}
-                local_vars = json.loads(local_vars_str) if local_vars_str else {}
-                all_vars = {**func_params, **local_vars}
+                
+                # Parse local vars (might be double-encoded)
+                local_vars_data = json.loads(local_vars_str) if local_vars_str else []
+                if isinstance(local_vars_data, str):
+                    local_vars_data = json.loads(local_vars_data)
+                
+                # Handle both old dict format and new list format
+                if isinstance(local_vars_data, dict):
+                    local_vars_list = [
+                        {"name": k, "type": v, "start": 0, "end": float('inf')}
+                        for k, v in local_vars_data.items()
+                    ]
+                else:
+                    local_vars_list = local_vars_data
+                
+                def find_var_in_scope(var_name, position):
+                    """Find variable that's in scope at given position."""
+                    for var_info in reversed(local_vars_list):
+                        if (var_info['name'] == var_name and 
+                            var_info['start'] <= position <= var_info['end']):
+                            return var_info['type']
+                    if var_name in func_params:
+                        return func_params[var_name]
+                    return None
+                
             except (json.JSONDecodeError, TypeError):
                 func_params = {}
-                local_vars = {}
-                all_vars = {}
+                local_vars_list = []
+                
+                def find_var_in_scope(var_name, position):
+                    return func_params.get(var_name)
 
+            # Check if this is a chained call and split it
+            if ('->' in call_name or '.' in call_name) and '::' not in call_name:
+                arrow_count = call_name.count('->')
+                dot_count = call_name.count('.')
+                
+                if arrow_count + dot_count > 1:
+                    # This is a chained call - split it into separate calls
+                    is_subchain = False
+                    for other_call in calls['name']:
+                        if other_call != call_name and call_name in str(other_call):
+                            is_subchain = True
+                            break
+
+                    if is_subchain:
+                        # This is a subchain - skip it (will be removed later)
+                        return None
+                    
+                    else:
+                        # This is a outermost chain - split it
+                        new_calls = self._split_and_resolve_chained_call(call_name, call_position, local_vars_list, func_params, functions, row)
+                        if new_calls:
+                            split_calls.extend(new_calls)
+                            return None
+
+            # Handle this-> calls
             if call_name.startswith('this->') or call_name.startswith('this.'):
                 separator = '->' if '->' in call_name else '.'
                 method_name = call_name.split(separator, 1)[1]
-
                 if class_name and class_name != 'Global':
                     return f"{class_name}.{method_name}"
                 return method_name
 
+            # Handle object.method() or object->method() calls
             if '->' in call_name or ('.' in call_name and '::' not in call_name):
                 separator = '->' if '->' in call_name else '.'
                 parts = call_name.split(separator, 1)
@@ -512,12 +564,13 @@ class CppAstAdapter(LanguageAstAdapter):
                 if len(parts) == 2:
                     obj_name, method_name = parts
 
-                    if obj_name in all_vars:
-                        var_type = all_vars[obj_name]
-
+                    var_type = find_var_in_scope(obj_name, call_position)
+                    
+                    if var_type:
                         if var_type.strip() == 'auto':
                             return call_name
                         
+                        # Handle smart pointers
                         if 'unique_ptr<' in var_type or 'shared_ptr<' in var_type or 'weak_ptr<' in var_type:
                             start = var_type.find('<')
                             end = var_type.rfind('>')
@@ -531,18 +584,20 @@ class CppAstAdapter(LanguageAstAdapter):
                                     .strip())
 
                         var_type = var_type.replace('::', '.')
-                        result = f"{var_type}.{method_name}"
-                        return result
+                        return f"{var_type}.{method_name}"
 
                     return call_name
 
+            # Handle :: namespace calls
             if '::' in call_name:
                 return call_name.replace('::', '.')
 
+            # Handle template calls
             if '<' in call_name and '>' in call_name:
                 base_name = call_name.split('<')[0]
                 return base_name
 
+            # Handle method calls without object (implicit this)
             if class_name and class_name != 'Global' and '::' not in call_name and '->' not in call_name and '.' not in call_name:
                 potential_method = f"{class_name}.{call_name}"
                 
@@ -556,7 +611,22 @@ class CppAstAdapter(LanguageAstAdapter):
 
         calls['combinedName'] = calls.apply(resolve_single_call, axis=1)
 
+        calls.dropna(subset=['combinedName'], inplace=True)
 
+        # Add split calls as new rows
+        if split_calls:
+        # Deduplicate ONLY the split calls before adding
+            
+            start_index = len(calls)  # ← Calculate ONCE before loop
+            for i, call_dict in enumerate(split_calls):
+                new_index = start_index + i  # ← Use offset
+                calls.loc[new_index] = call_dict
+
+        calls.reset_index(drop=True, inplace=True)
+        calls.drop_duplicates(subset=['name', 'combinedName'], keep='first', inplace=True)
+        calls.reset_index(drop=True, inplace=True)
+
+        
     def create_import_edges(self, import_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Create import nodes and edges."""
         if import_df.empty:
@@ -595,8 +665,8 @@ class CppAstAdapter(LanguageAstAdapter):
     
 
     def extract_local_variables(self, func_node: Node) -> dict[str, str]:
-        """Extract local variable declarations from function body."""
-        local_vars = {}
+        """Extract local variable declarations with scope tracking."""
+        local_vars_with_scopes = []  # List of (var_name, var_type, start_byte, end_byte)
         
         body = None
         for child in func_node.named_children:
@@ -605,25 +675,38 @@ class CppAstAdapter(LanguageAstAdapter):
                 break
         
         if not body:
-            return local_vars
+            return {}
         
-        def walk_for_declarations(node: Node, depth: int = 0):
+        def walk_for_declarations(node: Node, scope_start: int, scope_end: int, depth: int = 0):
+            """Walk AST and track variable scopes."""
             if depth > 20:
                 return
+            
+            # Track compound statements (new scopes)
+            if node.type == 'compound_statement':
+                scope_start = node.start_byte
+                scope_end = node.end_byte
             
             if node.type == 'declaration':
                 var_name, var_type = self._extract_var_from_declaration(node)
                 
                 if var_name and var_type:
-                    local_vars[var_name] = var_type
+                    # Store variable with its scope range
+                    local_vars_with_scopes.append({
+                        'name': var_name,
+                        'type': var_type,
+                        'start': scope_start,
+                        'end': scope_end
+                    })
             
             for child in node.named_children:
-                walk_for_declarations(child, depth + 1)
+                walk_for_declarations(child, scope_start, scope_end, depth + 1)
         
-        walk_for_declarations(body)
+        # Start with function body scope
+        walk_for_declarations(body, body.start_byte, body.end_byte)
         
-        return local_vars
-
+       
+        return json.dumps(local_vars_with_scopes)
 
     def _extract_var_from_declaration(self, decl_node: Node) -> tuple[str | None, str]:
         """Extract variable name and type from declaration."""
@@ -710,3 +793,231 @@ class CppAstAdapter(LanguageAstAdapter):
                     elif arg.type == 'template_type':
                         return arg.text.decode('utf-8')
         return None
+    
+    def _lookup_return_type(self, class_name: str, method_name: str, functions: pd.DataFrame) -> str | None:
+        """Look up the return type of a method in the functions DataFrame."""
+        if functions.empty:
+            return None
+        
+        # Look for function with matching class and name
+        matches = functions[
+            (functions['class'] == class_name) & 
+            (functions['name'] == method_name)
+        ]
+        
+        if matches.empty:
+            return None
+        
+        # Get return type and clean it up
+        return_type = matches.iloc[0]['return_type']
+        
+        if return_type is None or pd.isna(return_type):
+            return None
+        
+        # Clean up return type (remove pointers, references, const)
+        return_type = (str(return_type)
+                    .replace('const', '')
+                    .replace('*', '')
+                    .replace('&', '')
+                    .strip())
+        
+        # Convert :: to .
+        return_type = return_type.replace('::', '.')
+        
+        return return_type if return_type else None
+    
+    def _resolve_chained_call(self, call_name: str, call_position: int, 
+                            local_vars_list: list, func_params: dict,
+                            functions: pd.DataFrame) -> str:
+        """Resolve a chained call using return types."""
+        
+        # Split by both -> and . to get all parts with their separators
+        parts = []
+        current_part = ""
+        i = 0
+        
+        while i < len(call_name):
+            if i < len(call_name) - 1 and call_name[i:i+2] == '->':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '->'})
+                    current_part = ""
+                i += 2
+            elif call_name[i] == '.':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '.'})
+                    current_part = ""
+                i += 1
+            else:
+                current_part += call_name[i]
+                i += 1
+        
+        if current_part:
+            parts.append({'part': current_part, 'sep': None})
+        
+        if not parts:
+            return call_name
+        
+        # Helper to find variable type
+        def find_var_in_scope(var_name, position):
+            for var_info in reversed(local_vars_list):
+                if (var_info['name'] == var_name and 
+                    var_info['start'] <= position <= var_info['end']):
+                    return var_info['type']
+            if var_name in func_params:
+                return func_params[var_name]
+            return None
+        
+        # Build resolved call step by step
+        result_parts = []
+        current_type = None
+        
+        for idx, item in enumerate(parts):
+            part = item['part']
+            next_sep = item['sep']
+            
+            # Remove () from method names for lookups
+            clean_part = part.replace('()', '').replace('(', '').replace(')', '')
+            
+            if idx == 0:
+                # First part is always a variable - resolve it to a type
+                var_type = find_var_in_scope(clean_part, call_position)
+                
+                if var_type:
+                    # Clean up type
+                    current_type = (var_type
+                                .replace('const', '')
+                                .replace('*', '')
+                                .replace('&', '')
+                                .strip()
+                                .replace('::', '.'))
+                else:
+                    # Can't resolve, just keep original
+                    result_parts.append(part)
+                    current_type = None
+            else:
+                # This is a method call - add it with the current type
+                if current_type:
+                    result_parts.append(f"{current_type}.{clean_part}")
+                    
+                    # Look up return type for next iteration
+                    return_type = self._lookup_return_type(current_type, clean_part, functions)
+                    current_type = return_type
+                else:
+                    # No type info - just add the method
+                    result_parts.append(clean_part)
+            
+            # Add separator if there's a next part
+            if next_sep and idx < len(parts) - 1 and idx > 0:
+                result_parts.append(next_sep)
+        
+        return ''.join(result_parts)
+    
+    def _split_and_resolve_chained_call(self, call_name: str, call_position: int, 
+                                     local_vars_list: list, func_params: dict,
+                                     functions: pd.DataFrame, original_row: pd.Series) -> list[dict]:
+        """Split a chained call into separate individual calls and resolve each."""
+        
+        # Parse the chain into parts
+        parts = []
+        current_part = ""
+        i = 0
+        
+        while i < len(call_name):
+            if i < len(call_name) - 1 and call_name[i:i+2] == '->':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '->'})
+                    current_part = ""
+                i += 2
+            elif call_name[i] == '.':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '.'})
+                    current_part = ""
+                i += 1
+            else:
+                current_part += call_name[i]
+                i += 1
+        
+        if current_part:
+            parts.append({'part': current_part, 'sep': None})
+        
+        if len(parts) <= 1:
+            return []
+        
+        # Helper to find variable type
+        def find_var_in_scope(var_name, position):
+            for var_info in reversed(local_vars_list):
+                if (var_info['name'] == var_name and 
+                    var_info['start'] <= position <= var_info['end']):
+                    return var_info['type']
+            if var_name in func_params:
+                return func_params[var_name]
+            return None
+        
+        # Create separate call entries
+        new_calls = []
+        current_type = None
+        
+        for idx, item in enumerate(parts):
+            part = item['part']
+            separator = item['sep']
+            
+            # Remove () from method names
+            clean_part = part.replace('()', '').replace('(', '').replace(')', '')
+            
+            if idx == 0:
+                # First part - resolve variable to type
+                var_type = find_var_in_scope(clean_part, call_position)
+                
+                if var_type:
+                    current_type = (var_type
+                                .replace('const', '')
+                                .replace('*', '')
+                                .replace('&', '')
+                                .strip()
+                                .replace('::', '.'))
+                else:
+                    # Can't resolve - stop here
+                    return []
+            else:
+                # This is a method call - create a separate call entry
+                if current_type:
+                    # Build the call name (previous_part.method or previous_part->method)
+                    
+                    clean_part_for_display = part.replace('()', '')
+                    
+                    if idx == 1:
+                        # First method - include the variable
+                        prev_part = parts[0]['part']
+                        call_display_name = f"{prev_part}{parts[0]['sep']}{clean_part_for_display}"
+                    else:
+                        # Subsequent methods - show as method()->nextMethod
+                        prev_part = parts[idx-1]['part']
+                        call_display_name = f"{prev_part}{parts[idx-1]['sep']}{clean_part_for_display}"
+
+                    resolved_name = f"{current_type}.{clean_part}"
+                    
+                    # Create new call entry
+                    new_call = {
+                        'file_id': original_row.get('file_id'),
+                        'cll_id': None,  # Will be assigned new IDs later
+                        'name': call_display_name,
+                        'call_position': call_position,
+                        'class': original_row.get('class'),
+                        'class_base_classes': original_row.get('class_base_classes'),
+                        'class_id': original_row.get('class_id'),
+                        'func_id': original_row.get('func_id'),
+                        'func_name': original_row.get('func_name'),
+                        'func_params': original_row.get('func_params'),
+                        'combinedName': resolved_name
+                    }
+                    
+                    new_calls.append(new_call)
+                    
+                    # Look up return type for next iteration
+                    return_type = self._lookup_return_type(current_type, clean_part, functions)
+                    current_type = return_type
+                else:
+                    # Can't resolve further
+                    break
+        
+        return new_calls
