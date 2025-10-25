@@ -531,13 +531,22 @@ class CppAstAdapter(LanguageAstAdapter):
                 
                 if arrow_count + dot_count > 1:
                     # This is a chained call - split it into separate calls
-                    new_calls = self._split_and_resolve_chained_call(
-                        call_name, call_position, local_vars_list, 
-                        func_params, functions, row
-                    )
+                    is_subchain = False
+                    for other_call in calls['name']:
+                        if other_call != call_name and call_name in str(other_call):
+                            is_subchain = True
+                            break
+
+                    if is_subchain:
+                        # This is a subchain - skip it (will be removed later)
+                        return None
                     
-                    if new_calls:
-                        split_calls.extend(new_calls)  # Mark for removal
+                    else:
+                        # This is a outermost chain - split it
+                        new_calls = self._split_and_resolve_chained_call(call_name, call_position, local_vars_list, func_params, functions, row)
+                        if new_calls:
+                            split_calls.extend(new_calls)
+                            return None
 
             # Handle this-> calls
             if call_name.startswith('this->') or call_name.startswith('this.'):
@@ -602,13 +611,22 @@ class CppAstAdapter(LanguageAstAdapter):
 
         calls['combinedName'] = calls.apply(resolve_single_call, axis=1)
 
+        calls.dropna(subset=['combinedName'], inplace=True)
 
         # Add split calls as new rows
         if split_calls:
-            for call_dict in split_calls:
-                calls.loc[len(calls)] = call_dict
+        # Deduplicate ONLY the split calls before adding
+            
+            start_index = len(calls)  # ← Calculate ONCE before loop
+            for i, call_dict in enumerate(split_calls):
+                new_index = start_index + i  # ← Use offset
+                calls.loc[new_index] = call_dict
 
+        calls.reset_index(drop=True, inplace=True)
+        calls.drop_duplicates(subset=['name', 'combinedName'], keep='first', inplace=True)
+        calls.reset_index(drop=True, inplace=True)
 
+        
     def create_import_edges(self, import_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Create import nodes and edges."""
         if import_df.empty:
@@ -964,15 +982,18 @@ class CppAstAdapter(LanguageAstAdapter):
                 # This is a method call - create a separate call entry
                 if current_type:
                     # Build the call name (previous_part.method or previous_part->method)
+                    
+                    clean_part_for_display = part.replace('()', '')
+                    
                     if idx == 1:
                         # First method - include the variable
                         prev_part = parts[0]['part']
-                        call_display_name = f"{prev_part}{parts[0]['sep']}{part}"
+                        call_display_name = f"{prev_part}{parts[0]['sep']}{clean_part_for_display}"
                     else:
                         # Subsequent methods - show as method()->nextMethod
                         prev_part = parts[idx-1]['part']
-                        call_display_name = f"{prev_part}{parts[idx-1]['sep']}{part}"
-                    
+                        call_display_name = f"{prev_part}{parts[idx-1]['sep']}{clean_part_for_display}"
+
                     resolved_name = f"{current_type}.{clean_part}"
                     
                     # Create new call entry
@@ -998,9 +1019,5 @@ class CppAstAdapter(LanguageAstAdapter):
                 else:
                     # Can't resolve further
                     break
-        
-        print(f"DEBUG: Returning {len(new_calls)} split calls:")  # ← ADD
-        for call in new_calls:
-            print(f"  - {call['name']} → {call['combinedName']}")  # ← ADD
         
         return new_calls
