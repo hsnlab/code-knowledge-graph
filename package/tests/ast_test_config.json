@@ -1406,59 +1406,57 @@
           }
         ]
       },
-            "cpp_access_modifiers_public": {
-      "mock": "class MyClass {\npublic:\n    void publicMethod() {\n        std::cout << \"Public\" << std::endl;\n    }\n};",
-      "expected": [
-        {
-          "file_id": null,
-          "fnc_id": null,
-          "name": "publicMethod",
-          "class": "MyClass",
-          "class_base_classes": [],
-          "params": "{}",
-          "docstring": null,
-          "function_code": "void publicMethod() {\n        std::cout << \"Public\" << std::endl;\n    }",
-          "class_id": null,
-          "return_type": "void"
-        }
-      ]
-    },
-
-    "cpp_access_modifiers_private": {
-      "mock": "class MyClass {\nprivate:\n    void privateMethod() {\n        std::cout << \"Private\" << std::endl;\n    }\n};",
-      "expected": [
-        {
-          "file_id": null,
-          "fnc_id": null,
-          "name": "privateMethod",
-          "class": "MyClass",
-          "class_base_classes": [],
-          "params": "{}",
-          "docstring": null,
-          "function_code": "void privateMethod() {\n        std::cout << \"Private\" << std::endl;\n    }",
-          "class_id": null,
-          "return_type": "void"
-        }
-      ]
-    },
-
-    "cpp_access_modifiers_protected": {
-      "mock": "class MyClass {\nprotected:\n    void protectedMethod() {\n        std::cout << \"Protected\" << std::endl;\n    }\n};",
-      "expected": [
-        {
-          "file_id": null,
-          "fnc_id": null,
-          "name": "protectedMethod",
-          "class": "MyClass",
-          "class_base_classes": [],
-          "params": "{}",
-          "docstring": null,
-          "function_code": "void protectedMethod() {\n        std::cout << \"Protected\" << std::endl;\n    }",
-          "class_id": null,
-          "return_type": "void"
-        }
-      ]
-    }
+      "cpp_access_modifiers_public": {
+        "mock": "class MyClass {\npublic:\n    void publicMethod() {\n        std::cout << \"Public\" << std::endl;\n    }\n};",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "publicMethod",
+            "class": "MyClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "void publicMethod() {\n        std::cout << \"Public\" << std::endl;\n    }",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      },
+      "cpp_access_modifiers_private": {
+        "mock": "class MyClass {\nprivate:\n    void privateMethod() {\n        std::cout << \"Private\" << std::endl;\n    }\n};",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "privateMethod",
+            "class": "MyClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "void privateMethod() {\n        std::cout << \"Private\" << std::endl;\n    }",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      },
+      "cpp_access_modifiers_protected": {
+        "mock": "class MyClass {\nprotected:\n    void protectedMethod() {\n        std::cout << \"Protected\" << std::endl;\n    }\n};",
+        "expected": [
+          {
+            "file_id": null,
+            "fnc_id": null,
+            "name": "protectedMethod",
+            "class": "MyClass",
+            "class_base_classes": [],
+            "params": "{}",
+            "docstring": null,
+            "function_code": "void protectedMethod() {\n        std::cout << \"Protected\" << std::endl;\n    }",
+            "class_id": null,
+            "return_type": "void"
+          }
+        ]
+      }
     },
     "standalone_calls_tests": {
       "cpp_calls_standalone": {
@@ -2015,12 +2013,12 @@
         "mock": "class Inner {\npublic:\n    void innerMethod() {}\n};\n\nclass Outer {\npublic:\n    Inner* getInner() { return nullptr; }\n};\n\nvoid caller() {\n    Outer obj;\n    obj.getInner()->innerMethod();\n}",
         "expected": [
           {
-            "name": "obj.getInner()->innerMethod",
-            "combinedName": "Outer.getInner()->innerMethod"
-          },
-          {
             "name": "obj.getInner",
             "combinedName": "Outer.getInner"
+          },
+          {
+            "name": "getInner()->innerMethod",
+            "combinedName": "Inner.innerMethod"
           }
         ]
       },
@@ -2170,6 +2168,40 @@
           {
             "name": "err.method",
             "combinedName": "Target.method"
+          }
+        ]
+      },
+      "cpp_resolve_chained_double": {
+        "mock": "class Inner {\npublic:\n    void innerMethod() {}\n};\n\nclass Middle {\npublic:\n    Inner* getInner() { return nullptr; }\n};\n\nclass Outer {\npublic:\n    Middle* getMiddle() { return nullptr; }\n};\n\nvoid caller() {\n    Outer obj;\n    obj.getMiddle()->getInner()->innerMethod();\n}",
+        "expected": [
+          {
+            "name": "getMiddle()->getInner",
+            "combinedName": "Middle.getInner"
+          },
+          {
+            "name": "obj.getMiddle",
+            "combinedName": "Outer.getMiddle"
+          },
+          {
+            "name": "getInner()->innerMethod",
+            "combinedName": "Inner.innerMethod"
+          }
+        ]
+      },
+      "cpp_resolve_chained_mixed_separators": {
+        "mock": "class Inner {\npublic:\n    void process() {}\n};\n\nclass Outer {\npublic:\n    Inner getInner() { return Inner(); }\n};\n\nvoid caller() {\n    Outer obj;\n    obj.getInner().process();\n}",
+        "expected": [
+          {
+            "name": "Inner",
+            "combinedName": "Inner"
+          },
+          {
+            "name": "obj.getInner",
+            "combinedName": "Outer.getInner"
+          },
+          {
+            "name": "getInner().process",
+            "combinedName": "Inner.process"
           }
         ]
       }
