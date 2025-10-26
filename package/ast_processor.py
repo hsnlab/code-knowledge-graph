@@ -70,6 +70,9 @@ class AstProcessor:
     def _handle_calls(self, node: Node, file_id: str, current_class_name: str, current_base_classes: list[str],
                       class_id: int, fnc_id: int, func_name: str, func_params: dict, cll_id: int):
 
+        if self.adapter.should_skip_call_node(node):
+            return
+
         if self.__is_not_correct_type(node, NodeType.CALL):
             return
 

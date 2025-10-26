@@ -65,3 +65,7 @@ class LanguageAstAdapter:
         Override in language-specific adapters.
         """
         raise NotImplementedError
+    
+    def should_skip_call_node(self, node: Node) -> bool:
+        """Override in subclass to skip duplicate call nodes. Default: don't skip."""
+        return False

@@ -1,6 +1,6 @@
 from package.adapters import LanguageAstAdapter
 from package.adapters import NodeType
-
+import json 
 from tree_sitter import Node
 import pandas as pd
 
@@ -14,7 +14,7 @@ class ErlangAstAdapter(LanguageAstAdapter):
             "import_attribute": NodeType.IMPORT,  # For actual -import() statements
             "fun_decl": NodeType.FUNCTION,
             "call": NodeType.CALL,
-            "remote": NodeType.CALL,
+            #"remote": NodeType.CALL,
         })
 
     def parse_import(self, top_import_node: Node, file_id: str, imp_id: int) -> list[pd.DataFrame]:
@@ -138,4 +138,194 @@ class ErlangAstAdapter(LanguageAstAdapter):
     def parse_calls(self, top_call_node: Node, file_id: str, cll_id: int,
                     current_class_name: str, class_base_classes: list, class_id: int,
                     fnc_id: int, func_name: str, func_params: dict) -> list[pd.DataFrame]:
-        return []
+        """
+        Parse Erlang function calls from AST.
+        Handles:
+        - Local calls: say_hello()
+        - Remote calls: io:format()
+        - Spawn: spawn(Module, Function, Args) -> extract Module:Function
+        - Apply: apply(Module, Function, Args) -> extract Module:Function
+        """
+        calls = []
+        
+        call_name = self._extract_call_name(top_call_node)
+        
+        if not call_name:
+            return []
+        
+        # Handle special cases: spawn and apply
+        if call_name == 'spawn':
+            target_call = self._extract_spawn_target(top_call_node)
+            if target_call:
+                call_name = target_call
+            else:
+                return []  # Can't resolve spawn target
+        
+        elif call_name == 'apply':
+            target_call = self._extract_apply_target(top_call_node)
+            if target_call:
+                call_name = target_call
+            else:
+                return []  # Can't resolve apply target (probably a fun variable)
+        
+        # Create the call entry
+        new_row = pd.DataFrame([{
+            'file_id': file_id,
+            'cll_id': cll_id,
+            'name': call_name,
+            'call_position': top_call_node.start_byte,
+            'class': current_class_name,
+            'class_base_classes': class_base_classes,
+            'class_id': class_id,
+            'func_id': fnc_id,
+            'func_name': func_name,
+            'func_params': json.dumps(func_params)
+        }])
+        calls.append(new_row)
+        
+        return calls
+
+    def _extract_call_name(self, call_node: Node) -> str | None:
+        """
+        Extract the call name from a call node.
+        Returns:
+        - Local call: "say_hello"
+        - Remote call: "io:format"
+        - spawn/apply: "spawn"/"apply" (special handling later)
+        """
+        # First check if this is a remote call
+        remote_node = None
+        atom_node = None
+        
+        for child in call_node.named_children:
+            if child.type == 'remote':
+                remote_node = child
+            elif child.type == 'atom':
+                atom_node = child
+        
+        # Priority: remote call first
+        if remote_node:
+            module_name = None
+            func_name = None
+            
+            for remote_child in remote_node.named_children:
+                if remote_child.type == 'remote_module':
+                    # Extract module name
+                    for mod_child in remote_child.named_children:
+                        if mod_child.type == 'atom':
+                            module_name = mod_child.text.decode('utf-8')
+                            break
+                
+                elif remote_child.type == 'atom':
+                    # Extract function name
+                    func_name = remote_child.text.decode('utf-8')
+            
+            if module_name and func_name:
+                return f"{module_name}:{func_name}"
+        
+        # If no remote call, check for local call
+        if atom_node:
+            return atom_node.text.decode('utf-8')
+        
+        return None
+
+    def _extract_spawn_target(self, spawn_call_node: Node) -> str | None:
+        """
+        Extract the target function from spawn(Module, Function, Args).
+        
+        Examples:
+        - spawn(?MODULE, server, []) -> "server"
+        - spawn(other_module, handle, []) -> "other_module:handle"
+        
+        Returns the function name to be recorded as a call.
+        """
+        # Find expr_args node
+        expr_args = None
+        for child in spawn_call_node.named_children:
+            if child.type == 'expr_args':
+                expr_args = child
+                break
+        
+        if not expr_args:
+            return None
+        
+        # Extract first 2 arguments: Module, Function
+        args = []
+        for child in expr_args.named_children:
+            if child.type == 'atom':
+                args.append(child.text.decode('utf-8'))
+            elif child.type == 'macro_call_expr':
+                # ?MODULE expands to current module - treat as local call
+                args.append('?MODULE')
+            
+            if len(args) >= 2:
+                break
+        
+        if len(args) < 2:
+            return None
+        
+        module_arg = args[0]
+        function_arg = args[1]
+        
+        # If module is ?MODULE, it's a local call
+        if module_arg == '?MODULE':
+            return function_arg
+        else:
+            # Remote call
+            return f"{module_arg}:{function_arg}"
+
+    def _extract_apply_target(self, apply_call_node: Node) -> str | None:
+        """
+        Extract the target function from apply(Module, Function, Args).
+        
+        Examples:
+        - apply(lists, reverse, []) -> "lists:reverse"
+        - apply(Fun, []) -> None (can't resolve)
+        
+        Returns the function name to be recorded as a call, or None if variable.
+        """
+        # Find expr_args node
+        expr_args = None
+        for child in apply_call_node.named_children:
+            if child.type == 'expr_args':
+                expr_args = child
+                break
+        
+        if not expr_args:
+            return None
+        
+        # Check if first arg is a variable (fun) or atom (module)
+        first_child = None
+        for child in expr_args.named_children:
+            if child.type in ['atom', 'var']:
+                first_child = child
+                break
+        
+        if not first_child:
+            return None
+        
+        # If first arg is a variable, we can't resolve it statically
+        if first_child.type == 'var':
+            return None
+        
+        # First arg is atom - this is apply(Module, Function, Args)
+        # Extract Module and Function
+        args = []
+        for child in expr_args.named_children:
+            if child.type == 'atom':
+                args.append(child.text.decode('utf-8'))
+            
+            if len(args) >= 2:
+                break
+        
+        if len(args) < 2:
+            return None
+        
+        module_name = args[0]
+        function_name = args[1]
+        
+        return f"{module_name}:{function_name}"
+    
+    def should_skip_call_node(self, node: Node) -> bool:
+        """Only process actual 'call' type nodes."""
+        return node.type != 'call'
