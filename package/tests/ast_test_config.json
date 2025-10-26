@@ -2748,6 +2748,66 @@
         "mock": "main() ->\n    Fun = fun(X) -> X * 2 end,\n    apply(Fun, [5]).",
         "expected": []
       }
+    },
+    "standalone_resolution_tests": {
+      "erlang_resolve_local_call": {
+        "mock": "add(X, Y) ->\n    X + Y.\n\nmain() ->\n    add(5, 3).",
+        "expected": [
+          {
+            "name": "add",
+            "combinedName": "add"
+          }
+        ]
+      },
+      "erlang_resolve_remote_call": {
+        "mock": "main() ->\n    lists:reverse([1, 2, 3]).",
+        "expected": [
+          {
+            "name": "lists:reverse",
+            "combinedName": "lists:reverse"
+          }
+        ]
+      },
+      "erlang_resolve_mixed_calls": {
+        "mock": "double(X) ->\n    X * 2.\n\nmain() ->\n    Result = double(5),\n    io:format(\"~p~n\", [Result]).",
+        "expected": [
+          {
+            "name": "double",
+            "combinedName": "double"
+          },
+          {
+            "name": "io:format",
+            "combinedName": "io:format"
+          }
+        ]
+      },
+      "erlang_resolve_spawn_local": {
+        "mock": "server() ->\n    ok.\n\nstart() ->\n    spawn(?MODULE, server, []).",
+        "expected": [
+          {
+            "name": "server",
+            "combinedName": "server"
+          }
+        ]
+      },
+      "erlang_resolve_spawn_remote": {
+        "mock": "start() ->\n    spawn(other_module, handle, []).",
+        "expected": [
+          {
+            "name": "other_module:handle",
+            "combinedName": "other_module:handle"
+          }
+        ]
+      },
+      "erlang_resolve_apply_mfa": {
+        "mock": "main() ->\n    apply(lists, reverse, [[1, 2, 3]]).",
+        "expected": [
+          {
+            "name": "lists:reverse",
+            "combinedName": "lists:reverse"
+          }
+        ]
+      }
     }
   }
 }
