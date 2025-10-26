@@ -51,7 +51,8 @@ class LanguageAstAdapter:
                     fnc_id: int, func_name: str, func_params: dict) -> list[pd.DataFrame]:
         raise NotImplementedError
 
-    def resolve_calls(self, imports: pd.DataFrame, classes: pd.DataFrame, functions: pd.DataFrame, calls: pd.DataFrame) -> None:
+    def resolve_calls(self, calls: pd.DataFrame, functions: pd.DataFrame, 
+                    classes: pd.DataFrame, imports: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
         raise NotImplementedError
     
     def create_import_edges(self, import_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -69,3 +70,16 @@ class LanguageAstAdapter:
     def should_skip_call_node(self, node: Node) -> bool:
         """Override in subclass to skip duplicate call nodes. Default: don't skip."""
         return False
+    
+    def create_combined_name(self, functions: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
+        """
+        Add 'combinedName' column to functions DataFrame.
+        Override in subclass for language-specific logic.
+        
+        Args:
+            functions: DataFrame with function definitions
+            filename_lookup: Dict mapping file_id (UUID) to file path
+        """
+        # Default: just copy name
+        if not functions.empty:
+            functions['combinedName'] = functions['name']

@@ -329,3 +329,116 @@ class ErlangAstAdapter(LanguageAstAdapter):
     def should_skip_call_node(self, node: Node) -> bool:
         """Only process actual 'call' type nodes."""
         return node.type != 'call'
+    
+    def resolve_calls(self, calls: pd.DataFrame, functions: pd.DataFrame, 
+                    classes: pd.DataFrame, imports: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
+        """
+        Resolve Erlang calls and functions to fully qualified names.
+        
+        For Erlang:
+        1. Functions: Add module prefix from filename (lists.erl -> lists:function_name)
+        2. Calls: Already correct format (module:function or just function for local)
+        
+        This enables direct matching in the call graph.
+        """
+        # Update FUNCTIONS with module-qualified names
+        if not functions.empty and filename_lookup:
+            def add_module_prefix(row):
+                file_id = row['file_id']
+                func_name = row['name']
+                
+                # Get the file path from lookup
+                filepath = filename_lookup.get(file_id)
+                if not filepath:
+                    return func_name  # No filepath, keep as-is
+                
+                # Extract module name from filepath
+                # e.g., "/path/to/lists.erl" -> "lists"
+                filename = filepath.split('/')[-1].split('\\')[-1]  # Handle both / and \
+                if filename.endswith('.erl'):
+                    module_name = filename[:-4]  # Remove .erl
+                    return f"{module_name}:{func_name}"
+                
+                return func_name  # Not an .erl file, keep as-is
+            
+            functions['combinedName'] = functions.apply(add_module_prefix, axis=1)
+        
+        # Update CALLS - already in correct format, just copy
+        if not calls.empty:
+            calls['combinedName'] = calls['name']
+    
+    def create_combined_name(self, functions: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
+        """
+        For Erlang: Add module prefix from filename.
+        Format: "module_name:function_name"
+        
+        Args:
+            functions: DataFrame with function definitions
+            filename_lookup: Dict mapping file_id to file path
+        """
+        if functions.empty:
+            return
+        
+        if not filename_lookup:
+            # No filename lookup, just copy name
+            functions['combinedName'] = functions['name']
+            return
+        
+        def add_module_prefix(row):
+            file_id = row['file_id']
+            func_name = row['name']
+            
+            # Get the file path from lookup
+            filepath = filename_lookup.get(file_id)
+            if not filepath:
+                return func_name
+            
+            # Extract module name from filepath
+            # Handle both Unix (/) and Windows (\) paths
+            filename = filepath.split('/')[-1].split('\\')[-1]
+            
+            if filename.endswith('.erl'):
+                module_name = filename[:-4]  # Remove .erl extension
+                return f"{module_name}:{func_name}"
+            
+            return func_name
+        
+        functions['combinedName'] = functions.apply(add_module_prefix, axis=1)
+
+
+    def create_import_edges(self, import_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Create import nodes and edges."""
+        if import_df.empty:
+            imports = pd.DataFrame(columns=['ID', 'import_name', 'import_from', 'import_as_name', 'import_file_ids'])
+            imp_edges = pd.DataFrame(columns=['source', 'target'])
+            return imports, imp_edges
+        
+        # Group by name, from, and as_name to support both Python and Erlang
+        imports_grouped = (
+            import_df.groupby(['name', 'from', 'as_name'], dropna=False)['file_id']
+            .apply(lambda x: list(set(x)))
+            .reset_index()
+        )
+
+        imports_grouped.insert(0, 'import_id', range(1, len(imports_grouped) + 1))
+
+        imports = imports_grouped.rename(columns={
+            'name': 'import_name',
+            'from': 'import_from',
+            'as_name': 'import_as_name',
+            'file_id': 'import_file_ids'
+        })
+
+        imp_edges = imports[['import_id', 'import_file_ids']].explode('import_file_ids')
+        imp_edges = imp_edges.rename(columns={'import_file_ids': 'file_id'})
+
+        imp_edges = imp_edges.merge(
+            cg_nodes[['func_id', 'file_id']], 
+            on='file_id', 
+            how='left'
+        )
+        
+        imp_edges = imp_edges[['import_id', 'func_id']].dropna().reset_index(drop=True)
+        imp_edges = imp_edges.rename(columns={'import_id': 'source', 'func_id': 'target'})
+
+        return imports, imp_edges

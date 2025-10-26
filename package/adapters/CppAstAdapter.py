@@ -467,8 +467,8 @@ class CppAstAdapter(LanguageAstAdapter):
         return None
 
 
-    def resolve_calls(self, imports: pd.DataFrame, classes: pd.DataFrame, functions: pd.DataFrame,
-                    calls: pd.DataFrame) -> None:
+    def resolve_calls(self, calls: pd.DataFrame, functions: pd.DataFrame, 
+            classes: pd.DataFrame, imports: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
         """Resolve C++ call names to their targets."""
 
         if 'local_vars' in functions.columns and not functions.empty:
@@ -1021,3 +1021,20 @@ class CppAstAdapter(LanguageAstAdapter):
                     break
         
         return new_calls
+    
+
+    def create_combined_name(self, functions: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
+        """
+        For C++: Combine class name with function name.
+        Format: Global functions → "function_name"
+                Class methods → "ClassName.method_name"
+        """
+        if functions.empty:
+            return
+        
+        functions['combinedName'] = functions.apply(
+            lambda x: (
+                x["name"] if x["class"] == 'Global' else
+                f"{x['class']}.{x['name']}"
+            ), axis=1
+        )
