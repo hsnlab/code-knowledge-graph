@@ -79,7 +79,7 @@ class ErlangAstAdapter(LanguageAstAdapter):
         # Function code is the entire fun_decl
         function_code = top_function_node.text.decode('utf-8')
 
-        import json
+        
         return [pd.DataFrame([{
             'file_id': file_id,
             'fnc_id': fnc_id,
@@ -153,11 +153,16 @@ class ErlangAstAdapter(LanguageAstAdapter):
         if not call_name:
             return []
         
+        arity = self._count_call_arity(top_call_node)
+
         # Handle special cases: spawn and apply
         if call_name == 'spawn':
             target_call = self._extract_spawn_target(top_call_node)
             if target_call:
                 call_name = target_call
+
+                arity = self._extract_spawn_arity(top_call_node)
+
             else:
                 return []  # Can't resolve spawn target
         
@@ -165,10 +170,14 @@ class ErlangAstAdapter(LanguageAstAdapter):
             target_call = self._extract_apply_target(top_call_node)
             if target_call:
                 call_name = target_call
+
+                arity = self._extract_apply_arity(top_call_node)
+
             else:
                 return []  # Can't resolve apply target (probably a fun variable)
         
-        # Create the call entry
+        call_name = f"{call_name}/{arity}"
+
         new_row = pd.DataFrame([{
             'file_id': file_id,
             'cll_id': cll_id,
@@ -184,6 +193,65 @@ class ErlangAstAdapter(LanguageAstAdapter):
         calls.append(new_row)
         
         return calls
+
+    def _count_call_arity(self, call_node: Node) -> int:
+        """Count the number of arguments in a call."""
+        expr_args = None
+        for child in call_node.named_children:
+            if child.type == 'expr_args':
+                expr_args = child
+                break
+        
+        if not expr_args:
+            return 0
+        
+        return len(expr_args.named_children)
+    
+    def _extract_spawn_arity(self, spawn_call_node: Node) -> int:
+        """Extract arity from spawn's Args parameter (3rd argument)."""
+        expr_args = None
+        for child in spawn_call_node.named_children:
+            if child.type == 'expr_args':
+                expr_args = child
+                break
+        
+        if not expr_args:
+            return 0
+        
+        # The 3rd argument of spawn is the Args list
+        arg_index = 0
+        for child in expr_args.named_children:
+            if arg_index == 2:  # 3rd argument (0-indexed)
+                if child.type == 'list':
+                    return len(child.named_children)
+            arg_index += 1
+        
+        return 0
+    
+    def _extract_apply_arity(self, apply_call_node: Node) -> int:
+        """Extract arity from apply's Args parameter (3rd or 2nd argument depending on form)."""
+        expr_args = None
+        for child in apply_call_node.named_children:
+            if child.type == 'expr_args':
+                expr_args = child
+                break
+        
+        if not expr_args:
+            return 0
+        
+        # Check if apply(Module, Function, Args) or apply(Fun, Args)
+        args_list = list(expr_args.named_children)
+        
+        if len(args_list) >= 3:
+            # apply(Module, Function, Args) - Args is 3rd argument
+            if args_list[2].type == 'list':
+                return len(args_list[2].named_children)
+        elif len(args_list) >= 2:
+            # apply(Fun, Args) - Args is 2nd argument
+            if args_list[1].type == 'list':
+                return len(args_list[1].named_children)
+        
+        return 0
 
     def _extract_call_name(self, call_node: Node) -> str | None:
         """
@@ -330,80 +398,67 @@ class ErlangAstAdapter(LanguageAstAdapter):
         """Only process actual 'call' type nodes."""
         return node.type != 'call'
     
+    # Extract just function name (no module, no arity) for name column
+    def __extract_function_name(self, combined_name):
+        without_arity = combined_name.split('/')[0]  # Remove arity
+        function_only = without_arity.split(':')[-1]  # Remove module
+        return function_only
+
     def resolve_calls(self, calls: pd.DataFrame, functions: pd.DataFrame, 
-                    classes: pd.DataFrame, imports: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
+                classes: pd.DataFrame, imports: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
         """
-        Resolve Erlang calls and functions to fully qualified names.
-        
-        For Erlang:
-        1. Functions: Add module prefix from filename (lists.erl -> lists:function_name)
-        2. Calls: Already correct format (module:function or just function for local)
-        
-        This enables direct matching in the call graph.
+        For Erlang: Extract function name from fully qualified name.
+        - combinedName: Full qualified name with module and arity (e.g., "poolboy:checkout/3")
+        - name: Just the function name (e.g., "checkout")
         """
-        # Update FUNCTIONS with module-qualified names
-        if not functions.empty and filename_lookup:
-            def add_module_prefix(row):
-                file_id = row['file_id']
-                func_name = row['name']
-                
-                # Get the file path from lookup
-                filepath = filename_lookup.get(file_id)
-                if not filepath:
-                    return func_name  # No filepath, keep as-is
-                
-                # Extract module name from filepath
-                # e.g., "/path/to/lists.erl" -> "lists"
-                filename = filepath.split('/')[-1].split('\\')[-1]  # Handle both / and \
-                if filename.endswith('.erl'):
-                    module_name = filename[:-4]  # Remove .erl
-                    return f"{module_name}:{func_name}"
-                
-                return func_name  # Not an .erl file, keep as-is
-            
-            functions['combinedName'] = functions.apply(add_module_prefix, axis=1)
+        if calls.empty:
+            return
         
-        # Update CALLS - already in correct format, just copy
-        if not calls.empty:
-            calls['combinedName'] = calls['name']
-    
+        # Store full name as combinedName
+        calls['combinedName'] = calls['name']
+        
+        # Extract just the function name (no module, no arity)
+
+        calls['name'] = calls['combinedName'].apply(self.__extract_function_name)
+
     def create_combined_name(self, functions: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
         """
-        For Erlang: Add module prefix from filename.
-        Format: "module_name:function_name"
-        
-        Args:
-            functions: DataFrame with function definitions
-            filename_lookup: Dict mapping file_id to file path
+        For Erlang: Add module prefix and arity to function names.
+        Format: "module_name:function_name/arity"
+        - combinedName: Full qualified name (e.g., "poolboy:checkout/3")
+        - name: Just the function name (e.g., "checkout")
         """
         if functions.empty:
             return
         
         if not filename_lookup:
-            # No filename lookup, just copy name
             functions['combinedName'] = functions['name']
             return
         
-        def add_module_prefix(row):
+        def add_module_and_arity(row):
             file_id = row['file_id']
             func_name = row['name']
             
-            # Get the file path from lookup
+            # Count params to get arity
+            params = row.get('params', {})
+            if isinstance(params, str):
+                params = json.loads(params)
+            param_count = len(params) if params else 0
+            
+            # Get module name from filepath
             filepath = filename_lookup.get(file_id)
-            if not filepath:
-                return func_name
+            if filepath:
+                filename = filepath.split('/')[-1].split('\\')[-1]
+                if filename.endswith('.erl'):
+                    module_name = filename[:-4]
+                    return f"{module_name}:{func_name}/{param_count}"
             
-            # Extract module name from filepath
-            # Handle both Unix (/) and Windows (\) paths
-            filename = filepath.split('/')[-1].split('\\')[-1]
-            
-            if filename.endswith('.erl'):
-                module_name = filename[:-4]  # Remove .erl extension
-                return f"{module_name}:{func_name}"
-            
-            return func_name
+            return f"{func_name}/{param_count}"
         
-        functions['combinedName'] = functions.apply(add_module_prefix, axis=1)
+        # Store full qualified name as combinedName
+        functions['combinedName'] = functions.apply(add_module_and_arity, axis=1)
+        
+        functions['name'] = functions['combinedName'].apply(self.__extract_function_name)
 
 
     def create_import_edges(self, import_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
