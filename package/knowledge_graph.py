@@ -63,7 +63,7 @@ class KnowledgeGraphBuilder():
                         'pr_authors' (map PR authors -> changed functions),
                         'contributors' (contributors only; no edges unless PR mapping is available).
         :param max_commits (optional): Max commits scanned when developer_mode='commit_authors'.
-        :para, skip_issues (optional): skip github issue collecting 
+        :param skip_issues (optional): skip github issue collection 
         :return: By defult, it returns a dictionary containing nodes, edges, imports, and other parts of the hierarchical graph. If the URI, user and password data is given, it saves it into a Neo4J database.
         """
 
