@@ -131,7 +131,7 @@ class CallGraphBuilder:
                 with open(file_path, 'rb') as f:
                     code = f.read()
 
-                if language == "cpp":
+                if language != "python":
 
                     language_adapter:  LanguageAstAdapter = LanguageAstAdapterRegistry.get_adapter(language)
                     ast_processor = AstProcessor(language_adapter(), code)
@@ -193,18 +193,13 @@ class CallGraphBuilder:
                     str(x["resolved_call_object"]) + '.' + str(x['call_functiondot'])
                 ), axis=1
             )
-        elif project_language == "cpp":
-            # Get C++ adapter
-            language_adapter = LanguageAstAdapterRegistry.get_adapter("cpp")
+        else:
+            # Get C++ or Erlang adapter
+            language_adapter = LanguageAstAdapterRegistry.get_adapter(project_language)
             language_adapter = language_adapter()
             
             # 1. Add combinedName to functions
-            self.functions['combinedName'] = self.functions.apply(
-                lambda x: (
-                    x["name"] if x["class"] == 'Global' else
-                    f"{x['class']}.{x['name']}"
-                ), axis=1
-            )
+            language_adapter.create_combined_name(self.functions, filename_lookup)
             
             # 2. Add function_location
             self.functions['function_location'] = self.functions.apply(
@@ -214,7 +209,7 @@ class CallGraphBuilder:
             )
             
             # 3. Resolve calls (adds combinedName to calls)
-            language_adapter.resolve_calls(self.imports, self.classes, self.functions, self.calls)
+            language_adapter.resolve_calls(self.calls, self.functions, self.classes, self.imports, filename_lookup)
 
         if return_type == "original":
             return self.imports, self.classes, self.functions, self.calls, self.files, project_language
