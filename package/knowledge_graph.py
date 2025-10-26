@@ -1,5 +1,6 @@
 from github import Github
-
+import json
+from datetime import datetime, date
 import pandas as pd
 import networkx as nx
 from pyvis.network import Network
@@ -43,7 +44,8 @@ class KnowledgeGraphBuilder():
         password: str = None,
         project_language: str | None = None,
         developer_mode: str | None = None,  # None (default) to preserve behavior; or 'commit_authors', 'pr_authors', 'contributors'
-        max_commits: int = 200  # used when developer_mode == 'commit_authors'
+        max_commits: int = 200,  # used when developer_mode == 'commit_authors'
+        skip_issues: bool | None = False
     ):
         """
         Builds a knowledge graph from the given repository.
@@ -61,6 +63,7 @@ class KnowledgeGraphBuilder():
                         'pr_authors' (map PR authors -> changed functions),
                         'contributors' (contributors only; no edges unless PR mapping is available).
         :param max_commits (optional): Max commits scanned when developer_mode='commit_authors'.
+        :para, skip_issues (optional): skip github issue collecting 
         :return: By defult, it returns a dictionary containing nodes, edges, imports, and other parts of the hierarchical graph. If the URI, user and password data is given, it saves it into a Neo4J database.
         """
 
@@ -109,7 +112,10 @@ class KnowledgeGraphBuilder():
             ensemble_cluster_edges = pd.DataFrame(columns=['source', 'target'])
             print('Clustering skipped (create_embedding=False).')
         
-        issues = self.__get_repo_issues(self.repository)
+        if skip_issues:
+             issues = pd.DataFrame(columns=['ID', 'issue_title', 'issue_body', 'issue_labels', 'issue_state'])
+        else:
+            issues = self.__get_repo_issues(self.repository)
         print('Issues scraped.')
         prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
         print('PRs scraped.')
@@ -161,7 +167,7 @@ class KnowledgeGraphBuilder():
 
 
         # todo remove cpp specific import_edge_creation after demo
-        if project_language == "cpp":
+        if project_language in ["cpp", "erlang"]:
             adapter_class = LanguageAstAdapterRegistry.get_adapter(project_language)
             adapter = adapter_class()
             imports, imp_edges = adapter.create_import_edges(imports, cg_nodes)
@@ -349,9 +355,36 @@ class KnowledgeGraphBuilder():
         print(f"Filtered sklearn graph. visualization saved to {save_path}")
         return G
 
-    
-
     def store_knowledge_graph_in_neo4j(self, uri, user, password, knowledge_graph, batch_size=500):
+        def sanitize_for_neo4j(value):
+            """
+            Convert any value to a Neo4j-compatible type.
+            Neo4j only accepts: int, float, str, bool, or lists/arrays of primitives.
+            """
+            if value is None:
+                return None
+            elif isinstance(value, (int, float, str, bool)):
+                return value
+            elif isinstance(value, (datetime, date)):
+                # Convert datetime/date to ISO string FIRST (before dict/list check)
+                return value.isoformat()
+            elif isinstance(value, dict):
+                # Recursively sanitize dict values
+                sanitized_dict = {k: sanitize_for_neo4j(v) for k, v in value.items()}
+                return json.dumps(sanitized_dict)
+            elif isinstance(value, list):
+                # Recursively sanitize list items
+                sanitized_list = [sanitize_for_neo4j(item) for item in value]
+                
+                # Check if all items are primitives after sanitization
+                if all(isinstance(item, (int, float, str, bool, type(None))) for item in sanitized_list):
+                    return sanitized_list  # Safe list of primitives
+                else:
+                    # Still contains complex objects, convert to JSON string
+                    return json.dumps(sanitized_list)
+            else:
+                # Fallback: convert to string
+                return str(value)
         driver = GraphDatabase.driver(uri, auth=(user, password))
 
         with driver.session() as session:
@@ -372,7 +405,7 @@ class KnowledgeGraphBuilder():
                     props = {}
                     for k, v in row.items():
                         if not (isinstance(v, float) and pd.isna(v)):
-                            props[k] = v
+                            props[k] = sanitize_for_neo4j(v)
 
                     local_id = props.get("id") or props.get("ID")
                     if local_id is None:
@@ -415,8 +448,10 @@ class KnowledgeGraphBuilder():
                 for _, row in df.iterrows():
                     start_id = f"{src_label}:{row['source']}"
                     end_id = f"{tgt_label}:{row['target']}"
-                    edge_props = {k: v for k, v in row.items() 
-                                if k not in ["source", "target"] and pd.notna(v)}
+                    edge_props = {}
+                    for k, v in row.items():
+                        if k not in ["source", "target"] and pd.notna(v):
+                            edge_props[k] = sanitize_for_neo4j(v)
                     
                     edges_data.append({
                         'start_id': start_id,
@@ -438,8 +473,6 @@ class KnowledgeGraphBuilder():
                             """,
                             batch=batch
                         )
-
-        driver.close()
 
 
 
@@ -539,6 +572,9 @@ class KnowledgeGraphBuilder():
         :return: DataFrame with PR file change details.
         """
 
+        if num_of_PRs == 0:
+            return pd.DataFrame(columns=['ID', 'pr_title', 'pr_body', 'pr_open']), pd.DataFrame(columns=['source', 'target'])
+
         # ---------------- Open Pull Requests ----------------
 
         df_open, changed_functions_df_open = self.__get_PR_from_git(repo, num_of_PRs, 'open', done_prs)
@@ -599,13 +635,14 @@ class KnowledgeGraphBuilder():
             pr_comments = []
             try:
                 for c in pr.get_issue_comments():
-                    pr_comments.append({
-                        "id": c.id,
-                        "user": getattr(c.user, "login", None),
-                        "created_at": c.created_at,
-                        "updated_at": getattr(c, "updated_at", None),
-                        "body": c.body or ""
-                    })
+                    pr_comments.append(
+                        json.dumps({
+                                "id": c.id,
+                                "user": getattr(c.user, "login", None),
+                                "created_at": c.created_at.isoformat() if c.created_at else None,  # ← Convert to string
+                                "updated_at": c.updated_at.isoformat() if hasattr(c, "updated_at") and c.updated_at else None, 
+                                "body": c.body or ""
+                            }))
             except Exception as e:
                 print(f"Figyelem: nem sikerült kommenteket lekérni a PR #{pr_number}-hoz: {e}")
             # --- ÚJ RÉSZ VÉGE ---
