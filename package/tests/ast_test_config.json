@@ -2448,29 +2448,28 @@
       }
     },
     "standalone_calls_tests": {
+      "erlang_no_calls": {
+        "mock": "simple() ->\n    ok.",
+        "expected": []
+      },
       "erlang_local_call": {
-        "mock": "say_hello() ->\n    ok.\n\nmain() ->\n    say_hello().",
+        "mock": "say_hello() ->\n    io:format(\"Hello~n\").\n\nmain() ->\n    say_hello().",
         "expected": [
           {
             "file_id": null,
             "cll_id": null,
-            "name": "say_hello",
+            "name": "io:format/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
             "func_id": null,
-            "func_name": "main",
+            "func_name": "say_hello",
             "func_params": "{}"
-          }
-        ]
-      },
-      "erlang_remote_call": {
-        "mock": "main() ->\n    io:format(\"Hello from Erlang~n\").",
-        "expected": [
+          },
           {
             "file_id": null,
             "cll_id": null,
-            "name": "io:format",
+            "name": "say_hello/0",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2486,23 +2485,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "add",
-            "class": "Global",
-            "class_base_classes": [],
-            "class_id": null,
-            "func_id": null,
-            "func_name": "main",
-            "func_params": "{}"
-          }
-        ]
-      },
-      "erlang_remote_call_with_args": {
-        "mock": "main() ->\n    lists:reverse([1, 2, 3]).",
-        "expected": [
-          {
-            "file_id": null,
-            "cll_id": null,
-            "name": "lists:reverse",
+            "name": "add/2",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2513,12 +2496,34 @@
         ]
       },
       "erlang_multiple_local_calls": {
-        "mock": "say_hello() ->\n    ok.\n\nsay_goodbye() ->\n    ok.\n\nmain() ->\n    say_hello(),\n    say_goodbye().",
+        "mock": "say_hello() ->\n    io:format(\"Hello~n\").\n\nsay_goodbye() ->\n    io:format(\"Goodbye~n\").\n\nmain() ->\n    say_hello(),\n    say_goodbye().",
         "expected": [
           {
             "file_id": null,
             "cll_id": null,
-            "name": "say_hello",
+            "name": "io:format/1",
+            "class": "Global",
+            "class_base_classes": [],
+            "class_id": null,
+            "func_id": null,
+            "func_name": "say_hello",
+            "func_params": "{}"
+          },
+          {
+            "file_id": null,
+            "cll_id": null,
+            "name": "io:format/1",
+            "class": "Global",
+            "class_base_classes": [],
+            "class_id": null,
+            "func_id": null,
+            "func_name": "say_goodbye",
+            "func_params": "{}"
+          },
+          {
+            "file_id": null,
+            "cll_id": null,
+            "name": "say_hello/0",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2529,7 +2534,39 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "say_goodbye",
+            "name": "say_goodbye/0",
+            "class": "Global",
+            "class_base_classes": [],
+            "class_id": null,
+            "func_id": null,
+            "func_name": "main",
+            "func_params": "{}"
+          }
+        ]
+      },
+      "erlang_remote_call": {
+        "mock": "main() ->\n    lists:reverse([1, 2, 3]).",
+        "expected": [
+          {
+            "file_id": null,
+            "cll_id": null,
+            "name": "lists:reverse/1",
+            "class": "Global",
+            "class_base_classes": [],
+            "class_id": null,
+            "func_id": null,
+            "func_name": "main",
+            "func_params": "{}"
+          }
+        ]
+      },
+      "erlang_remote_call_with_args": {
+        "mock": "main() ->\n    string:concat(\"Hello\", \" World\").",
+        "expected": [
+          {
+            "file_id": null,
+            "cll_id": null,
+            "name": "string:concat/2",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2545,7 +2582,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "io:format",
+            "name": "io:format/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2556,7 +2593,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "lists:reverse",
+            "name": "lists:reverse/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2567,7 +2604,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "io:format",
+            "name": "io:format/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2583,7 +2620,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "io:format",
+            "name": "io:format/2",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2594,7 +2631,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "add",
+            "name": "add/2",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2610,7 +2647,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "factorial",
+            "name": "factorial/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2626,7 +2663,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "double",
+            "name": "double/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2637,7 +2674,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "io:format",
+            "name": "io:format/2",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2653,7 +2690,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "io:format",
+            "name": "io:format/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2664,7 +2701,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "io:format",
+            "name": "io:format/2",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2675,7 +2712,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "process",
+            "name": "process/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2691,7 +2728,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "io:format",
+            "name": "io:format/2",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2702,7 +2739,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "server",
+            "name": "server/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2718,7 +2755,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "server_module:handle",
+            "name": "server_module:handle/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2734,7 +2771,7 @@
           {
             "file_id": null,
             "cll_id": null,
-            "name": "lists:reverse",
+            "name": "lists:reverse/1",
             "class": "Global",
             "class_base_classes": [],
             "class_id": null,
@@ -2755,7 +2792,7 @@
         "expected": [
           {
             "name": "add",
-            "combinedName": "add"
+            "combinedName": "add/2"
           }
         ]
       },
@@ -2763,8 +2800,8 @@
         "mock": "main() ->\n    lists:reverse([1, 2, 3]).",
         "expected": [
           {
-            "name": "lists:reverse",
-            "combinedName": "lists:reverse"
+            "name": "reverse",
+            "combinedName": "lists:reverse/1"
           }
         ]
       },
@@ -2773,11 +2810,11 @@
         "expected": [
           {
             "name": "double",
-            "combinedName": "double"
+            "combinedName": "double/1"
           },
           {
-            "name": "io:format",
-            "combinedName": "io:format"
+            "name": "format",
+            "combinedName": "io:format/2"
           }
         ]
       },
@@ -2786,7 +2823,7 @@
         "expected": [
           {
             "name": "server",
-            "combinedName": "server"
+            "combinedName": "server/0"
           }
         ]
       },
@@ -2794,8 +2831,8 @@
         "mock": "start() ->\n    spawn(other_module, handle, []).",
         "expected": [
           {
-            "name": "other_module:handle",
-            "combinedName": "other_module:handle"
+            "name": "handle",
+            "combinedName": "other_module:handle/0"
           }
         ]
       },
@@ -2803,8 +2840,8 @@
         "mock": "main() ->\n    apply(lists, reverse, [[1, 2, 3]]).",
         "expected": [
           {
-            "name": "lists:reverse",
-            "combinedName": "lists:reverse"
+            "name": "reverse",
+            "combinedName": "lists:reverse/1"
           }
         ]
       }
