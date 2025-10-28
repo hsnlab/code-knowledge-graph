@@ -43,7 +43,7 @@ class KnowledgeGraphBuilder():
         user: str = None,
         password: str = None,
         project_language: str | None = None,
-        developer_mode: str | None = None,  # None (default) to preserve behavior; or 'commit_authors', 'pr_authors', 'contributors'
+        developer_mode: str | None = 'contributors',  # None (default) to preserve behavior; or 'commit_authors', 'pr_authors', 'contributors'
         max_commits: int = 200,  # used when developer_mode == 'commit_authors'
         skip_issues: bool | None = False
     ):
@@ -237,6 +237,46 @@ class KnowledgeGraphBuilder():
 
         else:
             return self.knowledge_graph
+        
+
+    
+    def scrape_issue_pr_data(
+        self, 
+        repo_name: str, 
+        cg_nodes,
+        num_of_PRs: int = 0, 
+        done_prs: list = None
+    ):
+        """
+        Builds a knowledge graph from the given repository.
+        
+        :param repo_name: Name of the repository. Must match the format "owner/repo_name", as it is used for github API calls.
+        :param num_of_PRs (optional): Number of pull requests to retrieve in detail. Defaults to 0 (all).
+        :return: By defult, it returns a dictionary containing nodes, edges, imports, and other parts of the hierarchical graph. If the URI, user and password data is given, it saves it into a Neo4J database.
+        """
+
+        # Initialize repository
+        self.repository = self.git.get_repo(repo_name)
+
+        issues = self.__get_repo_issues(self.repository)
+        print('Issues scraped.')
+        
+        prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
+        print('PRs scraped.')
+        
+        
+        issue_to_pr_edges = self.__get_issue_to_pr_edges(issues, prs)
+        print('Issue to PR edges created.')
+        
+
+        issue_pr_data = {
+            "function_nodes": cg_nodes,
+            "pr_nodes": prs,
+            "pr_function_edges": pr_edges,
+            "issue_nodes": issues,
+            "issue_pr_edges": issue_to_pr_edges,
+        }
+        return self.knowledge_graph
 
 
 
@@ -635,6 +675,9 @@ class KnowledgeGraphBuilder():
             pr_comments = []
             try:
                 for c in pr.get_issue_comments():
+                    # Maximum 3 comment
+                    if len(pr_comments) >= 3:
+                        break
                     pr_comments.append(
                         json.dumps({
                                 "id": c.id,
