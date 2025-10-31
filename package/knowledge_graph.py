@@ -198,7 +198,7 @@ class KnowledgeGraphBuilder():
             "class_nodes": classes,
             "class_function_edges": class_edges,
             "file_nodes": files_nodes,
-            "file_file_edges": file_file_edges,
+            "file_edges": file_file_edges,
             "file_function_edges": file_function_edges, 
             "file_class_edges": file_class_edges, 
             "file_import_edges": file_import_edges,
@@ -578,8 +578,8 @@ class KnowledgeGraphBuilder():
 
         data = []
         for issue in issues:
+            comments = []
             if scrape_comments:
-                comments = []
                 try:
                     for c in issue.get_comments():
                         comments.append({
@@ -676,8 +676,8 @@ class KnowledgeGraphBuilder():
             pr_body = pr.body if pr.body else ""
 
             # --- ÚJ: kommentek begyűjtése egy listába ---
+            pr_comments = []
             if scrape_comments:
-                pr_comments = []
                 try:
                     for c in pr.get_issue_comments():
                         # Maximum 3 comment
