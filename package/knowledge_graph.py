@@ -176,7 +176,7 @@ class KnowledgeGraphBuilder():
         
         classes, class_edges = self.__create_class_edges(classes, cg_nodes)
 
-        files_nodes, file_file_edges = self.__create_file_nodes_and_edges(repo_files)
+        files_nodes, file_file_edges, config_nodes, config_file_edges = self.__create_file_nodes_and_edges(repo_files)
 
         file_function_edges, file_class_edges, file_import_edges = self.__create_file_connection_edges(repo_files, cg_nodes, imports, classes)
 
@@ -201,6 +201,8 @@ class KnowledgeGraphBuilder():
             "file_function_edges": file_function_edges, 
             "file_class_edges": file_class_edges, 
             "file_import_edges": file_import_edges,
+            "config_nodes": config_nodes,
+            "file_config_edges": config_file_edges,
             "import_function_edges": imp_edges,
             "pr_nodes": prs,
             "pr_function_edges": pr_edges,
@@ -943,48 +945,84 @@ class KnowledgeGraphBuilder():
         
         return file_function_edges, file_class_edges, file_import_edges
 
-    def __create_file_nodes_and_edges(self, repo_files: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def __create_file_nodes_and_edges(self, repo_files: pd.DataFrame) -> tuple[
+        pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Create file nodes and edges representing the directory structure.
         Edges connect directories to their contained files/subdirectories.
-        
-        :param repo_files: DataFrame with columns [fl_id, file_id, name, path, is_folder, directory_id]
-        :return: (file_nodes_df, file_file_edges_df)
+
+        :param repo_files: DataFrame with columns [fl_id, file_id, name, path, is_folder, directory_id, config]
+        :return: (file_nodes_df, file_file_edges_df, config_nodes_df, config_file_edges_df)
         """
         if repo_files.empty:
             file_nodes = pd.DataFrame(columns=['ID', 'file_id', 'name', 'path', 'is_folder'])
             file_edges = pd.DataFrame(columns=['source', 'target'])
-            return file_nodes, file_edges
-        
-        # Create file nodes (use fl_id as ID, keep file_id for joins)
-        file_nodes = repo_files[['fl_id', 'file_id', 'name', 'path', 'is_folder']].copy()
+            config_nodes = pd.DataFrame(columns=['ID', 'file_id', 'name', 'path', 'is_folder', 'config'])
+            config_edges = pd.DataFrame(columns=['source', 'target'])
+            return file_nodes, file_edges, config_nodes, config_edges
+
+        # Separate config files, regular files, and folders
+        config_files = repo_files[(repo_files['config'].notna()) & (repo_files['is_folder'] == False)].copy()
+        regular_files = repo_files[(repo_files['config'].isna()) & (repo_files['is_folder'] == False)].copy()
+        folders = repo_files[repo_files['is_folder'] == True].copy()
+
+        # Create regular file nodes (files + folders)
+        file_nodes = pd.concat([regular_files[['fl_id', 'file_id', 'name', 'path', 'is_folder']],
+                                folders[['fl_id', 'file_id', 'name', 'path', 'is_folder']]],
+                               ignore_index=True)
         file_nodes = file_nodes.rename(columns={'fl_id': 'ID'})
-        
-        # Create a mapping: file_id (UUID) -> fl_id (int)
+
+        # Create config file nodes (only config files, no folders)
+        config_nodes = config_files[['fl_id', 'file_id', 'name', 'path', 'is_folder', 'config']].copy()
+        config_nodes = config_nodes.rename(columns={'fl_id': 'ID'})
+
+        # Create a mapping: file_id (UUID) -> fl_id (int) for ALL files
         file_id_to_fl_id = dict(zip(repo_files['file_id'], repo_files['fl_id']))
-        
-        # Create edges: Directory -> File/Subdirectory
-        # Use fl_id (integer) for both source and target
+
         file_edges_list = []
-        
-        for _, row in repo_files.iterrows():
+        combined_for_edges = pd.concat([regular_files, folders], ignore_index=True)
+
+
+        for _, row in pd.concat([regular_files, folders], ignore_index=True).iterrows():
             directory_id = row['directory_id']  # UUID of parent directory
             fl_id = row['fl_id']  # Integer ID of current file/folder
-            
+
             # If this file/folder has a parent directory, create edge
             if pd.notna(directory_id):
                 # Look up the fl_id of the parent directory
                 parent_fl_id = file_id_to_fl_id.get(directory_id)
-                
+                if row['is_folder']:
+                    print(
+                        f"Folder '{row['name']}' (fl_id={fl_id}) has directory_id={directory_id}, parent_fl_id={parent_fl_id}")
+
                 if parent_fl_id is not None:
                     file_edges_list.append({
                         'source': int(parent_fl_id),  # Parent directory's fl_id
-                        'target': int(fl_id)          # Current file's fl_id
+                        'target': int(fl_id)  # Current file's fl_id
                     })
-        
+
+        # Create edges for config files: Directory -> Config File
+        config_edges_list = []
+        for _, row in config_files.iterrows():
+            directory_id = row['directory_id']  # UUID of parent directory
+            fl_id = row['fl_id']  # Integer ID of current config file
+
+            # If this config file has a parent directory, create edge
+            if pd.notna(directory_id):
+                # Look up the fl_id of the parent directory
+                parent_fl_id = file_id_to_fl_id.get(directory_id)
+
+                if parent_fl_id is not None:
+                    config_edges_list.append({
+                        'source': int(parent_fl_id),  # Parent directory's fl_id
+                        'target': int(fl_id)  # Current config file's fl_id
+                    })
+
         file_edges = pd.DataFrame(file_edges_list) if file_edges_list else pd.DataFrame(columns=['source', 'target'])
-        
-        return file_nodes, file_edges
+        config_edges = pd.DataFrame(config_edges_list) if config_edges_list else pd.DataFrame(
+            columns=['source', 'target'])
+
+        return file_nodes, file_edges, config_nodes, config_edges
 
     def __create_class_edges(self, class_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
