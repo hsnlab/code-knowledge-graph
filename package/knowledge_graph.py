@@ -38,6 +38,7 @@ class KnowledgeGraphBuilder():
         num_of_PRs: int = 0, 
         done_prs: list = None,
         create_embedding: bool = False, 
+        scrape_comments: bool = False,
         repo_path_modifier: str = None,
         URI: str = None,
         user: str = None,
@@ -115,9 +116,9 @@ class KnowledgeGraphBuilder():
         if skip_issues:
              issues = pd.DataFrame(columns=['ID', 'issue_title', 'issue_body', 'issue_labels', 'issue_state'])
         else:
-            issues = self.__get_repo_issues(self.repository)
+            issues = self.__get_repo_issues(self.repository, scrape_comments=scrape_comments)
         print('Issues scraped.')
-        prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
+        prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs, scrape_comments=scrape_comments)
         print('PRs scraped.')
         
         artifacts = self.__get_repo_CI_artifacts(self.repository)
@@ -551,7 +552,7 @@ class KnowledgeGraphBuilder():
 
 
 
-    def __get_repo_issues(self, repo, labels=None):
+    def __get_repo_issues(self, repo, labels=None, scrape_comments=False):
         """
         Retrieves issues from the repository.
         
@@ -560,16 +561,16 @@ class KnowledgeGraphBuilder():
         """
 
         # Get open issues
-        open_issues_df = self.__get_issue_from_git(repo, labels, issue_state='open')
+        open_issues_df = self.__get_issue_from_git(repo, labels, issue_state='open', scrape_comments=scrape_comments)
 
         # Get closed issues
-        closed_issues_df = self.__get_issue_from_git(repo, labels, issue_state='closed')
+        closed_issues_df = self.__get_issue_from_git(repo, labels, issue_state='closed', scrape_comments=scrape_comments)
 
         issues_df = pd.concat([open_issues_df, closed_issues_df], ignore_index=True)
         return issues_df
     
 
-    def __get_issue_from_git(self, repo, labels, issue_state):
+    def __get_issue_from_git(self, repo, labels, issue_state, scrape_comments=False):
         if labels:
             issues = repo.get_issues(state=issue_state, sort='created', direction='desc', labels=labels)
         else:
@@ -577,18 +578,19 @@ class KnowledgeGraphBuilder():
 
         data = []
         for issue in issues:
-            comments = []
-            try:
-                for c in issue.get_comments():
-                    comments.append({
-                        "id": c.id,
-                        "user": getattr(c.user, "login", None),
-                        "created_at": c.created_at,
-                        "updated_at": getattr(c, "updated_at", None),
-                        "body": c.body or ""
-                    })
-            except Exception as e:
-                print(f"Figyelem: nem sikerült kommenteket lekérni az issue #{issue.number}-hoz: {e}")
+            if scrape_comments:
+                comments = []
+                try:
+                    for c in issue.get_comments():
+                        comments.append({
+                            "id": c.id,
+                            "user": getattr(c.user, "login", None),
+                            "created_at": c.created_at,
+                            "updated_at": getattr(c, "updated_at", None),
+                            "body": c.body or ""
+                        })
+                except Exception as e:
+                    print(f"Figyelem: nem sikerült kommenteket lekérni az issue #{issue.number}-hoz: {e}")
 
             data.append({
                 "ID": issue.number,
@@ -605,7 +607,7 @@ class KnowledgeGraphBuilder():
 
 
 
-    def __get_repo_PRs(self, repo, cg_nodes, num_of_PRs, done_prs):
+    def __get_repo_PRs(self, repo, cg_nodes, num_of_PRs, done_prs, scrape_comments=False):
         """
         Retrieves pull requests from the repository and saves details to a DataFrame.
         
@@ -619,11 +621,11 @@ class KnowledgeGraphBuilder():
 
         # ---------------- Open Pull Requests ----------------
 
-        df_open, changed_functions_df_open = self.__get_PR_from_git(repo, num_of_PRs, 'open', done_prs)
+        df_open, changed_functions_df_open = self.__get_PR_from_git(repo, num_of_PRs, 'open', done_prs, scrape_comments=scrape_comments)
 
         # ---------------- Closed Pull Requests ----------------
 
-        df_closed, changed_functions_df_closed = self.__get_PR_from_git(repo, num_of_PRs, 'closed', done_prs)
+        df_closed, changed_functions_df_closed = self.__get_PR_from_git(repo, num_of_PRs, 'closed', done_prs, scrape_comments=scrape_comments)
 
 
         PR_df = pd.concat([df_open, df_closed], ignore_index=True).reset_index(drop=True)
@@ -656,7 +658,7 @@ class KnowledgeGraphBuilder():
         return PR_df, changed_functions_df
     
 
-    def __get_PR_from_git(self, repo, num_of_PRs: int, PR_state: str, done_prs: list):
+    def __get_PR_from_git(self, repo, num_of_PRs: int, PR_state: str, done_prs: list, scrape_comments: bool):
         pulls = repo.get_pulls(state=PR_state, sort='created', direction='desc')
 
         changed_functions = []
@@ -674,23 +676,23 @@ class KnowledgeGraphBuilder():
             pr_body = pr.body if pr.body else ""
 
             # --- ÚJ: kommentek begyűjtése egy listába ---
-            pr_comments = []
-            try:
-                for c in pr.get_issue_comments():
-                    # Maximum 3 comment
-                    if len(pr_comments) >= 3:
-                        break
-                    pr_comments.append(
-                        json.dumps({
-                                "id": c.id,
-                                "user": getattr(c.user, "login", None),
-                                "created_at": c.created_at.isoformat() if c.created_at else None,  # ← Convert to string
-                                "updated_at": c.updated_at.isoformat() if hasattr(c, "updated_at") and c.updated_at else None, 
-                                "body": c.body or ""
-                            }))
-            except Exception as e:
-                print(f"Figyelem: nem sikerült kommenteket lekérni a PR #{pr_number}-hoz: {e}")
-            # --- ÚJ RÉSZ VÉGE ---
+            if scrape_comments:
+                pr_comments = []
+                try:
+                    for c in pr.get_issue_comments():
+                        # Maximum 3 comment
+                        if len(pr_comments) >= 3:
+                            break
+                        pr_comments.append(
+                            json.dumps({
+                                    "id": c.id,
+                                    "user": getattr(c.user, "login", None),
+                                    "created_at": c.created_at.isoformat() if c.created_at else None,  # ← Convert to string
+                                    "updated_at": c.updated_at.isoformat() if hasattr(c, "updated_at") and c.updated_at else None, 
+                                    "body": c.body or ""
+                                }))
+                except Exception as e:
+                    print(f"Figyelem: nem sikerült kommenteket lekérni a PR #{pr_number}-hoz: {e}")
 
             try:
                 changed = extract_changed_functions_from_pr(pr)
@@ -727,7 +729,7 @@ class KnowledgeGraphBuilder():
                     "status": f.status,
                     "additions": f.additions,
                     "deletions": f.deletions,
-                    "pr_comments": pr_comments   # ÚJ OSZLOP
+                    "pr_comments": pr_comments
                 })
                 self.pr_file_data.append({
                     "pr_number": pr_number,
@@ -737,7 +739,8 @@ class KnowledgeGraphBuilder():
                     "filename": f.filename,
                     "status": f.status,
                     "additions": f.additions,
-                    "deletions": f.deletions
+                    "deletions": f.deletions,
+                    "pr_comments": pr_comments
                 })
             
             num_pulls += 1
