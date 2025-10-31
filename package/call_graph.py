@@ -25,9 +25,11 @@ import torch
 import copy, uuid, json
 import os
 
-from package.constants import REVERSE_EXTENSION_MAP
+from package.constants import REVERSE_EXTENSION_MAP, extensions, special_filenames
 from package.adapters import LanguageAstAdapterRegistry
 from package.ast_processor import AstProcessor
+
+from pathlib import Path
 
 class CallGraphBuilder:
 
@@ -62,15 +64,49 @@ class CallGraphBuilder:
 
     def add_directory_node(self, path: str, dir_mapper: dict[str, str], fl_id: int) -> str:
         dirpath, basename = os.path.split(path)
-        if len(dir_mapper)==0:
+
+        dirpath = dirpath.rstrip('/')
+        path_normalized = path.rstrip('/')
+
+        if len(dir_mapper) == 0:
             directory_id = None
         else:
             directory_id = dir_mapper.get(dirpath)
+
         own_id = str(uuid.uuid1())
-        dir_mapper[path] = own_id 
-        df = pd.DataFrame([{'fl_id': fl_id,'file_id': own_id, 'name': basename, 'path': path, 'is_folder': True, 'directory_id': directory_id}])
-        
+        dir_mapper[path_normalized] = own_id  # Store normalized path
+        df = pd.DataFrame([{'fl_id': fl_id, 'file_id': own_id, 'name': basename, 'path': path, 'is_folder': True,
+                            'directory_id': directory_id}])
+
         return own_id, df
+
+    def is_config_file(self, filename: str) -> bool:
+        """
+        Check if a file is a project-defining file for C++/Erlang/Python projects.
+
+        """
+        path = Path(filename)
+
+        # Extract just the filename (without parent directories)
+        file_name = path.name
+
+        # Check for exact filename match
+        if file_name in special_filenames:
+            return True
+
+        if file_name.startswith('.env'):
+            return True
+
+        # Check extension using pathlib
+        if path.suffix in extensions:
+            return True
+
+        # Check for multiple suffixes (e.g., .app.src has suffix .src, but we want .app.src)
+        for ext in extensions:
+            if file_name.endswith(ext):
+                return True
+
+        return False
 
     # Return type can be :
     #   - "pandas": for pandas DataFrames 
@@ -100,6 +136,7 @@ class CallGraphBuilder:
         for dirpath, _, filenames in os.walk(path):
             directory_used = False
             dir_id, dir_df = self.add_directory_node(dirpath, directory_mapper, self.fl_id)
+            self.files = self.__concat_df(self.files, dir_df)
             self.fl_id += 1
             for filename in filenames:
 
@@ -108,39 +145,47 @@ class CallGraphBuilder:
                     continue
 
                 language: str = REVERSE_EXTENSION_MAP.get(file_extension, None)
-                if language is None:
+                is_config_file = self.is_config_file(filename)
+                if language is None and not is_config_file:
                     continue
-               
+
                 if project_language is None:
                     project_language = language
-                
-                if project_language is not None and language != project_language:
-                    continue # in case project language is set skip other files 
+
+                if project_language is not None and language != project_language and not is_config_file:
+                    continue  # in case project language is set skip other files
 
                 file_id = str(uuid.uuid1())
                 file_name_and_path = os.path.join(dirpath, filename)
-
                 filename_lookup[file_id] = file_name_and_path
 
                 file_path = os.path.join(dirpath, filename)
-                file_df = pd.DataFrame([{'fl_id': self.fl_id,'file_id': file_id, 'name': filename, 'path': path, 'is_folder': False, 'directory_id': dir_id}])
+                file_content = ''
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+
+                config_content = None
+                if is_config_file:
+                    config_content = file_content
+                file_df = pd.DataFrame([{'fl_id': self.fl_id, 'file_id': file_id, 'name': filename, 'path': path,
+                                         'is_folder': False, 'directory_id': dir_id, "config": config_content}])
                 self.fl_id += 1
                 self.files = self.__concat_df(self.files, file_df)
                 directory_used = True
-                code = ''
-                with open(file_path, 'rb') as f:
-                    code = f.read()
+                if is_config_file:
+                    continue
 
                 if language != "python":
 
-                    language_adapter:  LanguageAstAdapter = LanguageAstAdapterRegistry.get_adapter(language)
-                    ast_processor = AstProcessor(language_adapter(), code)
-                    imports, classes, functions, calls, id_dict = ast_processor.process_file_ast(file_id=file_id, id_dict={
-                        "imp_id": self.imp_id,
-                        "cls_id": self.cls_id,
-                        "fnc_id": self.fnc_id,
-                        "cll_id": self.cll_id
-                    })
+                    language_adapter: LanguageAstAdapter = LanguageAstAdapterRegistry.get_adapter(language)
+                    ast_processor = AstProcessor(language_adapter(), file_content)
+                    imports, classes, functions, calls, id_dict = ast_processor.process_file_ast(file_id=file_id,
+                                                                                                 id_dict={
+                                                                                                     "imp_id": self.imp_id,
+                                                                                                     "cls_id": self.cls_id,
+                                                                                                     "fnc_id": self.fnc_id,
+                                                                                                     "cll_id": self.cll_id
+                                                                                                 })
 
                     self.imports = self.__concat_df(self.imports, imports)
                     self.classes = self.__concat_df(self.classes, classes)
@@ -153,15 +198,11 @@ class CallGraphBuilder:
                     self.cll_id = id_dict.get("cll_id")
 
                 elif language == "python":
-                
-
-                    tree = ast.parse(code)
+                    tree = ast.parse(file_content)
                     self.process_file_ast(tree, return_dataframes=False, file_id=file_id)
-                
                 else:
                     pass
-            if directory_used is True:
-                self.files = self.__concat_df(self.files, dir_df)
+
         if project_language == "python":
             split_columns = self.calls['name'].str.split('.', n=1, expand=True)
 
@@ -197,17 +238,17 @@ class CallGraphBuilder:
             # Get C++ or Erlang adapter
             language_adapter = LanguageAstAdapterRegistry.get_adapter(project_language)
             language_adapter = language_adapter()
-            
+
             # 1. Add combinedName to functions
             language_adapter.create_combined_name(self.functions, filename_lookup)
-            
+
             # 2. Add function_location
             self.functions['function_location'] = self.functions.apply(
                 lambda x: (
                     filename_lookup.get(x['file_id'], None) if pd.notnull(x['file_id']) else None
                 ), axis=1
             )
-            
+
             # 3. Resolve calls (adds combinedName to calls)
             language_adapter.resolve_calls(self.calls, self.functions, self.classes, self.imports, filename_lookup)
 
@@ -220,13 +261,14 @@ class CallGraphBuilder:
 
         # If we only want to consider function calls within the repository
         if repo_functions_only:
-            self.edges = self.edges.merge(self.nodes[['fnc_id', 'combinedName']], left_on='combinedName', right_on='combinedName', how='inner')[['func_id', 'fnc_id']] \
+            self.edges = self.edges.merge(self.nodes[['fnc_id', 'combinedName']], left_on='combinedName', right_on='combinedName',
+                             how='inner')[['func_id', 'fnc_id']] \
                 .rename(columns={'func_id': 'source_id', 'fnc_id': 'target_id'})
-        
         # If we want to consider all function calls, including those not defined in the repository (e.g., external libraries)
         else:
             # Merge edges with nodes to find undefined functions
-            self.edges = self.edges.merge(self.nodes[['fnc_id', 'combinedName']], left_on='combinedName', right_on='combinedName', how='left')
+            self.edges = self.edges.merge(self.nodes[['fnc_id', 'combinedName']], left_on='combinedName',
+                                          right_on='combinedName', how='left')
 
             # Identify new nodes that are not in the existing nodes and create dataframe for them
             new_nodes = self.edges.loc[self.edges['fnc_id'].isnull()].drop_duplicates(subset=['combinedName'])
@@ -239,8 +281,10 @@ class CallGraphBuilder:
             new_nodes['class'] = None
             new_nodes['class_base_classes'] = '[]'
             new_nodes['params'] = '{}'
-            new_nodes = new_nodes[['file_id', 'fnc_id', 'name', 'class', 'class_base_classes', 'params', 'docstring', 'class_id', 'combinedName']]
-            
+            new_nodes = new_nodes[
+                ['file_id', 'fnc_id', 'name', 'class', 'class_base_classes', 'params', 'docstring', 'class_id',
+                 'combinedName']]
+
             # Update the function ID counter
             self.fnc_id += len(new_nodes)
 
@@ -248,15 +292,18 @@ class CallGraphBuilder:
             self.nodes = pd.concat([self.nodes, new_nodes], ignore_index=True).reset_index(drop=True)
 
             # Update the edges with the new function IDs
-            self.edges = self.edges.merge(new_nodes[['fnc_id', 'combinedName']].rename(columns={'fnc_id': 'new_fnc_id'}), on='combinedName', how='left')
+            self.edges = self.edges.merge(
+                new_nodes[['fnc_id', 'combinedName']].rename(columns={'fnc_id': 'new_fnc_id'}), on='combinedName',
+                how='left')
             self.edges['fnc_id'] = self.edges['fnc_id'].fillna(self.edges['new_fnc_id'])
             self.edges = self.edges.drop(columns=['new_fnc_id'])
-            self.edges = self.edges.rename(columns={'func_id': 'source_id', 'fnc_id': 'target_id'})[['source_id', 'target_id']]
+            self.edges = self.edges.rename(columns={'func_id': 'source_id', 'fnc_id': 'target_id'})[
+                ['source_id', 'target_id']]
             self.edges['target_id'] = self.edges['target_id'].astype(int)
 
         if return_type == "pandas":
             return self.nodes, self.edges, self.imports, self.classes, self.files, project_language
-        
+
         elif return_type == "networkx":
             G = nx.from_pandas_edgelist(self.edges, source='source_id', target='target_id', create_using=nx.DiGraph())
             for _, row in self.nodes.iterrows():
@@ -269,7 +316,7 @@ class CallGraphBuilder:
                     'docstring': row['docstring']
                 })
             return G
-        
+
         else:
             x = torch.tensor(self.nodes['fnc_id'].values, dtype=torch.long)
             edge_index = torch.tensor(self.edges.values.T, dtype=torch.long)
