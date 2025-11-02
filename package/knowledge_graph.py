@@ -427,6 +427,7 @@ class KnowledgeGraphBuilder():
             else:
                 # Fallback: convert to string
                 return str(value)
+                    
         driver = GraphDatabase.driver(uri, auth=(user, password))
 
         with driver.session() as session:
@@ -457,11 +458,12 @@ class KnowledgeGraphBuilder():
                     nodes_data.append(props)
 
                 # Insert in batches
+                
                 for i in range(0, len(nodes_data), batch_size):
                     batch = nodes_data[i:i + batch_size]
                     with driver.session() as session:
                         session.run(
-                            f"UNWIND $batch AS props CREATE (n:{label}) SET n = props",
+                            f"UNWIND $batch AS props MERGE (n:{label} {{global_id: props.global_id}}) SET n = props",
                             batch=batch
                         )
 
@@ -510,7 +512,7 @@ class KnowledgeGraphBuilder():
                             UNWIND $batch AS edge
                             MATCH (a:{src_label} {{global_id: edge.start_id}})
                             MATCH (b:{tgt_label} {{global_id: edge.end_id}})
-                            CREATE (a)-[r:{rel_type}]->(b)
+                            MERGE (a)-[r:{rel_type}]->(b)
                             SET r = edge.props
                             """,
                             batch=batch

@@ -29,8 +29,7 @@ from tqdm import tqdm
 from .call_graph import CallGraphBuilder
 from .function_graph import FunctionGraphBuilder
 from .function_versioning import FunctionVersioning
-
-# ignore warnings
+from package.adapters import LanguageAstAdapterRegistry
 
 
 class HierarchicalGraphBuilder:
@@ -112,29 +111,58 @@ class HierarchicalGraphBuilder:
             graph_type == "AST" else pd.DataFrame(columns=['func_id', 'node_id', 'code'])
         self.subgraph_edges = pd.DataFrame(columns=['func_id', 'source_id', 'target_id'])
 
-
-        for _, row in tqdm(self.nodes.iterrows()):
-            code = row['function_code']
-            if pd.isna(code):
-                continue
+        if language != "python" and graph_type.lower() == "cfg":
+            adapter_class = LanguageAstAdapterRegistry.get_cfg_adapter(language)
+            adapter = adapter_class()
             
-            subg_nodes, subg_edges = FunctionGraphBuilder().create_graph(
-                code=code, 
-                graph_type=graph_type, 
-                package=package, 
-                edge_set=edge_set,
-                visualize=False,
-                language=language
-            )
+            # Process in mini-batches to avoid timeout
+            BATCH_SIZE = 10
+            all_nodes = []
+            all_edges = []
+            
+            for i in range(0, len(self.nodes), BATCH_SIZE):
+                batch = self.nodes.iloc[i:i+BATCH_SIZE]
+                
+                for _, row in batch.iterrows():
+                    if pd.isna(row['function_code']):
+                        continue
+                    
+                    # Call Java API
+                    nodes, edges = adapter.extract_cfg(row['function_code'], language)
+                    nodes['func_id'] = row['fnc_id']
+                    edges['func_id'] = row['fnc_id']
+                    
+                    all_nodes.append(nodes)
+                    all_edges.append(edges)
+            
+            self.subgraph_nodes = pd.concat(all_nodes) if all_nodes else pd.DataFrame()
+            self.subgraph_edges = pd.concat(all_edges) if all_edges else pd.DataFrame()
 
-            subg_nodes['func_id'] = row['fnc_id']
-            subg_edges['func_id'] = row['fnc_id']
+            self.subgraph_edges = self.subgraph_edges.drop_duplicates(subset=['func_id', 'source_id', 'target_id']).reset_index(drop=True)
 
-            subg_nodes = subg_nodes[['func_id', 'node_id', 'name', 'code', 'parent_id', 'is_leaf']] if graph_type == "AST" else subg_nodes[['func_id', 'node_id', 'code']]
-            subg_edges = subg_edges[['func_id', 'source_id', 'target_id']]
+        else:
+            for _, row in tqdm(self.nodes.iterrows()):
+                code = row['function_code']
+                if pd.isna(code):
+                    continue
+                
+                subg_nodes, subg_edges = FunctionGraphBuilder().create_graph(
+                    code=code, 
+                    graph_type=graph_type, 
+                    package=package, 
+                    edge_set=edge_set,
+                    visualize=False,
+                    language=language
+                )
 
-            self.subgraph_nodes = pd.concat([self.subgraph_nodes, subg_nodes], ignore_index=True).reset_index(drop=True)
-            self.subgraph_edges = pd.concat([self.subgraph_edges, subg_edges], ignore_index=True).reset_index(drop=True)
+                subg_nodes['func_id'] = row['fnc_id']
+                subg_edges['func_id'] = row['fnc_id']
+
+                subg_nodes = subg_nodes[['func_id', 'node_id', 'name', 'code', 'parent_id', 'is_leaf']] if graph_type == "AST" else subg_nodes[['func_id', 'node_id', 'code']]
+                subg_edges = subg_edges[['func_id', 'source_id', 'target_id']]
+
+                self.subgraph_nodes = pd.concat([self.subgraph_nodes, subg_nodes], ignore_index=True).reset_index(drop=True)
+                self.subgraph_edges = pd.concat([self.subgraph_edges, subg_edges], ignore_index=True).reset_index(drop=True)
 
         # Convert node IDs to integers
         self.subgraph_nodes['node_id'] = self.subgraph_nodes['node_id'].astype(int)
@@ -337,7 +365,8 @@ class HierarchicalGraphBuilder:
         tmp1 = self.subgraph_edges.merge(filtered_subgraph_nodes, left_on=['func_id', 'source_id'], right_on=['func_id', 'node_id'])
         tmp2 = tmp1.merge(filtered_subgraph_nodes, left_on=['func_id', 'target_id'], right_on=['func_id', 'node_id'])
         self.subgraph_edges = tmp2[['source_id', 'target_id', 'func_id']]
-
+        self.subgraph_edges = self.subgraph_edges.drop_duplicates(subset=['func_id', 'source_id', 'target_id']).reset_index(drop=True)
+        
         # Remove nodes that are not present in the subgraph edges
         filtered_subgraph_nodes = filtered_subgraph_nodes[filtered_subgraph_nodes['node_id'].isin(self.subgraph_edges['source_id']) | filtered_subgraph_nodes['node_id'].isin(self.subgraph_edges['target_id'])]
 
@@ -345,6 +374,9 @@ class HierarchicalGraphBuilder:
         self.subgraph_nodes = filtered_subgraph_nodes.reset_index(drop=True)
         # Reset node_id-s
         self.subgraph_nodes['RS_node_id'] = self.subgraph_nodes.index
+
+        self.subgraph_nodes = self.subgraph_nodes.drop_duplicates(subset=['func_id', 'node_id']).reset_index(drop=True)
+        self.subgraph_nodes['RS_node_id'] = self.subgraph_nodes.index  # Re-assign after dedup
 
         # Change the source_id indexes in the subgraph edges to match the new node_id
         self.subgraph_edges = self.subgraph_edges.merge(self.subgraph_nodes[['func_id', 'node_id', 'RS_node_id']], left_on=['func_id', 'source_id'], right_on=['func_id', 'node_id'], how='left')
@@ -357,7 +389,9 @@ class HierarchicalGraphBuilder:
         # Edges as integers
         self.subgraph_edges['source_id'] = self.subgraph_edges['source_id'].round().astype(int)
         self.subgraph_edges['target_id'] = self.subgraph_edges['target_id'].round().astype(int)
-
+        
+        self.subgraph_edges = self.subgraph_edges.drop_duplicates(subset=['func_id', 'source_id', 'target_id']).reset_index(drop=True)
+        
         # Rename node_id column to RS_node_id in the subgraph nodes
         self.subgraph_nodes = self.subgraph_nodes.drop(columns=['node_id']).rename(columns={'RS_node_id': 'node_id'})
 
