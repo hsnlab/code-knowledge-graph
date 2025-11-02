@@ -996,9 +996,6 @@ class KnowledgeGraphBuilder():
             if pd.notna(directory_id):
                 # Look up the fl_id of the parent directory
                 parent_fl_id = file_id_to_fl_id.get(directory_id)
-                if row['is_folder']:
-                    print(
-                        f"Folder '{row['name']}' (fl_id={fl_id}) has directory_id={directory_id}, parent_fl_id={parent_fl_id}")
 
                 if parent_fl_id is not None:
                     file_edges_list.append({
