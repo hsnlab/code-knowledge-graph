@@ -22,7 +22,7 @@ RUN wget https://github.com/joernio/joern/releases/latest/download/joern-install
 ENV PATH="/opt/joern/joern-cli:$PATH"
 
 # Install Python dependencies
-RUN pip3 install --no-cache-dir --break-system-packages flask requests
+RUN pip3 install --no-cache-dir --break-system-packages flask requests pydot
 
 # Create app directory
 WORKDIR /app

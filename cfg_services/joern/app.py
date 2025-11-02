@@ -1,6 +1,6 @@
 """
-Fast Joern CFG Service with Persistent Process Manager
-All-in-one file: keeps Joern workspace persistent for faster extractions
+Fast Joern CFG Service with Simple Queue
+Just process one request at a time - no fancy classes needed
 """
 
 from flask import Flask, request, jsonify
@@ -12,6 +12,7 @@ import shutil
 import os
 import json
 import logging
+import pydot
 
 
 class PersistentJoernManager:
@@ -29,7 +30,7 @@ class PersistentJoernManager:
             os.path.join(joern_install_path, "joern-parse"),
             os.path.join(joern_install_path, "joern-cli", "joern-parse"),
             "/usr/local/bin/joern-parse",
-            shutil.which("joern-parse")  # Search in PATH
+            shutil.which("joern-parse")
         ]
         
         self.joern_parse = None
@@ -60,27 +61,33 @@ class PersistentJoernManager:
         logging.info(f"Found joern-parse: {self.joern_parse}")
         logging.info(f"Found joern-export: {self.joern_export}")
         
+        # Single lock - only one request processes at a time
         self.lock = threading.Lock()
         
     def extract_cfg(self, code: str, language: str = "c") -> tuple:
         """
-        Extract CFG from code using separate temp directories for each request
-        Returns: (nodes, edges) as lists of dicts
+        Extract CFG from code - ONLY ONE AT A TIME
+        Returns: (nodes, edges, dot_content) as lists of dicts
         """
-        with self.lock:  # Thread-safe
+        # Wait in line - only one request can run this entire function
+        with self.lock:
+            request_id = f"{time.time_ns()}"
+            logging.info(f"Request {request_id}: STARTING (lock acquired)")    
             temp_dir = None
             
             try:
-                # Create a separate temp directory for this request
-                temp_dir = tempfile.mkdtemp(prefix="joern_request_")
+                # Create temp directory
+                temp_dir = tempfile.mkdtemp(prefix=f"joern_{request_id}_")
                 
-                temp_code_file = os.path.join(temp_dir, f"code_{time.time_ns()}.c")
+                temp_code_file = os.path.join(temp_dir, "code.c")
                 temp_cpg_dir = os.path.join(temp_dir, "cpg")
                 cfg_output_dir = os.path.join(temp_dir, "cfg_out")
                 
                 # Write code to file
                 with open(temp_code_file, 'w') as f:
                     f.write(code)
+                
+                logging.info(f"Request {request_id}: Written {len(code)} chars to {temp_code_file}")
                 
                 # Step 1: Parse code to CPG
                 parse_cmd = [
@@ -89,6 +96,7 @@ class PersistentJoernManager:
                     "--output", temp_cpg_dir
                 ]
                 
+                logging.info(f"Request {request_id}: Running joern-parse...")
                 result = subprocess.run(
                     parse_cmd,
                     capture_output=True,
@@ -99,72 +107,157 @@ class PersistentJoernManager:
                 if result.returncode != 0:
                     raise Exception(f"joern-parse failed: {result.stderr}")
                 
-                # Step 2: Export CFG as JSON (use "all" format which includes JSON)
+                logging.info(f"Request {request_id}: Parse complete")
+                
+                # Step 2: Export CFG
                 export_cmd = [
                     self.joern_export,
-                    "--repr", "all",
+                    "--repr", "cfg",
                     "--out", cfg_output_dir,
                     temp_cpg_dir
                 ]
                 
+                logging.info(f"Request {request_id}: Running joern-export...")
                 result = subprocess.run(
                     export_cmd,
                     capture_output=True,
                     text=True,
-                    timeout=120
+                    timeout=500
                 )
                 
                 if result.returncode != 0:
                     raise Exception(f"joern-export failed: {result.stderr}")
                 
-                # Step 3: Parse .dot output files (Joern CFG exports as GraphViz DOT format)
-                dot_files = [f for f in os.listdir(cfg_output_dir) if f.endswith('.dot')]
+                logging.info(f"Request {request_id}: Export complete")
                 
+                # Step 3: Parse .dot output files using pydot
+                dot_files = [f for f in os.listdir(cfg_output_dir) if f.endswith('.dot')]
+
+                logging.info(f"Request {request_id}: Found DOT files: {dot_files}")
+
                 if not dot_files:
                     raise Exception(f"No .dot files in output: {os.listdir(cfg_output_dir)}")
-                
+
                 nodes = []
                 edges = []
-                
-                # Parse DOT files
+                all_dot_content = []
+
+                # Parse DOT files using pydot
                 for dot_file in dot_files:
                     dot_path = os.path.join(cfg_output_dir, dot_file)
+                    
+                    # Read dot content for debugging
                     with open(dot_path, 'r') as f:
                         dot_content = f.read()
+                        all_dot_content.append(dot_content)
                     
-                    # Parse DOT format (simple regex-based parsing)
-                    import re
+                    logging.info(f"Request {request_id}: Processing {dot_file} - preview: {dot_content[:150]}...")
                     
-                    # Extract nodes: "id" [label="code"]
-                    node_pattern = r'"(\d+)"\s*\[label="([^"]+)"'
-                    for match in re.finditer(node_pattern, dot_content):
-                        node_id, label = match.groups()
-                        nodes.append({
-                            'node_id': node_id,
-                            'code': label.replace('\\n', '\n').replace('\\l', ''),
-                            'type': 'CFG_NODE'
-                        })
+                    # Parse DOT file with pydot
+                    graphs = pydot.graph_from_dot_file(dot_path)
                     
-                    # Extract edges: "source" -> "target"
-                    edge_pattern = r'"(\d+)"\s*->\s*"(\d+)"'
-                    for match in re.finditer(edge_pattern, dot_content):
-                        source, target = match.groups()
-                        edges.append({
-                            'source_id': source,
-                            'target_id': target,
-                            'label': 'CFG'
-                        })
-                
-                return nodes, edges
+                    if not graphs:
+                        logging.warning(f"No graphs found in {dot_file}")
+                        continue
+                    
+                    # Process each graph (there may be multiple in one file)
+                    for graph in graphs:
+                        graph_name = graph.get_name().strip('"')
+                        
+                        # Skip operator and global metadata graphs
+                        if graph_name.startswith('<operator>') or graph_name == '<global>':
+                            logging.info(f"Request {request_id}: Skipping metadata graph: {graph_name}")
+                            continue
+                        
+                        logging.info(f"Request {request_id}: Parsing CFG graph: {graph_name}")
+                        
+                        # Extract nodes
+                        for node in graph.get_nodes():
+                            node_id = node.get_name().strip('"')
+                            
+                            # Skip default node definitions
+                            if node_id in ['node', 'edge', 'graph']:
+                                continue
+                            
+                            # Get the label
+                            label = node.get_label()
+                            
+                            if not label:
+                                continue
+                            
+                            # Remove outer < > wrapper
+                            label = label.strip('<>').strip()
+                            
+                            # Parse label: "TYPE, LINE<BR/>CODE" or "TYPE<BR/>CODE"
+                            parts = label.split('<BR/>')
+                            
+                            if len(parts) >= 2:
+                                metadata = parts[0]
+                                code_text = '<BR/>'.join(parts[1:])
+                            else:
+                                metadata = label
+                                code_text = label
+                            
+                            # Clean HTML entities
+                            code_text = code_text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&').replace('&quot;', '"')
+                            
+                            # Extract type and line number from metadata
+                            if ',' in metadata:
+                                node_type = metadata.split(',')[0].strip()
+                                line_info = metadata.split(',')[1].strip()
+                            else:
+                                node_type = metadata.strip()
+                                line_info = None
+                            
+                            nodes.append({
+                                'node_id': node_id,
+                                'code': code_text.strip(),
+                                'type': node_type,
+                                'line_number': line_info
+                            })
+                        
+                        # Extract edges
+                        for edge in graph.get_edges():
+                            source = edge.get_source().strip('"')
+                            target = edge.get_destination().strip('"')
+                            
+                            if source and target:
+                                edges.append({
+                                    'source_id': source,
+                                    'target_id': target,
+                                    'label': 'CFG'
+                                })
+
+                # Deduplicate edges
+                seen_edges = set()
+                unique_edges = []
+                for edge in edges:
+                    edge_key = (edge['source_id'], edge['target_id'])
+                    if edge_key not in seen_edges:
+                        seen_edges.add(edge_key)
+                        unique_edges.append(edge)
+                edges = unique_edges
+
+                # Concatenate all dot content
+                dot_content = '\n'.join(all_dot_content)
+
+                logging.info(f"Request {request_id}: COMPLETE - {len(nodes)} nodes, {len(edges)} edges")
+                return nodes, edges, dot_content
                 
             except Exception as e:
-                logging.error(f"Error extracting CFG: {e}")
-                return [], []
+                logging.error(f"Request {request_id}: ERROR - {e}", exc_info=True)
+                return [], [], None
                 
             finally:
-                # Cleanup entire temp directory
+
                 if temp_dir and os.path.exists(temp_dir):
-                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    try:
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                        logging.info(f"Request {request_id}: Cleanup complete")
+                    except Exception as e:
+                        logging.warning(f"Request {request_id}: Cleanup error: {e}")
+                
+                logging.info(f"Request {request_id}: FINISHED (lock released)")
 
 
 
@@ -180,13 +273,13 @@ def health():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'service': 'joern-persistent-cfg-service',
-        'version': '3.0.0'
+        'service': 'joern-simple-queue-service',
+        'version': '4.0.0'
     })
 
 @app.route('/get_cfg', methods=['POST'])
 def get_cfg():
-    """Extract CFG from code using persistent Joern process"""
+    """Extract CFG from code - processes one at a time"""
     try:
         data = request.json
         code = data.get('code_snippet', '')
@@ -195,23 +288,24 @@ def get_cfg():
         if not code:
             return jsonify({'error': 'No code provided'}), 400
         
-        logging.info(f"Extracting CFG for {language} code ({len(code)} chars)")
+        logging.info(f"API: Received request for {language} code ({len(code)} chars)")
         
-        # Use persistent manager (MUCH faster!)
-        nodes, edges = joern_manager.extract_cfg(code, language)
+        # This will wait if another request is processing
+        nodes, edges, dot = joern_manager.extract_cfg(code, language)
         
         response = {
             'success': True,
             'nodes': nodes,
             'edges': edges,
-            'language': language
+            'language': language,
+            'dot': dot
         }
         
-        logging.info(f"✓ Extracted {len(nodes)} nodes, {len(edges)} edges")
+        logging.info(f"API: Returning {len(nodes)} nodes, {len(edges)} edges")
         return jsonify(response)
         
     except Exception as e:
-        logging.error(f"Error: {e}")
+        logging.error(f"Error: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
