@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  joern-cpp-cfg-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: joern-cpp-cfg-extractor
+    ports:
+      - "5000:5000"
+    environment:
+      - PYTHONUNBUFFERED=1
+#    volumes:
+#      - ./app.py:/app/app.py
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 1G
