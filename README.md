@@ -49,41 +49,47 @@ Returns:
 
 <div style="height: 35px;"></div>
 
-The knowledge graph object has the following keys:
+The knowledge graph object has the following node types:
 - *function_nodes*: Call graph nodes, each representing a function
-- *function_edges*: Call graph edges (function calls)
 - *subgraph_nodes*: Subgraph nodes - Either the AST or CFG of a selected function's code.
+- *import_nodes*: Imported packages used in the repository (nodes in the graph)
+- *class_nodes*: Nodes representing the classes in the repository
+- *file_nodes*: Nodes representing files or folders
+- *config_nodes*: Config file nodes, such as .yml, .txt or README.md
+- *issue_nodes*: Open issues about the repositoy
+- *pr_nodes*: Pull requests. The summary text is stored
+- *cluster_nodes*: Semantic clustering of nodes
+- *functionversion_nodes*: Similar node to the ones in the *function_nodes*, only this contains previous versions of a function
+- *developer_nodes*: Contains the developers of th repository. Can be *commit_authors*, *pr_authors* or *contributors*
+- *question_nodes*: The question types that are available in the evaluation
+- *clusterensemble_nodes*: Othe clustering nodes, using different clustering and ensemble methods
+
+
+The nodes are interconnected with the following edge types:
+- *function_edges*: Call graph edges (function calls)
 - *subgraph_edges*: Subgraph edges (AST or CFG edges)
 - *subgraph_function_edges*: Subgraph-node to Callgraph-node edges
 - *function_subgraph_edges*: Callgraph-node to Subgraph-node edges
-- *import_nodes*: Imported packages used in the repository (nodes in the graph)
 - *import_function_edges*: Import nodes connected to functions that use them
-- *class_nodes*: Nodes representing the classes in the repository
 - *class_function_edges*: Edges connecting class nodes to function nodes the class contains
-- *file_nodes*: Nodes representing files or folders
 - *file_edges*: Connects file nodes (e.g. folder containing another folder)
 - *file_function_edges*: Connects file nodes to the functions they contain
 - *file_class_edges*: Connects file nodes to the classes they contain
-- *config_nodes*: Config file nodes, such as .yml, .txt or README.md
 - *file_config_edges*: Connects file nodes (mainly folders) to the config files they contain
-- *import_function_edges*: Edges between import nodes and file nodes (which import is used in which file)
-- *pr_nodes*: Pull requests. The summary text is stored
-- *pr_function_edges*: Connects PR nodes to functions of files that were modified in that PR. Modification status and added/deleted rows are stored.
-- *issue_nodes*: Open issues about the repositoy
 - *issue_pr_edges*: Issue nodes connected to the PRs solving them.
-- *artifacts*: Artifacts of the repo collected into a dataframe.
-- *actions*: Actions of the repo collected into a dataframe.
-- *cluster_nodes*: Semantic clustering of nodes
+- *pr_function_edges*: Connects PR nodes to functions of files that were modified in that PR. Modification status and added/deleted rows are stored.
 - *cluster_function_edges*: Connects cluster supernodes to the functions they contain
-- *functionversion_nodes*: Similar node to the ones in the *function_nodes*, only this contains previous versions of a function
 - *functionversion_edges*: Connects older versions of a function in version order
 - *functionversion_function_edges*: Connects the latest previous version of the function with the actual version
-- *developer_nodes*: Contains the developers of th repository. Can be *commit_authors*, *pr_authors* or *contributors*
 - *developer_function_edges*: Connects the developer nodes to the functions they developed
-- *question_nodes*: The question types that are available in the evaluation
-- *question_cluster_edges*: Connects the question nodes to all cluster nodes
-- *clusterensemble_nodes*: Othe clustering nodes, using different clustering and ensemble methods
+- *question_cluster_edges*: Connects all question nodes to all cluster nodes
 - *clusterensemble_edges*: Cluster ensamble node edges
+
+
+Other properties scraped from the given repository:
+- *artifacts*: Artifacts of the repo collected into a dataframe.
+- *actions*: Actions of the repo collected into a dataframe.
+
 
 Check the object keys:
 

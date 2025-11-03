@@ -1,0 +1,91 @@
+@prefix : <http://example.org/kg#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Node types (classes)
+:function_nodes           a rdfs:Class .
+:subgraph_nodes           a rdfs:Class .
+:import_nodes             a rdfs:Class .
+:class_nodes              a rdfs:Class .
+:file_nodes               a rdfs:Class .
+:config_nodes             a rdfs:Class .
+:issue_nodes              a rdfs:Class .
+:pr_nodes                 a rdfs:Class .
+:cluster_nodes            a rdfs:Class .
+:functionversion_nodes    a rdfs:Class .
+:developer_nodes          a rdfs:Class .
+:question_nodes           a rdfs:Class .
+:clusterensemble_nodes    a rdfs:Class .
+
+# Edge types (object properties)
+:function_edges a rdf:Property ;
+  rdfs:domain :function_nodes ;
+  rdfs:range  :function_nodes .
+
+:subgraph_edges a rdf:Property ;
+  rdfs:domain :subgraph_nodes ;
+  rdfs:range  :subgraph_nodes .
+
+:subgraph_function_edges a rdf:Property ;
+  rdfs:domain :subgraph_nodes ;
+  rdfs:range  :function_nodes .
+
+:function_subgraph_edges a rdf:Property ;
+  rdfs:domain :function_nodes ;
+  rdfs:range  :subgraph_nodes .
+
+:import_function_edges a rdf:Property ;
+  rdfs:domain :import_nodes ;
+  rdfs:range  :function_nodes .
+
+:class_function_edges a rdf:Property ;
+  rdfs:domain :class_nodes ;
+  rdfs:range  :function_nodes .
+
+:file_edges a rdf:Property ;
+  rdfs:domain :file_nodes ;
+  rdfs:range  :file_nodes .
+
+:file_function_edges a rdf:Property ;
+  rdfs:domain :file_nodes ;
+  rdfs:range  :function_nodes .
+
+:file_class_edges a rdf:Property ;
+  rdfs:domain :file_nodes ;
+  rdfs:range  :class_nodes .
+
+:file_config_edges a rdf:Property ;
+  rdfs:domain :file_nodes ;
+  rdfs:range  :config_nodes .
+
+:issue_pr_edges a rdf:Property ;
+  rdfs:domain :issue_nodes ;
+  rdfs:range  :pr_nodes .
+
+:pr_function_edges a rdf:Property ;
+  rdfs:domain :pr_nodes ;
+  rdfs:range  :function_nodes .
+
+:cluster_function_edges a rdf:Property ;
+  rdfs:domain :cluster_nodes ;
+  rdfs:range  :function_nodes .
+
+:functionversion_edges a rdf:Property ;
+  rdfs:domain :functionversion_nodes ;
+  rdfs:range  :functionversion_nodes .
+
+:functionversion_function_edges a rdf:Property ;
+  rdfs:domain :functionversion_nodes ;
+  rdfs:range  :function_nodes .
+
+:developer_function_edges a rdf:Property ;
+  rdfs:domain :developer_nodes ;
+  rdfs:range  :function_nodes .
+
+:question_cluster_edges a rdf:Property ;
+  rdfs:domain :question_nodes ;
+  rdfs:range  :cluster_nodes .
+
+:clusterensemble_edges a rdf:Property ;
+  rdfs:domain :clusterensemble_nodes ;
+  rdfs:range  :clusterensemble_nodes .
