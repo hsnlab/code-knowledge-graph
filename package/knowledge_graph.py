@@ -132,6 +132,7 @@ class KnowledgeGraphBuilder():
         # PRs
         if num_of_PRs == 0:
             prs = pd.DataFrame(columns=['ID', 'pr_title', 'pr_body', 'pr_labels', 'pr_state'])
+            pr_edges = pd.DataFrame(columns=['source', 'target'])
         else:
             prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs, scrape_comments=scrape_comments)
         print('PRs scraped.')
