@@ -53,6 +53,7 @@ class CallGraphBuilder:
         self.functions = pd.DataFrame(columns=['file_id', 'fnc_id', 'name', 'class', 'class_base_classes', 'params'])
         self.calls = pd.DataFrame(columns=['file_id', 'cll_id', 'name', 'class', 'class_base_classes'])
         self.files = pd.DataFrame(columns=['fl_id','file_id', 'name', 'path', 'is_folder', 'directory_id'])
+        self.__README_NAMES = ["readme", "read me", "read"]
 
     def __concat_df(self, df1, df2):
         # Handle if df2 is a list or a single dataframe
@@ -128,18 +129,19 @@ class CallGraphBuilder:
         self.fnc_id = 0
         self.cll_id = 0
         self.fl_id = 0
-
+        self.config_id = 1 # separate config file id-s from project files and directories, 
+        readme_found = False
+        
         filename_lookup = {}
-
         directory_mapper: dict[str, str] = {}
 
         for dirpath, _, filenames in os.walk(path):
-            directory_used = False
             if ".git" in dirpath:
                 continue #skip git related folder todo: add exclude list
             dir_id, dir_df = self.add_directory_node(dirpath, directory_mapper, self.fl_id)
             self.files = self.__concat_df(self.files, dir_df)
             self.fl_id += 1
+
             for filename in filenames:
 
                 name, file_extension = os.path.splitext(filename)
@@ -167,13 +169,22 @@ class CallGraphBuilder:
                     file_content = f.read()
 
                 config_content = None
+                current_file_id = self.fl_id
+                temp_readme_found = readme_found
                 if is_config_file:
                     config_content = file_content
-                file_df = pd.DataFrame([{'fl_id': self.fl_id, 'file_id': file_id, 'name': filename, 'path': path,
+                    if not readme_found:
+                        if name.lower() in self.__README_NAMES:
+                            readme_found = True
+                            current_file_id = 0
+                    if temp_readme_found == readme_found:
+                        current_file_id = self.config_id
+                        self.config_id += 1
+                file_df = pd.DataFrame([{'fl_id': current_file_id, 'file_id': file_id, 'name': filename, 'path': path,
                                          'is_folder': False, 'directory_id': dir_id, "config": config_content}])
                 self.fl_id += 1
                 self.files = self.__concat_df(self.files, file_df)
-                directory_used = True
+                
                 if is_config_file:
                     continue
 
