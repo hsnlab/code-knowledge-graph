@@ -63,6 +63,57 @@ class PersistentJoernManager:
         
         # Single lock - only one request processes at a time
         self.lock = threading.Lock()
+    
+    def is_statement_level_node(self, node):
+        """
+        Determine if a node represents a complete statement (not a sub-expression).
+        
+        Statement-level nodes are:
+        - Assignments (operator.assignment)
+        - Function calls (NOT operators)
+        - Control structures (if/while/for)
+        - Returns
+        """
+        node_type = node.get('type', '')
+        node_type_raw = node.get('type_raw', '')
+        code = node.get('code', '').strip()
+        
+        # 1. Always skip metadata
+        if node_type in ['METHOD', 'METHOD_RETURN', 'BLOCK', 'METHOD_PARAMETER_IN', 
+                        'METHOD_PARAMETER_OUT', 'TYPE_REF']:
+            return False
+        
+        # 2. Always skip primitives
+        if node_type in ['IDENTIFIER', 'LITERAL', 'FIELD_IDENTIFIER'] or node_type_raw == 'FIELD_IDENTIFIER':
+            return False
+        
+        # 3. Always skip empty/generic
+        if not code or code in ['ANY', 'RET', 'void', 'int', 'bool', 'UNKNOWN']:
+            return False
+        
+        # 4. For CALL nodes, determine if it's a statement
+        if node_type == 'CALL':
+            is_operator = '&lt;operator&gt;' in node_type_raw or '<operator>' in node_type_raw
+            
+            if is_operator:
+                # Only ASSIGNMENTS are statement-level operators
+                # Everything else (cast, fieldAccess, indirectIndexAccess, shiftLeft, etc.) is sub-expression
+                if 'assignment' in node_type_raw.lower():
+                    return True
+                return False
+            else:
+                # Regular function calls are statements
+                return True
+        
+        # 5. Control structures are statements
+        if node_type == 'CONTROL_STRUCTURE':
+            return True
+        
+        # 6. Returns are statements
+        if node_type == 'RETURN':
+            return True
+        
+        return False
         
     def extract_cfg(self, code: str, language: str = "c") -> tuple:
         """
@@ -130,6 +181,7 @@ class PersistentJoernManager:
                 logging.info(f"Request {request_id}: Export complete")
                 dot_files = [f for f in os.listdir(cfg_output_dir) if f.endswith('.dot')]
                 logging.info(f"Request {request_id}: Found DOT files: {dot_files}")
+                
                 # Step 3: Only parse 0-cfg.dot (the actual method CFG)
                 main_cfg_file = os.path.join(cfg_output_dir, '0-cfg.dot')
 
@@ -190,17 +242,33 @@ class PersistentJoernManager:
                         code_text = code_text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&').replace('&quot;', '"')
                         
                         # Extract type and line number from metadata
+                        # The format is "TYPE, LINE" or just "TYPE"
                         if ',' in metadata:
-                            node_type = metadata.split(',')[0].strip()
+                            node_type_raw = metadata.split(',')[0].strip()
                             line_info = metadata.split(',')[1].strip()
                         else:
-                            node_type = metadata.strip()
+                            node_type_raw = metadata.strip()
                             line_info = None
+                        
+                        # INFER the actual CPG node type from the label
+                        # If the type looks like a method name, it's a CALL node
+                        if node_type_raw in ['METHOD', 'METHOD_RETURN', 'BLOCK', 
+                                            'CONTROL_STRUCTURE', 'RETURN', 'IDENTIFIER', 
+                                            'LITERAL', 'TYPE_REF']:
+                            # It's an actual CPG node type
+                            node_type = node_type_raw
+                        elif node_type_raw.startswith('<operator>'):
+                            # It's an operator call
+                            node_type = 'CALL'
+                        else:
+                            # It's a function/method name, so it's a CALL node
+                            node_type = 'CALL'
                         
                         nodes.append({
                             'node_id': node_id,
                             'code': code_text.strip(),
                             'type': node_type,
+                            'type_raw': node_type_raw,
                             'line_number': line_info
                         })
                     
@@ -216,17 +284,36 @@ class PersistentJoernManager:
                                 'label': 'CFG'
                             })
 
+                # APPLY STATEMENT-LEVEL FILTERING
+                original_node_count = len(nodes)
+
+                # Filter to statement-level nodes only
+                filtered_nodes = [n for n in nodes if self.is_statement_level_node(n)]
+
+                # Get remaining node IDs
+                filtered_node_ids = {n['node_id'] for n in filtered_nodes}
+
+                # Filter edges to only connect remaining nodes
+                filtered_edges = [
+                    e for e in edges 
+                    if e['source_id'] in filtered_node_ids and e['target_id'] in filtered_node_ids
+                ]
+
                 # Deduplicate edges
                 seen_edges = set()
                 unique_edges = []
-                for edge in edges:
+                for edge in filtered_edges:
                     edge_key = (edge['source_id'], edge['target_id'])
                     if edge_key not in seen_edges:
                         seen_edges.add(edge_key)
                         unique_edges.append(edge)
+
+                nodes = filtered_nodes
                 edges = unique_edges
 
+                logging.info(f"Request {request_id}: Filtered {original_node_count} -> {len(nodes)} nodes")
                 logging.info(f"Request {request_id}: COMPLETE - {len(nodes)} nodes, {len(edges)} edges")
+                
                 return nodes, edges, dot_content
                 
             except Exception as e:
@@ -258,8 +345,7 @@ def health():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'service': 'joern-simple-queue-service',
-        'version': '4.0.0'
+        'service': 'joern-simple-queue-service'
     })
 
 @app.route('/get_cfg', methods=['POST'])
