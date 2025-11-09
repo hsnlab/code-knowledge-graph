@@ -63,6 +63,70 @@ class PersistentJoernManager:
         
         # Single lock - only one request processes at a time
         self.lock = threading.Lock()
+
+    def find_target_dot_file(self, cfg_output_dir, target_method_name=None):
+        """
+        Find the correct CFG dot file to process.
+        
+        Args:
+            cfg_output_dir: Directory containing dot files
+            target_method_name: Optional method name to search for
+        
+        Returns:
+            Path to the target dot file, or None if not found
+        """
+        dot_files = sorted([f for f in os.listdir(cfg_output_dir) if f.endswith('.dot')])
+        
+        candidates = []
+        
+        for dot_file in dot_files:
+            dot_path = os.path.join(cfg_output_dir, dot_file)
+            
+            try:
+                # Parse the graph to get its name and node count
+                graphs = pydot.graph_from_dot_file(dot_path)
+                if not graphs:
+                    continue
+                
+                graph = graphs[0]
+                graph_name = graph.get_name().strip('"')
+                node_count = len([n for n in graph.get_nodes() if n.get_name().strip('"') not in ['node', 'edge', 'graph']])
+                
+                # Skip metadata/stub graphs
+                if graph_name == '<global>' or graph_name.startswith('<operator>') or graph_name.startswith('<lambda>'):
+                    continue
+                
+                # Skip stub graphs (only METHOD + METHOD_RETURN)
+                if node_count <= 2:
+                    continue
+                
+                # If target method specified, check if this matches
+                if target_method_name:
+                    if graph_name == target_method_name:
+                        logging.info(f"Found exact match: {dot_file} -> {graph_name}")
+                        return dot_path
+                else:
+                    # No target specified, collect valid candidates
+                    candidates.append((dot_file, graph_name, node_count))
+            
+            except Exception as e:
+                logging.warning(f"Error parsing {dot_file}: {e}")
+                continue
+        
+        # If target method specified but not found
+        if target_method_name:
+            logging.warning(f"Target method '{target_method_name}' not found")
+            return None
+        
+        # No target specified: return the candidate with most nodes
+        if candidates:
+            # Sort by node count descending
+            candidates.sort(key=lambda x: x[2], reverse=True)
+            best_file, best_name, best_count = candidates[0]
+            logging.info(f"Selected best candidate: {best_file} -> {best_name} ({best_count} nodes)")
+            return os.path.join(cfg_output_dir, best_file)
+        
+        return None
     
     def is_statement_level_node(self, node):
         """
@@ -96,10 +160,15 @@ class PersistentJoernManager:
             is_operator = '&lt;operator&gt;' in node_type_raw or '<operator>' in node_type_raw
             
             if is_operator:
-                # Only ASSIGNMENTS are statement-level operators
-                # Everything else (cast, fieldAccess, indirectIndexAccess, shiftLeft, etc.) is sub-expression
+                # Keep assignments (statements)
                 if 'assignment' in node_type_raw.lower():
                     return True
+                
+                # Keep comparison operators (they're branch conditions in CFG)
+                if any(comp in node_type_raw.lower() for comp in ['greaterthan', 'lessthan', 'equals', 'notequals', 'logicalor', 'logicaland', 'logicalnot']):
+                    return True
+                
+                # Skip other operators (cast, fieldAccess, indirectIndexAccess, shiftLeft, etc.)
                 return False
             else:
                 # Regular function calls are statements
@@ -115,7 +184,7 @@ class PersistentJoernManager:
         
         return False
         
-    def extract_cfg(self, code: str, language: str = "c") -> tuple:
+    def extract_cfg(self, code: str, language: str = "c",  target_method: str = None) -> tuple:
         """
         Extract CFG from code - ONLY ONE AT A TIME
         Returns: (nodes, edges, dot_content) as lists of dicts
@@ -182,13 +251,14 @@ class PersistentJoernManager:
                 dot_files = [f for f in os.listdir(cfg_output_dir) if f.endswith('.dot')]
                 logging.info(f"Request {request_id}: Found DOT files: {dot_files}")
                 
-                # Step 3: Only parse 0-cfg.dot (the actual method CFG)
-                main_cfg_file = os.path.join(cfg_output_dir, '0-cfg.dot')
+                # Step 3: determine which file to parse
+                main_cfg_file = self.find_target_dot_file(cfg_output_dir, target_method)
 
-                if not os.path.exists(main_cfg_file):
-                    raise Exception(f"No 0-cfg.dot file found in output: {os.listdir(cfg_output_dir)}")
+                if not main_cfg_file:
+                    dot_files = [f for f in os.listdir(cfg_output_dir) if f.endswith('.dot')]
+                    raise Exception(f"No valid CFG file found. Available: {dot_files}")
 
-                logging.info(f"Request {request_id}: Processing main CFG: 0-cfg.dot")
+                logging.info(f"Request {request_id}: Processing CFG: {os.path.basename(main_cfg_file)}")
 
                 nodes = []
                 edges = []
@@ -314,6 +384,7 @@ class PersistentJoernManager:
                 logging.info(f"Request {request_id}: Filtered {original_node_count} -> {len(nodes)} nodes")
                 logging.info(f"Request {request_id}: COMPLETE - {len(nodes)} nodes, {len(edges)} edges")
                 
+
                 return nodes, edges, dot_content
                 
             except Exception as e:
@@ -355,6 +426,7 @@ def get_cfg():
         data = request.json
         code = data.get('code_snippet', '')
         language = data.get('language', 'cpp')
+        method_name = data.get('method_name', None)
         
         if not code:
             return jsonify({'error': 'No code provided'}), 400
@@ -362,7 +434,7 @@ def get_cfg():
         logging.info(f"API: Received request for {language} code ({len(code)} chars)")
         
         # This will wait if another request is processing
-        nodes, edges, dot = joern_manager.extract_cfg(code, language)
+        nodes, edges, dot = joern_manager.extract_cfg(code, language, method_name)
         
         response = {
             'success': True,
