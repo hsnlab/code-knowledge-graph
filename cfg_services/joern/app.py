@@ -79,14 +79,13 @@ class PersistentJoernManager:
                 # Create temp directory
                 temp_dir = tempfile.mkdtemp(prefix=f"joern_{request_id}_")
                 
-                temp_code_file = os.path.join(temp_dir, "code.c")
+                temp_code_file = os.path.join(temp_dir, "code.cpp")
                 temp_cpg_dir = os.path.join(temp_dir, "cpg")
                 cfg_output_dir = os.path.join(temp_dir, "cfg_out")
                 
                 # Write code to file
                 with open(temp_code_file, 'w') as f:
-                    f.write(code)
-                
+                    f.write(code)         
                 logging.info(f"Request {request_id}: Written {len(code)} chars to {temp_code_file}")
                 
                 # Step 1: Parse code to CPG
@@ -129,104 +128,93 @@ class PersistentJoernManager:
                     raise Exception(f"joern-export failed: {result.stderr}")
                 
                 logging.info(f"Request {request_id}: Export complete")
-                
-                # Step 3: Parse .dot output files using pydot
                 dot_files = [f for f in os.listdir(cfg_output_dir) if f.endswith('.dot')]
-
                 logging.info(f"Request {request_id}: Found DOT files: {dot_files}")
+                # Step 3: Only parse 0-cfg.dot (the actual method CFG)
+                main_cfg_file = os.path.join(cfg_output_dir, '0-cfg.dot')
 
-                if not dot_files:
-                    raise Exception(f"No .dot files in output: {os.listdir(cfg_output_dir)}")
+                if not os.path.exists(main_cfg_file):
+                    raise Exception(f"No 0-cfg.dot file found in output: {os.listdir(cfg_output_dir)}")
+
+                logging.info(f"Request {request_id}: Processing main CFG: 0-cfg.dot")
 
                 nodes = []
                 edges = []
-                all_dot_content = []
 
-                # Parse DOT files using pydot
-                for dot_file in dot_files:
-                    dot_path = os.path.join(cfg_output_dir, dot_file)
+                # Read dot content
+                with open(main_cfg_file, 'r') as f:
+                    dot_content = f.read()
+
+                logging.info(f"Request {request_id}: DOT preview: {dot_content[:150]}...")
+
+                # Parse DOT file with pydot
+                graphs = pydot.graph_from_dot_file(main_cfg_file)
+
+                if not graphs:
+                    raise Exception("No graphs found in 0-cfg.dot")
+
+                # Process the graph (should only be one)
+                for graph in graphs:
+                    graph_name = graph.get_name().strip('"')
                     
-                    # Read dot content for debugging
-                    with open(dot_path, 'r') as f:
-                        dot_content = f.read()
-                        all_dot_content.append(dot_content)
+                    logging.info(f"Request {request_id}: Parsing CFG graph: {graph_name}")
                     
-                    logging.info(f"Request {request_id}: Processing {dot_file} - preview: {dot_content[:150]}...")
-                    
-                    # Parse DOT file with pydot
-                    graphs = pydot.graph_from_dot_file(dot_path)
-                    
-                    if not graphs:
-                        logging.warning(f"No graphs found in {dot_file}")
-                        continue
-                    
-                    # Process each graph (there may be multiple in one file)
-                    for graph in graphs:
-                        graph_name = graph.get_name().strip('"')
+                    # Extract nodes
+                    for node in graph.get_nodes():
+                        node_id = node.get_name().strip('"')
                         
-                        # Skip operator and global metadata graphs
-                        if graph_name.startswith('<operator>') or graph_name == '<global>':
-                            logging.info(f"Request {request_id}: Skipping metadata graph: {graph_name}")
+                        # Skip default node definitions
+                        if node_id in ['node', 'edge', 'graph']:
                             continue
                         
-                        logging.info(f"Request {request_id}: Parsing CFG graph: {graph_name}")
+                        # Get the label
+                        label = node.get_label()
                         
-                        # Extract nodes
-                        for node in graph.get_nodes():
-                            node_id = node.get_name().strip('"')
-                            
-                            # Skip default node definitions
-                            if node_id in ['node', 'edge', 'graph']:
-                                continue
-                            
-                            # Get the label
-                            label = node.get_label()
-                            
-                            if not label:
-                                continue
-                            
-                            # Remove outer < > wrapper
-                            label = label.strip('<>').strip()
-                            
-                            # Parse label: "TYPE, LINE<BR/>CODE" or "TYPE<BR/>CODE"
-                            parts = label.split('<BR/>')
-                            
-                            if len(parts) >= 2:
-                                metadata = parts[0]
-                                code_text = '<BR/>'.join(parts[1:])
-                            else:
-                                metadata = label
-                                code_text = label
-                            
-                            # Clean HTML entities
-                            code_text = code_text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&').replace('&quot;', '"')
-                            
-                            # Extract type and line number from metadata
-                            if ',' in metadata:
-                                node_type = metadata.split(',')[0].strip()
-                                line_info = metadata.split(',')[1].strip()
-                            else:
-                                node_type = metadata.strip()
-                                line_info = None
-                            
-                            nodes.append({
-                                'node_id': node_id,
-                                'code': code_text.strip(),
-                                'type': node_type,
-                                'line_number': line_info
+                        if not label:
+                            continue
+                        
+                        # Remove outer < > wrapper
+                        label = label.strip('<>').strip()
+                        
+                        # Parse label: "TYPE, LINE<BR/>CODE" or "TYPE<BR/>CODE"
+                        parts = label.split('<BR/>')
+                        
+                        if len(parts) >= 2:
+                            metadata = parts[0]
+                            code_text = '<BR/>'.join(parts[1:])
+                        else:
+                            metadata = label
+                            code_text = label
+                        
+                        # Clean HTML entities
+                        code_text = code_text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&').replace('&quot;', '"')
+                        
+                        # Extract type and line number from metadata
+                        if ',' in metadata:
+                            node_type = metadata.split(',')[0].strip()
+                            line_info = metadata.split(',')[1].strip()
+                        else:
+                            node_type = metadata.strip()
+                            line_info = None
+                        
+                        nodes.append({
+                            'node_id': node_id,
+                            'code': code_text.strip(),
+                            'type': node_type,
+                            'line_number': line_info
+                        })
+                    
+                    # Extract edges
+                    for edge in graph.get_edges():
+                        source = edge.get_source().strip('"')
+                        target = edge.get_destination().strip('"')
+                        
+                        if source and target:
+                            edges.append({
+                                'source_id': source,
+                                'target_id': target,
+                                'label': 'CFG'
                             })
-                        
-                        # Extract edges
-                        for edge in graph.get_edges():
-                            source = edge.get_source().strip('"')
-                            target = edge.get_destination().strip('"')
-                            
-                            if source and target:
-                                edges.append({
-                                    'source_id': source,
-                                    'target_id': target,
-                                    'label': 'CFG'
-                                })
 
                 # Deduplicate edges
                 seen_edges = set()
@@ -237,9 +225,6 @@ class PersistentJoernManager:
                         seen_edges.add(edge_key)
                         unique_edges.append(edge)
                 edges = unique_edges
-
-                # Concatenate all dot content
-                dot_content = '\n'.join(all_dot_content)
 
                 logging.info(f"Request {request_id}: COMPLETE - {len(nodes)} nodes, {len(edges)} edges")
                 return nodes, edges, dot_content
