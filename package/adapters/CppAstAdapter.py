@@ -1,0 +1,1040 @@
+import json
+
+from package.adapters import LanguageAstAdapter
+from package.adapters import NodeType
+
+from tree_sitter import Node
+import pandas as pd
+
+from package.adapters.LanguageAstAdapterRegistry import LanguageAstAdapterRegistry
+
+@LanguageAstAdapterRegistry.register('cpp')
+class CppAstAdapter(LanguageAstAdapter):
+
+    def __init__(self):
+        super().__init__(language="cpp", mapper={
+        "preproc_include": NodeType.IMPORT,
+        "class_specifier": NodeType.CLASS,
+        "struct_specifier": NodeType.CLASS,
+        "function_definition": NodeType.FUNCTION,
+        "friend_declaration": NodeType.FUNCTION,
+        "template_declaration": NodeType.FUNCTION,
+        "new_expression": NodeType.CALL,
+        "call_expression": NodeType.CALL,
+    })
+
+
+    def parse_import(self, top_import_node: Node, file_id: str, imp_id: int) -> list[pd.DataFrame]:
+        """Parse C++ #include directives."""
+        imports: list = list()
+        from_module = None
+        as_name = None
+
+        for child in top_import_node.named_children:
+            name = None
+
+            if child.type == 'system_lib_string':
+                name = child.text.decode('utf-8').strip('<>')
+            elif child.type == 'string_literal':
+                name = child.text.decode('utf-8').strip('"')
+            
+            if as_name is None:
+                as_name = name
+            if name:
+                new_row = pd.DataFrame([{
+                    'file_id': file_id,
+                    'imp_id': imp_id,
+                    'name': name,
+                    'from': from_module,
+                    'as_name': as_name
+                }])
+                imports.append(new_row)
+
+        return imports
+
+
+    def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
+        """Parse C++ class/struct definitions with full inheritance support."""
+        classes = []
+        name = None
+        base_classes = []
+
+        for child in top_class_node.named_children:
+            if child.type == 'type_identifier':
+                name = child.text.decode('utf-8')
+
+            elif child.type == 'base_class_clause':
+                for base in child.named_children:
+                    # Skip modifiers
+                    if base.type in ['access_specifier', 'virtual']:
+                        continue
+                    
+                    # Direct type_identifier
+                    if base.type == 'type_identifier':
+                        base_classes.append(base.text.decode('utf-8'))
+                    
+                    # Qualified identifier (e.g., ns::Class)
+                    elif base.type == 'qualified_identifier':
+                        base_classes.append(base.text.decode('utf-8'))
+                    
+                    # Template type (e.g., Base<T>)
+                    elif base.type == 'template_type':
+                        # Extract base template name: Base<T> -> Base
+                        template_name = self._extract_template_base_name(base)
+                        if template_name:
+                            base_classes.append(template_name)
+                    
+                    # base_class_specifier (nested structure)
+                    elif base.type == 'base_class_specifier':
+                        for specifier_child in base.named_children:
+                            if specifier_child.type == 'type_identifier':
+                                base_classes.append(specifier_child.text.decode('utf-8'))
+                            elif specifier_child.type == 'qualified_identifier':
+                                base_classes.append(specifier_child.text.decode('utf-8'))
+                            elif specifier_child.type == 'template_type':
+                                template_name = self._extract_template_base_name(specifier_child)
+                                if template_name:
+                                    base_classes.append(template_name)
+
+        base_classes_str = base_classes if base_classes else []
+
+        new_row = pd.DataFrame([{
+            'file_id': file_id,
+            'cls_id': cls_id,
+            'name': name,
+            'base_classes': base_classes_str
+        }])
+        classes.append(new_row)
+
+        return classes
+
+
+    def _extract_template_base_name(self, template_node: Node) -> str | None:
+        """Extract base class name from template_type: Base<T> -> Base"""
+        for child in template_node.named_children:
+            if child.type in ['type_identifier', 'qualified_identifier']:
+                return child.text.decode('utf-8')
+        return None
+
+    def should_skip_function_node(self, node: Node) -> bool:
+        """Skip function nodes inside template_declaration to avoid duplicates."""
+        if node.parent and node.parent.type == 'template_declaration':
+            return node.type in ['function_definition', 'template_declaration']
+        return False
+    
+
+    def _extract_class_from_qualified_name(self, func_node: Node) -> str | None:
+        """Extract class name from qualified function definition (e.g. MyClass::method)."""
+        for child in func_node.named_children:
+            if child.type == 'function_declarator':
+                for subchild in child.named_children:
+                    if subchild.type in ['qualified_identifier', 'scoped_identifier']:
+                        text = subchild.text.decode('utf-8')
+                        
+                        if '::' in text:
+                            if '<' in text:
+                                text = text.split('<')[0] + text.split('>')[-1]
+                            
+                            parts = text.split('::')
+                            return '::'.join(parts[:-1]) if len(parts) > 1 else None
+        
+            elif child.type == 'pointer_declarator':
+                for subchild in child.named_children:
+                    if subchild.type == 'function_declarator':
+                        for inner_child in subchild.named_children:
+                            if inner_child.type in ['qualified_identifier', 'scoped_identifier']:
+                                text = inner_child.text.decode('utf-8')
+                                
+                                if '::' in text:
+                                    if '<' in text:
+                                        text = text.split('<')[0] + text.split('>')[-1]
+                                    
+                                    parts = text.split('::')
+                                    return '::'.join(parts[:-1]) if len(parts) > 1 else None
+
+        return None
+
+
+    def parse_functions(self, top_function_node: Node, current_class_name: str, class_base_classes: list,
+                    file_id: str, fnc_id: int, class_id: int) -> list[pd.DataFrame]:
+        """Parse C++ function/method definitions."""
+        functions = []
+
+        if top_function_node.type == 'friend_declaration':
+            has_function_def = any(
+                child.type in ['function_definition', 'declaration']
+                for child in top_function_node.named_children
+            )
+            if not has_function_def:
+                return []
+
+        if top_function_node.type == 'template_declaration':
+            has_alias = any(
+                child.type == 'alias_declaration'
+                for child in top_function_node.named_children
+            )
+            if has_alias:
+                return []
+            
+            for child in top_function_node.named_children:
+                if child.type == 'declaration':
+                    decl_text = child.text.decode('utf-8').strip()
+                    if decl_text.endswith(';') and '{' not in decl_text:
+                        return []
+
+        if top_function_node.type == 'field_declaration':
+            has_function_declarator = any(
+                child.type == 'function_declarator'
+                for child in top_function_node.named_children
+            )
+            if not has_function_declarator:
+                return []
+
+        actual_function_node = top_function_node
+        if top_function_node.type == 'template_declaration':
+            for child in top_function_node.named_children:
+                if child.type == 'function_definition':
+                    actual_function_node = child
+                    break
+                elif child.type in ['class_specifier', 'struct_specifier']:
+                    return []
+
+        if actual_function_node.type == 'friend_declaration':
+            for child in actual_function_node.named_children:
+                if child.type == 'declaration':
+                    actual_function_node = child
+                    break
+                elif child.type == 'function_definition':
+                    actual_function_node = child
+                    break
+
+        name = self._extract_function_name(actual_function_node, current_class_name)
+        
+        extracted_class_name = self._extract_class_from_qualified_name(actual_function_node)
+        if extracted_class_name:
+            current_class_name = extracted_class_name
+            class_id = None
+        
+        if not current_class_name or current_class_name == 'None':
+            current_class_name = 'Global'
+
+        params = self._extract_parameters(actual_function_node)
+        return_type = self._extract_return_type(actual_function_node)
+        function_code = top_function_node.text.decode('utf-8')
+        docstring = None
+        local_vars = self.extract_local_variables(actual_function_node)
+
+        return [pd.DataFrame([{
+            'file_id': file_id,
+            'fnc_id': fnc_id,
+            'name': name,
+            'class': current_class_name,
+            'class_base_classes': class_base_classes,
+            'params': json.dumps(params),
+            'local_vars': json.dumps(local_vars), 
+            'docstring': docstring,
+            'function_code': function_code,
+            'class_id': class_id,
+            'return_type': return_type
+        }])]
+
+
+    def _extract_function_name(self, func_node: Node, current_class_name: str) -> str:
+        """Extract function name from AST node."""
+        
+        for child in func_node.named_children:
+            if child.type == 'function_declarator':
+                for subchild in child.named_children:
+                    if subchild.type in ['identifier', 'field_identifier', 'destructor_name', 
+                                        'operator_name', 'qualified_identifier', 'scoped_identifier']:
+                        text = subchild.text.decode('utf-8')
+                        
+                        if '::' in text:
+                            return text.split('::')[-1]
+                        
+                        return text
+
+                    elif subchild.type == 'template_function':
+                        for template_child in subchild.named_children:
+                            if template_child.type == 'identifier':
+                                return template_child.text.decode('utf-8')
+
+            elif child.type == 'pointer_declarator':
+                for subchild in child.named_children:
+                    if subchild.type == 'pointer_declarator':
+                        for nested_subchild in subchild.named_children:
+                            if nested_subchild.type == 'function_declarator':
+                                for inner_child in nested_subchild.named_children:
+                                    if inner_child.type in ['identifier', 'field_identifier']:
+                                        return inner_child.text.decode('utf-8')
+                    
+                    elif subchild.type == 'function_declarator':
+                        for inner_child in subchild.named_children:
+                            if inner_child.type in ['identifier', 'field_identifier']:
+                                return inner_child.text.decode('utf-8')
+                            
+                            elif inner_child.type == 'operator_name':
+                                return inner_child.text.decode('utf-8')
+                            
+                            elif inner_child.type in ['qualified_identifier', 'scoped_identifier']:
+                                for qual_child in inner_child.named_children:
+                                    if qual_child.type == 'identifier':
+                                        return qual_child.text.decode('utf-8')
+                                
+                                text = inner_child.text.decode('utf-8')
+                                if '::' in text:
+                                    return text.split('::')[-1]
+                                return text
+
+            elif child.type == 'reference_declarator':
+                for subchild in child.named_children:
+                    if subchild.type == 'function_declarator':
+                        for inner_child in subchild.named_children:
+                            if inner_child.type in ['identifier', 'field_identifier']:
+                                return inner_child.text.decode('utf-8')
+                            
+                            elif inner_child.type == 'operator_name':
+                                return inner_child.text.decode('utf-8')
+                            
+                            elif inner_child.type in ['qualified_identifier', 'scoped_identifier']:
+                                for qual_child in inner_child.named_children:
+                                    if qual_child.type == 'identifier':
+                                        return qual_child.text.decode('utf-8')
+                                
+                                text = inner_child.text.decode('utf-8')
+                                if '::' in text:
+                                    return text.split('::')[-1]
+                                return text
+
+            elif child.type == 'operator_cast':
+                operator_text = child.text.decode('utf-8')
+                operator_name = operator_text.split('(')[0].strip()
+                return operator_name
+
+            if func_node.type == 'field_declaration':
+                for child in func_node.named_children:
+                    if child.type == 'function_declarator':
+                        for subchild in child.named_children:
+                            if subchild.type == 'identifier':
+                                return subchild.text.decode('utf-8')
+
+        return '<lambda>' if 'lambda' in func_node.text.decode('utf-8') else '<inline_function>'
+
+
+    def _extract_parameters(self, func_node: Node) -> dict[str, str]:
+        """Extract function parameters with types."""
+        params = {}
+        func_declarator = None
+        
+        for child in func_node.named_children:
+            if child.type == 'function_declarator':
+                func_declarator = child
+                break
+            elif child.type in ['pointer_declarator', 'reference_declarator']:
+                for subchild in child.named_children:
+                    if subchild.type == 'pointer_declarator':
+                        for nested_subchild in subchild.named_children:
+                            if nested_subchild.type == 'function_declarator':
+                                func_declarator = nested_subchild
+                                break
+                    elif subchild.type == 'function_declarator':
+                        func_declarator = subchild
+                        break
+                
+                if func_declarator:
+                    break
+            elif child.type == 'operator_cast':
+                return {}
+
+        if not func_declarator:
+            return params
+
+        param_list = None
+        for child in func_declarator.named_children:
+            if child.type == 'parameter_list':
+                param_list = child
+                break
+
+        if not param_list:
+            return params
+
+        for param_child in param_list.named_children:
+            if param_child.type in ['parameter_declaration', 'optional_parameter_declaration']:
+                param_name, param_type = self._extract_param_info(param_child)
+                if param_name:
+                    params[param_name] = param_type
+
+        return params
+
+
+    def _extract_param_info(self, param_node: Node) -> tuple[str | None, str]:
+        """Extract parameter name and type."""
+        param_name = None
+        param_type_parts = []
+
+        param_type_types: list[str] = [
+            'type_qualifier',
+            'primitive_type',
+            'type_identifier',
+            'qualified_identifier'
+        ]
+
+        declarator_dict: dict[str, str] = {
+            'pointer_declarator': '*',
+            'reference_declarator': '&'
+        }
+
+        for child in param_node.named_children:
+            child_type = child.type
+
+            if child_type in param_type_types:
+                param_type_parts.append(child.text.decode('utf-8'))
+            elif child_type == 'identifier':
+                param_name = child.text.decode('utf-8')
+            elif child_type in declarator_dict:
+                for subchild in child.named_children:
+                    if subchild.type == 'identifier':
+                        param_name = subchild.text.decode('utf-8')
+                param_type_parts.append(declarator_dict[child_type])
+
+        param_type = ' '.join(param_type_parts) if param_type_parts else 'void'
+        return param_name, param_type
+
+
+    def _extract_return_type(self, func_node: Node) -> str | None:
+        """Extract return type."""
+        return_types: list[str] = ['primitive_type', 'type_identifier']
+
+        for child in func_node.named_children:
+            if child.type in return_types:
+                return child.text.decode('utf-8')
+
+        return None
+
+
+    def parse_calls(self, top_call_node: Node, file_id: str, cll_id: int,
+                    current_class_name: str, class_base_classes: list, class_id: int,
+                    fnc_id: int, func_name: str, func_params: dict) -> list[pd.DataFrame]:
+        """Parse C++ function/method calls."""
+        calls = []
+        call_name = self._extract_call_name(top_call_node)
+
+        if call_name:
+            new_row = pd.DataFrame([{
+                'file_id': file_id,
+                'cll_id': cll_id,
+                'name': call_name,
+                'call_position': top_call_node.start_byte,
+                'class': current_class_name,
+                'class_base_classes': class_base_classes,
+                'class_id': class_id,
+                'func_id': fnc_id,
+                'func_name': func_name,
+                'func_params': json.dumps(func_params) if func_params else '{}'
+            }])
+            calls.append(new_row)
+
+        return calls
+
+
+    def _extract_call_name(self, call_node: Node) -> str | None:
+        """Extract the function name being called."""
+        if call_node.type == 'new_expression':
+            for child in call_node.named_children:
+                if child.type == 'type_identifier':
+                    return child.text.decode('utf-8')
+            return None
+
+        func_expr = None
+        for child in call_node.named_children:
+            if child.type != 'argument_list':
+                func_expr = child
+                break
+
+        if not func_expr:
+            return None
+
+        funct_types: set[str] = {
+            'identifier',
+            'field_expression',
+            'qualified_identifier',
+            'template_function'
+        }
+        
+        if func_expr.type in funct_types:
+            return func_expr.text.decode('utf-8')
+
+        return None
+
+
+    def resolve_calls(self, calls: pd.DataFrame, functions: pd.DataFrame, 
+            classes: pd.DataFrame, imports: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
+        """Resolve C++ call names to their targets."""
+
+        if 'local_vars' in functions.columns and not functions.empty:
+            try:
+                func_lookup = functions.set_index('fnc_id')['local_vars'].to_dict()
+                calls['local_vars'] = calls['func_id'].map(func_lookup).fillna('[]')
+            except Exception as e:
+                calls['local_vars'] = '[]'
+        else:
+            calls['local_vars'] = '[]'
+        
+        # Store new split calls
+        split_calls = []
+
+        def resolve_single_call(row):
+            call_name = row['name']
+            class_name = row.get('class', 'Global')
+            func_params_str = row.get('func_params', '{}')
+            local_vars_str = row.get('local_vars', '[]')
+            call_position = row.get('call_position', 0)
+
+            try:
+                func_params = json.loads(func_params_str) if func_params_str else {}
+                
+                # Parse local vars (might be double-encoded)
+                local_vars_data = json.loads(local_vars_str) if local_vars_str else []
+                if isinstance(local_vars_data, str):
+                    local_vars_data = json.loads(local_vars_data)
+                
+                # Handle both old dict format and new list format
+                if isinstance(local_vars_data, dict):
+                    local_vars_list = [
+                        {"name": k, "type": v, "start": 0, "end": float('inf')}
+                        for k, v in local_vars_data.items()
+                    ]
+                else:
+                    local_vars_list = local_vars_data
+                
+                def find_var_in_scope(var_name, position):
+                    """Find variable that's in scope at given position."""
+                    for var_info in reversed(local_vars_list):
+                        if (var_info['name'] == var_name and 
+                            var_info['start'] <= position <= var_info['end']):
+                            return var_info['type']
+                    if var_name in func_params:
+                        return func_params[var_name]
+                    return None
+                
+            except (json.JSONDecodeError, TypeError):
+                func_params = {}
+                local_vars_list = []
+                
+                def find_var_in_scope(var_name, position):
+                    return func_params.get(var_name)
+
+            # Check if this is a chained call and split it
+            if ('->' in call_name or '.' in call_name) and '::' not in call_name:
+                arrow_count = call_name.count('->')
+                dot_count = call_name.count('.')
+                
+                if arrow_count + dot_count > 1:
+                    # This is a chained call - split it into separate calls
+                    is_subchain = False
+                    for other_call in calls['name']:
+                        if other_call != call_name and call_name in str(other_call):
+                            is_subchain = True
+                            break
+
+                    if is_subchain:
+                        # This is a subchain - skip it (will be removed later)
+                        return None
+                    
+                    else:
+                        # This is a outermost chain - split it
+                        new_calls = self._split_and_resolve_chained_call(call_name, call_position, local_vars_list, func_params, functions, row)
+                        if new_calls:
+                            split_calls.extend(new_calls)
+                            return None
+
+            # Handle this-> calls
+            if call_name.startswith('this->') or call_name.startswith('this.'):
+                separator = '->' if '->' in call_name else '.'
+                method_name = call_name.split(separator, 1)[1]
+                if class_name and class_name != 'Global':
+                    return f"{class_name}.{method_name}"
+                return method_name
+
+            # Handle object.method() or object->method() calls
+            if '->' in call_name or ('.' in call_name and '::' not in call_name):
+                separator = '->' if '->' in call_name else '.'
+                parts = call_name.split(separator, 1)
+
+                if len(parts) == 2:
+                    obj_name, method_name = parts
+
+                    var_type = find_var_in_scope(obj_name, call_position)
+                    
+                    if var_type:
+                        if var_type.strip() == 'auto':
+                            return call_name
+                        
+                        # Handle smart pointers
+                        if 'unique_ptr<' in var_type or 'shared_ptr<' in var_type or 'weak_ptr<' in var_type:
+                            start = var_type.find('<')
+                            end = var_type.rfind('>')
+                            if start != -1 and end != -1 and end > start:
+                                var_type = var_type[start + 1:end]
+
+                        var_type = (var_type
+                                    .replace('const', '')
+                                    .replace('*', '')
+                                    .replace('&', '')
+                                    .strip())
+
+                        var_type = var_type.replace('::', '.')
+                        return f"{var_type}.{method_name}"
+
+                    return call_name
+
+            # Handle :: namespace calls
+            if '::' in call_name:
+                return call_name.replace('::', '.')
+
+            # Handle template calls
+            if '<' in call_name and '>' in call_name:
+                base_name = call_name.split('<')[0]
+                return base_name
+
+            # Handle method calls without object (implicit this)
+            if class_name and class_name != 'Global' and '::' not in call_name and '->' not in call_name and '.' not in call_name:
+                potential_method = f"{class_name}.{call_name}"
+                
+                if not functions.empty and 'combinedName' in functions.columns:
+                    if potential_method in functions['combinedName'].values:
+                        return potential_method
+                
+                return call_name
+
+            return call_name
+
+        calls['combinedName'] = calls.apply(resolve_single_call, axis=1)
+
+        calls.dropna(subset=['combinedName'], inplace=True)
+
+        # Add split calls as new rows
+        if split_calls:
+        # Deduplicate ONLY the split calls before adding
+            
+            start_index = len(calls)  # ← Calculate ONCE before loop
+            for i, call_dict in enumerate(split_calls):
+                new_index = start_index + i  # ← Use offset
+                calls.loc[new_index] = call_dict
+
+        calls.reset_index(drop=True, inplace=True)
+        calls.drop_duplicates(subset=['name', 'combinedName'], keep='first', inplace=True)
+        calls.reset_index(drop=True, inplace=True)
+
+        
+    def create_import_edges(self, import_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Create import nodes and edges."""
+        if import_df.empty:
+            imports = pd.DataFrame(columns=['ID', 'import_name', 'import_from', 'import_as_name', 'import_file_ids'])
+            imp_edges = pd.DataFrame(columns=['source', 'target'])
+            return imports, imp_edges
+        
+        imports_grouped = (
+            import_df.groupby(['name', 'as_name'], dropna=False)['file_id']
+            .apply(lambda x: list(set(x)))
+            .reset_index()
+        )
+
+        imports_grouped.insert(0, 'import_id', range(1, len(imports_grouped) + 1))
+
+        imports = imports_grouped.rename(columns={
+            'name': 'import_name',
+            'as_name': 'import_as_name',
+            'file_id': 'import_file_ids'
+        })
+        imports['import_from'] = None
+
+        imp_edges = imports[['import_id', 'import_file_ids']].explode('import_file_ids')
+        imp_edges = imp_edges.rename(columns={'import_file_ids': 'file_id'})
+
+        imp_edges = imp_edges.merge(
+            cg_nodes[['func_id', 'file_id']], 
+            on='file_id', 
+            how='left'
+        )
+        
+        imp_edges = imp_edges[['import_id', 'func_id']].dropna().reset_index(drop=True)
+        imp_edges = imp_edges.rename(columns={'import_id': 'source', 'func_id': 'target'})
+
+        return imports, imp_edges
+    
+
+    def extract_local_variables(self, func_node: Node) -> dict[str, str]:
+        """Extract local variable declarations with scope tracking."""
+        local_vars_with_scopes = []  # List of (var_name, var_type, start_byte, end_byte)
+        
+        body = None
+        for child in func_node.named_children:
+            if child.type == 'compound_statement':
+                body = child
+                break
+        
+        if not body:
+            return {}
+        
+        def walk_for_declarations(node: Node, scope_start: int, scope_end: int, depth: int = 0):
+            """Walk AST and track variable scopes."""
+            if depth > 20:
+                return
+            
+            # Track compound statements (new scopes)
+            if node.type == 'compound_statement':
+                scope_start = node.start_byte
+                scope_end = node.end_byte
+            
+            if node.type == 'declaration':
+                var_name, var_type = self._extract_var_from_declaration(node)
+                
+                if var_name and var_type:
+                    # Store variable with its scope range
+                    local_vars_with_scopes.append({
+                        'name': var_name,
+                        'type': var_type,
+                        'start': scope_start,
+                        'end': scope_end
+                    })
+            
+            for child in node.named_children:
+                walk_for_declarations(child, scope_start, scope_end, depth + 1)
+        
+        # Start with function body scope
+        walk_for_declarations(body, body.start_byte, body.end_byte)
+        
+       
+        return json.dumps(local_vars_with_scopes)
+
+    def _extract_var_from_declaration(self, decl_node: Node) -> tuple[str | None, str]:
+        """Extract variable name and type from declaration."""
+        var_type_parts = []
+        var_name = None
+        
+        for child in decl_node.named_children:
+            if child.type in ['type_identifier', 'primitive_type', 'qualified_identifier', 'type_qualifier']:
+                var_type_parts.append(child.text.decode('utf-8'))
+            
+            elif child.type == 'placeholder_type_specifier':
+                var_type_parts.append('auto')
+
+            elif child.type == 'template_type':
+                template_text = child.text.decode('utf-8')
+                if 'unique_ptr' in template_text or 'shared_ptr' in template_text or 'weak_ptr' in template_text:
+                    inner_type = self._extract_template_inner_type(child)
+                    if inner_type:
+                        var_type_parts.append(inner_type)
+                    else:
+                        var_type_parts.append(template_text)
+                else:
+                    var_type_parts.append(template_text)
+            
+            elif child.type == 'identifier':
+                var_name = child.text.decode('utf-8')
+
+            elif child.type in ['init_declarator', 'pointer_declarator', 'reference_declarator']:
+                name, extra_type = self._extract_from_declarator(child)
+                if name:
+                    var_name = name
+                if extra_type:
+                    var_type_parts.extend(extra_type)
+        
+        var_type = ' '.join(var_type_parts) if var_type_parts else 'auto'
+        return var_name, var_type
+
+
+    def _extract_from_declarator(self, declarator_node: Node) -> tuple[str | None, list[str]]:
+        """Extract variable name and type modifiers from declarator."""
+        var_name = None
+        extra_type = []
+        
+        for child in declarator_node.named_children:
+            if child.type == 'identifier':
+                var_name = child.text.decode('utf-8')
+            
+            elif child.type == 'pointer_declarator':
+                extra_type.append('*')
+                nested_name, nested_type = self._extract_from_declarator(child)
+                if nested_name:
+                    var_name = nested_name
+                extra_type.extend(nested_type)
+            
+            elif child.type == 'reference_declarator':
+                extra_type.append('&')
+                nested_name, nested_type = self._extract_from_declarator(child)
+                if nested_name:
+                    var_name = nested_name
+                extra_type.extend(nested_type)
+        
+        return var_name, extra_type
+
+
+    def _extract_type_from_new_expression(self, new_node: Node) -> str | None:
+        """Extract type from new expression."""
+        for child in new_node.named_children:
+            if child.type in ['type_identifier', 'qualified_identifier']:
+                return child.text.decode('utf-8')
+            elif child.type == 'template_type':
+                for subchild in child.named_children:
+                    if subchild.type in ['type_identifier', 'qualified_identifier']:
+                        return subchild.text.decode('utf-8')
+        return None
+
+
+    def _extract_template_inner_type(self, template_node: Node) -> str | None:
+        """Extract inner type from template."""
+        for child in template_node.named_children:
+            if child.type == 'template_argument_list':
+                for arg in child.named_children:
+                    if arg.type in ['type_identifier', 'qualified_identifier']:
+                        return arg.text.decode('utf-8')
+                    elif arg.type == 'template_type':
+                        return arg.text.decode('utf-8')
+        return None
+    
+    def _lookup_return_type(self, class_name: str, method_name: str, functions: pd.DataFrame) -> str | None:
+        """Look up the return type of a method in the functions DataFrame."""
+        if functions.empty:
+            return None
+        
+        # Look for function with matching class and name
+        matches = functions[
+            (functions['class'] == class_name) & 
+            (functions['name'] == method_name)
+        ]
+        
+        if matches.empty:
+            return None
+        
+        # Get return type and clean it up
+        return_type = matches.iloc[0]['return_type']
+        
+        if return_type is None or pd.isna(return_type):
+            return None
+        
+        # Clean up return type (remove pointers, references, const)
+        return_type = (str(return_type)
+                    .replace('const', '')
+                    .replace('*', '')
+                    .replace('&', '')
+                    .strip())
+        
+        # Convert :: to .
+        return_type = return_type.replace('::', '.')
+        
+        return return_type if return_type else None
+    
+    def _resolve_chained_call(self, call_name: str, call_position: int, 
+                            local_vars_list: list, func_params: dict,
+                            functions: pd.DataFrame) -> str:
+        """Resolve a chained call using return types."""
+        
+        # Split by both -> and . to get all parts with their separators
+        parts = []
+        current_part = ""
+        i = 0
+        
+        while i < len(call_name):
+            if i < len(call_name) - 1 and call_name[i:i+2] == '->':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '->'})
+                    current_part = ""
+                i += 2
+            elif call_name[i] == '.':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '.'})
+                    current_part = ""
+                i += 1
+            else:
+                current_part += call_name[i]
+                i += 1
+        
+        if current_part:
+            parts.append({'part': current_part, 'sep': None})
+        
+        if not parts:
+            return call_name
+        
+        # Helper to find variable type
+        def find_var_in_scope(var_name, position):
+            for var_info in reversed(local_vars_list):
+                if (var_info['name'] == var_name and 
+                    var_info['start'] <= position <= var_info['end']):
+                    return var_info['type']
+            if var_name in func_params:
+                return func_params[var_name]
+            return None
+        
+        # Build resolved call step by step
+        result_parts = []
+        current_type = None
+        
+        for idx, item in enumerate(parts):
+            part = item['part']
+            next_sep = item['sep']
+            
+            # Remove () from method names for lookups
+            clean_part = part.replace('()', '').replace('(', '').replace(')', '')
+            
+            if idx == 0:
+                # First part is always a variable - resolve it to a type
+                var_type = find_var_in_scope(clean_part, call_position)
+                
+                if var_type:
+                    # Clean up type
+                    current_type = (var_type
+                                .replace('const', '')
+                                .replace('*', '')
+                                .replace('&', '')
+                                .strip()
+                                .replace('::', '.'))
+                else:
+                    # Can't resolve, just keep original
+                    result_parts.append(part)
+                    current_type = None
+            else:
+                # This is a method call - add it with the current type
+                if current_type:
+                    result_parts.append(f"{current_type}.{clean_part}")
+                    
+                    # Look up return type for next iteration
+                    return_type = self._lookup_return_type(current_type, clean_part, functions)
+                    current_type = return_type
+                else:
+                    # No type info - just add the method
+                    result_parts.append(clean_part)
+            
+            # Add separator if there's a next part
+            if next_sep and idx < len(parts) - 1 and idx > 0:
+                result_parts.append(next_sep)
+        
+        return ''.join(result_parts)
+    
+    def _split_and_resolve_chained_call(self, call_name: str, call_position: int, 
+                                     local_vars_list: list, func_params: dict,
+                                     functions: pd.DataFrame, original_row: pd.Series) -> list[dict]:
+        """Split a chained call into separate individual calls and resolve each."""
+        
+        # Parse the chain into parts
+        parts = []
+        current_part = ""
+        i = 0
+        
+        while i < len(call_name):
+            if i < len(call_name) - 1 and call_name[i:i+2] == '->':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '->'})
+                    current_part = ""
+                i += 2
+            elif call_name[i] == '.':
+                if current_part:
+                    parts.append({'part': current_part, 'sep': '.'})
+                    current_part = ""
+                i += 1
+            else:
+                current_part += call_name[i]
+                i += 1
+        
+        if current_part:
+            parts.append({'part': current_part, 'sep': None})
+        
+        if len(parts) <= 1:
+            return []
+        
+        # Helper to find variable type
+        def find_var_in_scope(var_name, position):
+            for var_info in reversed(local_vars_list):
+                if (var_info['name'] == var_name and 
+                    var_info['start'] <= position <= var_info['end']):
+                    return var_info['type']
+            if var_name in func_params:
+                return func_params[var_name]
+            return None
+        
+        # Create separate call entries
+        new_calls = []
+        current_type = None
+        
+        for idx, item in enumerate(parts):
+            part = item['part']
+            separator = item['sep']
+            
+            # Remove () from method names
+            clean_part = part.replace('()', '').replace('(', '').replace(')', '')
+            
+            if idx == 0:
+                # First part - resolve variable to type
+                var_type = find_var_in_scope(clean_part, call_position)
+                
+                if var_type:
+                    current_type = (var_type
+                                .replace('const', '')
+                                .replace('*', '')
+                                .replace('&', '')
+                                .strip()
+                                .replace('::', '.'))
+                else:
+                    # Can't resolve - stop here
+                    return []
+            else:
+                # This is a method call - create a separate call entry
+                if current_type:
+                    # Build the call name (previous_part.method or previous_part->method)
+                    
+                    clean_part_for_display = part.replace('()', '')
+                    
+                    if idx == 1:
+                        # First method - include the variable
+                        prev_part = parts[0]['part']
+                        call_display_name = f"{prev_part}{parts[0]['sep']}{clean_part_for_display}"
+                    else:
+                        # Subsequent methods - show as method()->nextMethod
+                        prev_part = parts[idx-1]['part']
+                        call_display_name = f"{prev_part}{parts[idx-1]['sep']}{clean_part_for_display}"
+
+                    resolved_name = f"{current_type}.{clean_part}"
+                    
+                    # Create new call entry
+                    new_call = {
+                        'file_id': original_row.get('file_id'),
+                        'cll_id': None,  # Will be assigned new IDs later
+                        'name': call_display_name,
+                        'call_position': call_position,
+                        'class': original_row.get('class'),
+                        'class_base_classes': original_row.get('class_base_classes'),
+                        'class_id': original_row.get('class_id'),
+                        'func_id': original_row.get('func_id'),
+                        'func_name': original_row.get('func_name'),
+                        'func_params': original_row.get('func_params'),
+                        'combinedName': resolved_name
+                    }
+                    
+                    new_calls.append(new_call)
+                    
+                    # Look up return type for next iteration
+                    return_type = self._lookup_return_type(current_type, clean_part, functions)
+                    current_type = return_type
+                else:
+                    # Can't resolve further
+                    break
+        
+        return new_calls
+    
+
+    def create_combined_name(self, functions: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
+        """
+        For C++: Combine class name with function name.
+        Format: Global functions → "function_name"
+                Class methods → "ClassName.method_name"
+        """
+        if functions.empty:
+            return
+        
+        functions['combinedName'] = functions.apply(
+            lambda x: (
+                x["name"] if x["class"] == 'Global' else
+                f"{x['class']}.{x['name']}"
+            ), axis=1
+        )

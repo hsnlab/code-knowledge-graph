@@ -25,35 +25,70 @@ repograph = kgb.build_knowledge_graph(repo_name='scikit-learn/scikit-learn')
 
 `KnowledgeGraphBuilder.build_knowledge_graph()` function parameters:
 - *repo_name*: Name of the repository. Must match the format "owner/repo_name", as it is used for github API calls.
-- *graph_type* (optional): Type of subgraph to build from the functions. Can be "CFG" (Control Flow Graph) or "AST" (Abstract Syntax Tree). Default is "CFG".
-- *num_of_PRs* (optional): Number of pull requests to retrieve in detail. Defaults to 0 (all).
+- *graph_type*: (optional): Type of subgraph to build. Can be "CFG" (Control Flow Graph) or "AST" (Abstract Syntax Tree). Default is "CFG".
+- *num_of_PRs*: (optional): Number of pull requests to retrieve in detail. If -1, it retrieves all. Defaults to -1.
+- *num_of_issues*: (optional): Number of issues to retrieve in detail. If -1, it retrieves all. Defaults to -1.
+- *done_prs*: (optional): List of already processed PRs to skip.
+- *semantic_clustering*: (optional): Whether to do semantic clustering on the repository contents. Defaults to True.
 - *create_embedding* (optional): Whether to create embeddings for the nodes. Defaults to False.
-- *repo_path_modifier* (optional): Path modifier for the repository for cases when only a subfolder is meant to be parsed.
-- *URI* (optional): URI for the Neo4J data saving.
-- *user* (optional): Username for the Neo4J data saving.
-- *password* (optional): Password for the Neo4J data saving.
+- *scrape_comments*: (optional): Whether to scrape comments from issues and PRs. Defaults to False.
+- *repo_path_modifier*: (optional): Path modifier for the repository for cases when only a subfolder is meant to be parsed.
+- *URI*: (optional): URI for the Neo4J data saving.
+- *user*: (optional): Username for the Neo4J data saving.
+- *password*: (optional): Password for the Neo4J data saving.
+- *project_language*: (optional): Programming language of the project. If not provided, it will be inferred.
+- *developer_mode*: (optional): If provided, extracts developer nodes and edges.
+        Options: 'commit_authors' (map commits -> files -> functions),
+                'pr_authors' (map PR authors -> changed functions),
+                'contributors' (contributors only; no edges unless PR mapping is available).
+- *max_commits*: (optional): Max commits scanned when developer_mode='commit_authors'.
 
 Returns:
-- *object*: Returns a collection of dataframes.
+- *object*: By defult, it returns a dictionary containing nodes, edges, imports, and other parts of the hierarchical graph. If the URI, user and password data is given, it saves it into a Neo4J database.
+
 
 <div style="height: 35px;"></div>
 
-The knowledge graph object has the following keys:
+The knowledge graph object has the following node types:
 - *function_nodes*: Call graph nodes, each representing a function
-- *function_edges*: Call graph edges (function calls)
 - *subgraph_nodes*: Subgraph nodes - Either the AST or CFG of a selected function's code.
+- *import_nodes*: Imported packages used in the repository (nodes in the graph)
+- *class_nodes*: Nodes representing the classes in the repository
+- *file_nodes*: Nodes representing files or folders
+- *config_nodes*: Config file nodes, such as .yml, .txt or README.md
+- *issue_nodes*: Open issues about the repositoy
+- *pr_nodes*: Pull requests. The summary text is stored
+- *cluster_nodes*: Semantic clustering of nodes
+- *functionversion_nodes*: Similar node to the ones in the *function_nodes*, only this contains previous versions of a function
+- *developer_nodes*: Contains the developers of th repository. Can be *commit_authors*, *pr_authors* or *contributors*
+- *question_nodes*: The question types that are available in the evaluation
+- *clusterensemble_nodes*: Othe clustering nodes, using different clustering and ensemble methods
+
+
+The nodes are interconnected with the following edge types:
+- *function_edges*: Call graph edges (function calls)
 - *subgraph_edges*: Subgraph edges (AST or CFG edges)
 - *subgraph_function_edges*: Subgraph-node to Callgraph-node edges
 - *function_subgraph_edges*: Callgraph-node to Subgraph-node edges
-- *import_nodes*: Imported packages used in the repository (nodes in the graph)
 - *import_function_edges*: Import nodes connected to functions that use them
-- *issues*: Open issues about the repositoy
-- *pr_nodes*: Pull requests. The summary text is stored
-- *pr_function_edges*: Connects PR nodes to functions of files that were modified in that PR. Modification status and added/deleted rows are stored.
-- *issue_nodes*: Issues collected from the repository, stored as nodes.
+- *class_function_edges*: Edges connecting class nodes to function nodes the class contains
+- *file_edges*: Connects file nodes (e.g. folder containing another folder)
+- *file_function_edges*: Connects file nodes to the functions they contain
+- *file_class_edges*: Connects file nodes to the classes they contain
+- *file_config_edges*: Connects file nodes (mainly folders) to the config files they contain
 - *issue_pr_edges*: Issue nodes connected to the PRs solving them.
+- *pr_function_edges*: Connects PR nodes to functions of files that were modified in that PR. Modification status and added/deleted rows are stored.
+- *cluster_function_edges*: Connects cluster supernodes to the functions they contain
+- *functionversion_edges*: Connects older versions of a function in version order
+- *functionversion_function_edges*: Connects the latest previous version of the function with the actual version
+- *developer_function_edges*: Connects the developer nodes to the functions they developed
+- *question_cluster_edges*: Connects all question nodes to all cluster nodes
+- *clusterensemble_edges*: Cluster ensamble node edges
+
+
+Other properties scraped from the given repository:
 - *artifacts*: Artifacts of the repo collected into a dataframe.
-- *artifacts*: Actions of the repo collected into a dataframe.
+- *actions*: Actions of the repo collected into a dataframe.
 
 
 Check the object keys:

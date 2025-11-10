@@ -1,12 +1,15 @@
 from github import Github
-
+import json
+from datetime import datetime, date
 import pandas as pd
 import networkx as nx
 from pyvis.network import Network
-from itertools import combinations
 import yaml
 import re
 import sys, os
+import hashlib
+import re
+from typing import Dict, Any, Tuple, Optional
 
 from neo4j import GraphDatabase
 from git import Repo
@@ -15,7 +18,9 @@ from .hierarchical_graph import HierarchicalGraphBuilder
 from .semantic_clustering import SemanticClustering
 from .pr_function_collector import extract_changed_functions_from_pr
 
+from package.adapters import LanguageAstAdapterRegistry
 
+from tqdm import tqdm
 class KnowledgeGraphBuilder():
 
     git = None
@@ -31,28 +36,37 @@ class KnowledgeGraphBuilder():
     def build_knowledge_graph(
         self, 
         repo_name: str, 
-        graph_type: str = "CFG", 
-        num_of_PRs: int = 0, 
+        graph_type: str = "AST", 
+        num_of_PRs: int = -1,
+        num_of_issues: int = -1,
         done_prs: list = None,
-        create_embedding: bool = False, 
+        semantic_clustering: bool = True,
+        create_embedding: bool = False,
+        scrape_comments: bool = False,
         repo_path_modifier: str = None,
         URI: str = None,
         user: str = None,
         password: str = None,
-        developer_mode: str | None = None,  # None (default) to preserve behavior; or 'commit_authors', 'pr_authors', 'contributors'
-        max_commits: int = 200  # used when developer_mode == 'commit_authors'
+        project_language: str | None = None,
+        developer_mode: str | None = 'contributors',
+        max_commits: int = 200,
     ):
         """
         Builds a knowledge graph from the given repository.
         
         :param repo_name: Name of the repository. Must match the format "owner/repo_name", as it is used for github API calls.
         :param graph_type (optional): Type of subgraph to build. Can be "CFG" (Control Flow Graph) or "AST" (Abstract Syntax Tree). Default is "CFG".
-        :param num_of_PRs (optional): Number of pull requests to retrieve in detail. Defaults to 0 (all).
+        :param num_of_PRs (optional): Number of pull requests to retrieve in detail. If -1, it retrieves all. Defaults to -1.
+        :param num_of_issues (optional): Number of issues to retrieve in detail. If -1, it retrieves all. Defaults to -1.
+        :param done_prs (optional): List of already processed PRs to skip.
+        :param semantic_clustering (optional): Whether to do semantic clustering on the repository contents. Defaults to True.
         :param create_embedding (optional): Whether to create embeddings for the nodes. Defaults to False.
+        :param scrape_comments (optional): Whether to scrape comments from issues and PRs. Defaults to False.
         :param repo_path_modifier (optional): Path modifier for the repository for cases when only a subfolder is meant to be parsed.
         :param URI (optional): URI for the Neo4J data saving.
         :param user (optional): Username for the Neo4J data saving.
         :param password (optional): Password for the Neo4J data saving.
+        :param project_language (optional): Programming language of the project. If not provided, it will be inferred.
         :param developer_mode (optional): If provided, extracts developer nodes and edges.
                Options: 'commit_authors' (map commits -> files -> functions),
                         'pr_authors' (map PR authors -> changed functions),
@@ -70,27 +84,70 @@ class KnowledgeGraphBuilder():
         # Initialize repository
         self.repository = self.git.get_repo(repo_name)
 
-        # Build hierarchical graph (CG + CFG/AST)
+        # Build hierarchical graph (CG + CFG/AST)        
         hg = HierarchicalGraphBuilder()
-        cg_nodes, cg_edges, sg_nodes, sg_edges, hier_1, hier_2, imports = hg.create_hierarchical_graph(repo_path, graph_type=graph_type, create_embedding=create_embedding)
+        (
+            cg_nodes,
+            cg_edges,
+            sg_nodes,
+            sg_edges,
+            hier_1,
+            hier_2,
+            imports,
+            function_version_nodes,
+            version_edges,
+            functionversion_function_edges,
+            classes,
+            repo_files
+        ) = hg.create_hierarchical_graph(
+            repo_path,
+            graph_type=graph_type,
+            create_embedding=create_embedding,
+            project_language=project_language
+        )
 
-        # Get repository issues, pull requests, artifacts and actions
-        cluster_nodes, cluster_edges, cluster_df = self.__cluster_function_nodes(cg_nodes)
-        # cluster_nodes = pd.DataFrame(columns=['ID', 'summary'])
-        ensemble_cluster_nodes, ensemble_cluster_edges = self.__create_ensemble_clusters(cg_edges, cg_nodes, cluster_df) 
-        issues = self.__get_repo_issues(self.repository)
+        
+        # Semantic clustering
+        if semantic_clustering:
+            cluster_nodes, cluster_edges, cluster_df = self.__cluster_function_nodes(cg_nodes)
+            ensemble_cluster_nodes, ensemble_cluster_edges = self.__create_ensemble_clusters(cg_edges, cg_nodes, cluster_df) 
+            print('Function nodes clustered.')
+        else:
+            # Skip clustering
+            cluster_nodes = pd.DataFrame(columns=['ID', 'summary'])
+            cluster_edges = pd.DataFrame(columns=['source', 'target'])
+            ensemble_cluster_nodes = pd.DataFrame(columns=['ID', 'summary'])
+            ensemble_cluster_edges = pd.DataFrame(columns=['source', 'target'])
+            print('Clustering skipped (semantic_clustering=False).')
+        
+        # Issues
+        if num_of_issues == 0:
+             issues = pd.DataFrame(columns=['ID', 'issue_title', 'issue_body', 'issue_labels', 'issue_state'])
+        else:
+            issues = self.__get_repo_issues(self.repository, num_of_issues=num_of_issues, scrape_comments=scrape_comments)
         print('Issues scraped.')
-        prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
+
+        # PRs
+        if num_of_PRs == 0:
+            prs = pd.DataFrame(columns=['ID', 'pr_title', 'pr_body', 'pr_labels', 'pr_state'])
+            pr_edges = pd.DataFrame(columns=['source', 'target'])
+        else:
+            prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs, scrape_comments=scrape_comments)
         print('PRs scraped.')
-        artifacts = self.__get_repo_CI_artifacts(self.repository)
-        print('Artifacts scraped.')
-        actions = self.__get_repo_actions()
-        print('Actions scraped.')
-        imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
-        print('Imports and import edges created.')
+        
+        # Issue to PR edges
         issue_to_pr_edges = self.__get_issue_to_pr_edges(issues, prs)
         print('Issue to PR edges created.')
+
+        # Artifacts
+        artifacts = self.__get_repo_CI_artifacts(self.repository)
+        print('Artifacts scraped.')
         
+        # Actions
+        actions = pd.DataFrame(columns=['name', 'path', 'triggers', 'platforms', 'actions_used'])
+        print('Actions scraped.')
+
+        # Developers
         developers_df = pd.DataFrame(columns=['ID', 'dev_name', 'dev_email', 'dev_full'])
         dev_edges_df = pd.DataFrame(columns=['source', 'target'])  # developer -> function
 
@@ -129,8 +186,30 @@ class KnowledgeGraphBuilder():
                 print(f"Developer extraction failed ({developer_mode}): {e}")
 
 
-        cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2)
+        # todo remove cpp specific import_edge_creation after demo
+        if project_language in ["cpp", "erlang"]:
+            adapter_class = LanguageAstAdapterRegistry.get_adapter(project_language)
+            adapter = adapter_class()
+            imports, imp_edges = adapter.create_import_edges(imports, cg_nodes)
+        else:
+            imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
+        
+        # Classes
+        classes, class_edges = self.__create_class_edges(classes, cg_nodes)
 
+        # File nodes
+        files_nodes, file_file_edges, config_nodes, config_file_edges = self.__create_file_nodes_and_edges(repo_files)
+
+        # File connections
+        file_function_edges, file_class_edges, file_import_edges = self.__create_file_connection_edges(repo_files, cg_nodes, imports, classes)
+
+        # Format dfs
+        cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2 = self.__format_dfs(cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2)
+
+        # Questions
+        question_nodes, question_edges = self.__create_question_nodes(cluster_nodes)
+
+        # Knowledge graph
         self.knowledge_graph = {
             "function_nodes": cg_nodes,
             "function_edges": cg_edges,
@@ -139,6 +218,15 @@ class KnowledgeGraphBuilder():
             "subgraph_function_edges": hier_1,
             "function_subgraph_edges": hier_2,
             "import_nodes": imports,
+            "class_nodes": classes,
+            "class_function_edges": class_edges,
+            "file_nodes": files_nodes,
+            "file_edges": file_file_edges,
+            "file_function_edges": file_function_edges, 
+            "file_class_edges": file_class_edges, 
+            "file_import_edges": file_import_edges,
+            "config_nodes": config_nodes,
+            "file_config_edges": config_file_edges,
             "import_function_edges": imp_edges,
             "pr_nodes": prs,
             "pr_function_edges": pr_edges,
@@ -148,10 +236,18 @@ class KnowledgeGraphBuilder():
             "actions": actions,
             "cluster_nodes": cluster_nodes,
             "cluster_function_edges": cluster_edges,
-            "cluster_ensemble_nodes": ensemble_cluster_nodes,
-            "cluster_ensemble_edges": ensemble_cluster_edges
+            "functionversion_nodes": function_version_nodes,
+            "functionversion_edges": version_edges,
+            "functionversion_function_edges": functionversion_function_edges,
+            "developer_nodes": developers_df,
+            "developer_function_edges": dev_edges_df,
+            "question_nodes": question_nodes,
+            "question_cluster_edges": question_edges,
+            "clusterensemble_nodes": ensemble_cluster_nodes,
+            "clusterensemble_edges": ensemble_cluster_edges
         }
         
+
         if developer_mode and not developers_df.empty:
             self.knowledge_graph["developer_nodes"] = developers_df
 
@@ -163,205 +259,342 @@ class KnowledgeGraphBuilder():
             dev_edges_df = dev_edges_df.dropna(subset=['source', 'target']).astype({'source':'int','target':'int'}).reset_index(drop=True)
             self.knowledge_graph["developer_function_edges"] = dev_edges_df
 
+        # Store in Neo4J or return
         if URI and user and password:
             self.store_knowledge_graph_in_neo4j(URI, user, password, self.knowledge_graph)
 
         else:
             return self.knowledge_graph
+        
 
-
-
-    def visualize_graph(self, knowledge_graph=None, show_subgraph_nodes=False, save_path="./graph.html"):
+    
+    def scrape_issue_pr_data(
+        self, 
+        repo_name: str, 
+        cg_nodes,
+        num_of_PRs: int = 0, 
+        done_prs: list = None
+    ):
         """
-        Create a HTML visualizaiton of the graph with the `visualize_graph` function. NOTE: for large graphs, it is advised to only plot a fraction of the nodes, othervise the visualization might not render properly. Parameters:
-        :param repograph: The dictionary containing the created repository graph.
-        :param show_subgraph_nodes (optional): Whether to plot the subgraph (CFG or AST) nodes. Defaults to False.
-        :param save_path (optional): The file path to save the visualization. Defaults to "filtered_graph.html".
+        Builds a knowledge graph from the given repository.
+        
+        :param repo_name: Name of the repository. Must match the format "owner/repo_name", as it is used for github API calls.
+        :param num_of_PRs (optional): Number of pull requests to retrieve in detail. Defaults to 0 (all).
+        :return: By defult, it returns a dictionary containing nodes, edges, imports, and other parts of the hierarchical graph. If the URI, user and password data is given, it saves it into a Neo4J database.
         """
 
+        # Initialize repository
+        self.repository = self.git.get_repo(repo_name)
+
+        issues = self.__get_repo_issues(self.repository)
+        print('Issues scraped.')
+        
+        prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
+        print('PRs scraped.')
+        
+        
+        issue_to_pr_edges = self.__get_issue_to_pr_edges(issues, prs)
+        print('Issue to PR edges created.')
+        
+
+        issue_pr_data = {
+            "function_nodes": cg_nodes,
+            "pr_nodes": prs,
+            "pr_function_edges": pr_edges,
+            "issue_nodes": issues,
+            "issue_pr_edges": issue_to_pr_edges,
+        }
+        return self.knowledge_graph
+
+
+
+    def visualize_graph(
+        self,
+        knowledge_graph: Optional[Dict[str, Any]] = None,
+        show_subgraph_nodes: bool = False,
+        save_path: str = "./graph.html",
+    ):
+        """
+        Universal graph visualization for any { '*_nodes': DataFrame, '*_edges': DataFrame } schema.
+
+        - Node colors: stable per node type.
+        - Edge colors:
+            * within-type edges (e.g., function_edges): same color as that node type
+            * cross-type edges (e.g., cluster_function_edges): stable color per edge type; dashed
+        - If `show_subgraph_nodes` is False, `subgraph_nodes` (and their edges) are skipped.
+        """
 
         if knowledge_graph is None:
             knowledge_graph = self.knowledge_graph
 
         G = nx.Graph()
 
-        # ---------------- Nodes ----------------
+        # Pre-compute colors for node types and edge types
+        node_type_to_color: Dict[str, str] = {}
+        edge_type_to_color: Dict[str, str] = {}
 
-        # Add call graph nodes (functions)
-        for _, row in knowledge_graph['function_nodes'].iterrows():
-            node_id = f"F_{row['ID']}"
-            label = f"[F] {row['combinedName']}"
-            G.add_node(node_id, label=label, title=label, color="#1a70aa")  # blue
+        # -------------- NODES --------------
+        for key, df in knowledge_graph.items():
+            if not key.endswith("_nodes"):
+                continue
+            if df is None or getattr(df, "empty", False):
+                continue
 
-        # Add structure graph nodes
-        if show_subgraph_nodes:
-            for _, row in knowledge_graph['subgraph_nodes'].iterrows():
-                node_id = f"S_{row['ID']}"
-                label = f"[S] {row['code'][:25]}..." if len(row['code']) > 25 else f"[S] {row['code']}"
-                G.add_node(node_id, label=label, title=label, color="#33a02c")  # green
+            node_type = key[: -len("_nodes")]
+            if node_type == "subgraph" and not show_subgraph_nodes:
+                continue
 
-        # Add import nodes
-        for _, row in knowledge_graph['import_nodes'].iterrows():
-            node_id = f"I_{row['ID']}"
-            label = f"[I] {row['import_name']} as {row['import_as_name']}"
-            G.add_node(node_id, label=label, title=label, color="#b12ad3")  # green
+            if node_type not in node_type_to_color:
+                node_type_to_color[node_type] = self._hex_color_from_key(f"node::{node_type}")
 
-        # Add PR nodes
-        for _, row in knowledge_graph['issue_nodes'].iterrows():
-            node_id = f"ISSUE_{row['ID']}"
-            label = f"[IS] {row['issue_title'][:25]}..." if len(row['issue_title']) > 25 else f"[IS] {row['issue_title']}"
-            G.add_node(node_id, label=label, title=label, color="#e31a1c")
+            # pick ID column
+            id_col = "ID" if "ID" in df.columns else ("id" if "id" in df.columns else None)
+            if id_col is None:
+                # Fall back: try first column as an ID
+                id_col = df.columns[0]
 
-         # Add developer nodes (NEW)
-        if 'developer_nodes' in knowledge_graph:
-            for _, row in knowledge_graph['developer_nodes'].iterrows():
-                node_id = f"DEV_{row['ID']}"
-                label = f"[DEV] {row.get('dev_name', row['ID'])}"
-                G.add_node(node_id, label=label, title=label, color="#ff9800")  # orange
+            color = node_type_to_color[node_type]
 
-        # ---------------- Edges ----------------
+            for _, row in df.iterrows():
+                raw = row.get(id_col)
+                if raw is None:
+                    continue
+                nid = self._node_id(node_type, raw)
+                label = self._pick_label(row.to_dict(), node_type)
+                G.add_node(nid, label=label, title=label, color=color)
 
-        # Add call edges
-        for _, row in knowledge_graph['function_edges'].iterrows():
-            source = f"F_{row['source'].astype(int)}"
-            target = f"F_{row['target'].astype(int)}"
-            if source in G.nodes and target in G.nodes:
-                G.add_edge(source, target, color="#a6cee3")  # light blue
+        # Helper to check if a node id exists (for robust edge adding)
+        def _has_node(node_type: str, raw_id: Any) -> bool:
+            return self._node_id(node_type, raw_id) in G.nodes
 
-        if show_subgraph_nodes:
-            # Add structure edges
-            for _, row in knowledge_graph['subgraph_edges'].iterrows():
-                source = f"S_{row['source'].astype(int)}"
-                target = f"S_{row['target'].astype(int)}"
-                if source in G.nodes and target in G.nodes:
-                    G.add_edge(source, target, color="#b2df8a")  # light green
+        # -------------- EDGES --------------
+        for key, df in knowledge_graph.items():
+            if not key.endswith("_edges"):
+                continue
+            if df is None or getattr(df, "empty", False):
+                continue
 
-            # Add hierarchy edges (function -> structure)
-            for _, row in knowledge_graph['subgraph_function_edges'].iterrows():
-                source = f"S_{row['source'].astype(int)}"
-                target = f"F_{row['target'].astype(int)}"
-                if source in G.nodes and target in G.nodes:
-                    G.add_edge(source, target, color="#21c795", dashes=True)
+            # Skip subgraph-only edges if we aren't showing subgraph nodes
+            if not show_subgraph_nodes and (
+                key.startswith("subgraph_") or key in ("subgraph_edges",)
+            ):
+                continue
 
-            for _, row in knowledge_graph['function_subgraph_edges'].iterrows():
-                source = f"F_{row['source'].astype(int)}"
-                target = f"S_{row['target'].astype(int)}"
-                if source in G.nodes and target in G.nodes:
-                    G.add_edge(source, target, color="#21c795", dashes=True)
+            src_type, tgt_type = self._edge_types_from_key(key)
 
-        # Add import edges
-        for _, row in knowledge_graph['import_function_edges'].iterrows():
-            source = f"I_{row['source'].astype(int)}"
-            target = f"F_{row['target'].astype(int)}"
-            if source in G.nodes and target in G.nodes:
-                G.add_edge(source, target, color="#bd75cf", dashes=True)
+            # Determine color: within-type -> node color; cross-type -> its own stable color
+            if tgt_type is None or src_type == tgt_type:
+                edge_color = node_type_to_color.get(
+                    src_type, self._hex_color_from_key(f"node::{src_type}")
+                )
+                dashed = False
+            else:
+                etype_name = f"{src_type}->{tgt_type}"
+                if etype_name not in edge_type_to_color:
+                    edge_type_to_color[etype_name] = self._hex_color_from_key(f"edge::{etype_name}")
+                edge_color = edge_type_to_color[etype_name]
+                dashed = True
 
-        # Add PR edges
-        for _, row in knowledge_graph['pr_function_edges'].iterrows():
-            source = f"F_{int(round(row['sourrce']))}"
-            target = f"F_{int(round(row['target']))}"
-            if source in G.nodes and target in G.nodes:
-                G.add_edge(source, target, color="#02096b", dashes=True, label= f"PR#{row['pr_number']} - {row['pr_title'][:25]}...")
+            try:
+                s_col, t_col = self._pick_source_target_cols(df)
+            except Exception:
+                # If columns are not found, skip this edge set gracefully
+                continue
 
-        # Add issue to PR function edges
-        for _, row in knowledge_graph['issue_pr_edges'].iterrows():
-            source = f"ISSUE_{int(row['source'])}"
-            target = f"F_{int(row['target'])}"
-            if source in G.nodes and target in G.nodes:
-                G.add_edge(source, target, color="#860000", dashes=True, label=f"Linked to PR#{row['pr_number']}")
-        
-        
-        if 'developer_function_edges' in knowledge_graph:
-            for _, row in knowledge_graph['developer_function_edges'].iterrows():
-                source = f"DEV_{int(row['source'])}"
-                target = f"F_{int(row['target'])}"
-                if source in G.nodes and target in G.nodes:
-                    G.add_edge(source, target, color="#ff9800", dashes=True, title="Developer → Function")
+            # find IDs from each node DF to validate existence (optional, speeds up lookups)
+            for _, row in df.iterrows():
+                s_raw = row.get(s_col)
+                t_raw = row.get(t_col)
+                if s_raw is None or t_raw is None:
+                    continue
 
-        # Visualize with pyvis
-        net = Network(height='1000px', width='100%', notebook=False, directed=False)
+                # When only one type is implied, both endpoints are that type
+                if tgt_type is None or src_type == tgt_type:
+                    s_id = self._node_id(src_type, s_raw)
+                    t_id = self._node_id(src_type, t_raw)
+                else:
+                    s_id = self._node_id(src_type, s_raw)
+                    t_id = self._node_id(tgt_type, t_raw)
+
+                if s_id in G.nodes and t_id in G.nodes:
+                    # Try to build a helpful edge label/title if present
+                    label_fields = [
+                        "label",
+                        "title",
+                        "name",
+                        "pr_number",
+                        "pr_title",
+                        "issue_title",
+                        "change_type",
+                    ]
+                    edge_label = None
+                    row_dict = row.to_dict()
+                    # Special case: PR number + title (common in your data)
+                    if "pr_number" in row_dict and "pr_title" in row_dict:
+                        short = row_dict["pr_title"]
+                        if isinstance(short, str) and len(short) > 25:
+                            short = short[:25] + "..."
+                        edge_label = f"PR#{row_dict['pr_number']} - {short}"
+                    else:
+                        for lf in label_fields:
+                            if lf in row_dict and row_dict[lf] not in (None, ""):
+                                edge_label = str(row_dict[lf])
+                                if len(edge_label) > 40:
+                                    edge_label = edge_label[:40] + "..."
+                                break
+
+                    G.add_edge(
+                        s_id,
+                        t_id,
+                        color=edge_color,
+                        dashes=dashed,
+                        label=edge_label if edge_label else None,
+                        title=edge_label if edge_label else None,
+                    )
+
+        # -------------- VISUALIZE --------------
+        net = Network(height="1000px", width="100%", notebook=False, directed=False)
         net.from_nx(G)
         net.force_atlas_2based()
-        net.save_graph(f'./{save_path}')
-        print(f"Filtered sklearn graph. visualization saved to {save_path}")
+        net.save_graph(f"{save_path}")
+        print(f"Graph visualization saved to {save_path}")
         return G
 
-    
 
-    def store_knowledge_graph_in_neo4j(self, uri, user, password, knowledge_graph):
+
+    def store_knowledge_graph_in_neo4j(self, uri, user, password, knowledge_graph, batch_size=500):
+        def sanitize_for_neo4j(value):
+            """
+            Convert any value to a Neo4j-compatible type.
+            Neo4j only accepts: int, float, str, bool, or lists/arrays of primitives.
+            """
+            if value is None:
+                return None
+            elif isinstance(value, (int, float, str, bool)):
+                return value
+            elif isinstance(value, (datetime, date)):
+                # Convert datetime/date to ISO string FIRST (before dict/list check)
+                return value.isoformat()
+            elif isinstance(value, dict):
+                # Recursively sanitize dict values
+                sanitized_dict = {k: sanitize_for_neo4j(v) for k, v in value.items()}
+                return json.dumps(sanitized_dict)
+            elif isinstance(value, list):
+                # Recursively sanitize list items
+                sanitized_list = [sanitize_for_neo4j(item) for item in value]
+                
+                # Check if all items are primitives after sanitization
+                if all(isinstance(item, (int, float, str, bool, type(None))) for item in sanitized_list):
+                    return sanitized_list  # Safe list of primitives
+                else:
+                    # Still contains complex objects, convert to JSON string
+                    return json.dumps(sanitized_list)
+            else:
+                # Fallback: convert to string
+                return str(value)
+                    
         driver = GraphDatabase.driver(uri, auth=(user, password))
 
         with driver.session() as session:
             session.run("MATCH (n) DETACH DELETE n")
 
-            # Load nodes with global id
-            for key, df in knowledge_graph.items():
-                if key.endswith("_nodes"):
-                    label = key.replace("_nodes", "").upper()
+        # Load nodes with batching
+        for key, df in tqdm(knowledge_graph.items(), desc="Loading nodes to neo4j"):
+            if key.endswith("_nodes"):
+                label = key.replace("_nodes", "").upper()
+                if "id" in df.columns:
+                    df["id"] = df["id"].astype(int)
+                elif "ID" in df.columns:
+                    df["ID"] = df["ID"].astype(int)
 
-                    if "id" in df.columns:
-                        df["id"] = df["id"].astype(int)
-                    elif "ID" in df.columns:
-                        df["ID"] = df["ID"].astype(int)
+                # Prepare all node data
+                nodes_data = []
+                for _, row in df.iterrows():
+                    props = {}
+                    for k, v in row.items():
+                        if not (isinstance(v, float) and pd.isna(v)):
+                            props[k] = sanitize_for_neo4j(v)
 
-                    for _, row in df.iterrows():
-                        props = {}
-                        for k, v in row.items():
-                            # Csak NaN float-ot szűrjük ki, minden más marad
-                            if not (isinstance(v, float) and pd.isna(v)):
-                                props[k] = v
+                    local_id = props.get("id") or props.get("ID")
+                    if local_id is None:
+                        raise ValueError(f"A(z) {label} node-nak nincs id mezője.")
 
-                        local_id = props.get("id") or props.get("ID")
-                        if local_id is None:
-                            raise ValueError(f"A(z) {label} node-nak nincs id mezője.")
+                    props["global_id"] = f"{label}:{local_id}"
+                    nodes_data.append(props)
 
-                        props["global_id"] = f"{label}:{local_id}"
-
+                # Insert in batches
+                
+                for i in range(0, len(nodes_data), batch_size):
+                    batch = nodes_data[i:i + batch_size]
+                    with driver.session() as session:
                         session.run(
-                            f"CREATE (n:{label} $props)",
-                            props=props
+                            f"UNWIND $batch AS props MERGE (n:{label} {{global_id: props.global_id}}) SET n = props",
+                            batch=batch
                         )
 
-            # Load edges
-            for key, df in knowledge_graph.items():
-                if key.endswith("_edges"):
-                    rel_type = key.replace("_edges", "").upper()
+        # Load edges with batching
+        for key, df in tqdm(knowledge_graph.items(), desc="Loading edges to neo4j"):
+            if key.endswith("_edges"):
+                if df.empty or 'source' not in df.columns or 'target' not in df.columns:
+                    continue
+                
+                rel_type = key.replace("_edges", "").upper()
 
-                    # Determine source and target node labels based on the key
-                    parts = key.replace("_edges", "").split("_")
-                    if len(parts) == 1:
-                        src_label = tgt_label = parts[0].upper()
-                    elif len(parts) == 2:
-                        src_label, tgt_label = parts[0].upper(), parts[1].upper()
-                    else:
-                        raise ValueError(f"Nem tudom értelmezni az edge nevet: {key}")
+                # Determine source and target node labels
+                parts = key.replace("_edges", "").split("_")
+                if len(parts) == 1:
+                    src_label = tgt_label = parts[0].upper()
+                elif len(parts) == 2:
+                    src_label, tgt_label = parts[0].upper(), parts[1].upper()
+                else:
+                    raise ValueError(f"Nem tudom értelmezni az edge nevet: {key}")
 
-                    df["source"] = df["source"].astype(int)
-                    df["target"] = df["target"].astype(int)
+                df["source"] = df["source"].astype(int)
+                df["target"] = df["target"].astype(int)
 
-                    for _, row in df.iterrows():
-                        start_id = f"{src_label}:{row['source']}"
-                        end_id = f"{tgt_label}:{row['target']}"
-                        edge_props = {k: v for k, v in row.items() if k not in ["source", "target"] and pd.notna(v)}
+                # Prepare all edge data
+                edges_data = []
+                for _, row in df.iterrows():
+                    start_id = f"{src_label}:{row['source']}"
+                    end_id = f"{tgt_label}:{row['target']}"
+                    edge_props = {}
+                    for k, v in row.items():
+                        if k not in ["source", "target"] and pd.notna(v):
+                            edge_props[k] = sanitize_for_neo4j(v)
+                    
+                    edges_data.append({
+                        'start_id': start_id,
+                        'end_id': end_id,
+                        'props': edge_props
+                    })
 
+                # Insert edges in batches
+                for i in range(0, len(edges_data), batch_size):
+                    batch = edges_data[i:i + batch_size]
+                    with driver.session() as session:
                         session.run(
                             f"""
-                            MATCH (a:{src_label} {{global_id: $start_id}}),
-                                (b:{tgt_label} {{global_id: $end_id}})
-                            CREATE (a)-[r:{rel_type} $props]->(b)
+                            UNWIND $batch AS edge
+                            MATCH (a:{src_label} {{global_id: edge.start_id}})
+                            MATCH (b:{tgt_label} {{global_id: edge.end_id}})
+                            MERGE (a)-[r:{rel_type}]->(b)
+                            SET r = edge.props
                             """,
-                            start_id=start_id,
-                            end_id=end_id,
-                            props=edge_props
+                            batch=batch
                         )
 
-        driver.close()
+
+
+
+
+
 
 
 
     # ---------------------------------------------------------------
     #                     Private Methods
     # ---------------------------------------------------------------
+
 
     def __clone_github_repo(self, repo_identifier: str, target_dir: str = "./repos"):
         """
@@ -390,9 +623,7 @@ class KnowledgeGraphBuilder():
 
 
 
-
-
-    def __get_repo_issues(self, repo, labels=["bug"]):
+    def __get_repo_issues(self, repo, num_of_issues, labels=None, scrape_comments=False):
         """
         Retrieves issues from the repository.
         
@@ -401,45 +632,56 @@ class KnowledgeGraphBuilder():
         """
 
         # Get open issues
-        open_issues_df = self.__get_issue_from_git(repo, labels, issue_state='open')
+        open_issues_df = self.__get_issue_from_git(repo, labels, issue_state='open', scrape_comments=scrape_comments)
 
         # Get closed issues
-        closed_issues_df = self.__get_issue_from_git(repo, labels, issue_state='closed')
+        closed_issues_df = self.__get_issue_from_git(repo, labels, issue_state='closed', scrape_comments=scrape_comments)
 
         issues_df = pd.concat([open_issues_df, closed_issues_df], ignore_index=True)
+
+        if num_of_issues > 0:
+            issues_df = issues_df.head(num_of_issues).reset_index(drop=True)
+
         return issues_df
     
 
-    def __get_issue_from_git(self, repo, labels, issue_state):
 
-        issues = repo.get_issues(state=issue_state, sort='created', direction='desc', labels=labels)
+    def __get_issue_from_git(self, repo, labels, issue_state, scrape_comments=False):
+        if labels:
+            issues = repo.get_issues(state=issue_state, sort='created', direction='desc', labels=labels)
+        else:
+            issues = repo.get_issues(state=issue_state, sort='created', direction='desc')
 
         data = []
-
         for issue in issues:
-            issue_number = issue.number
-            issue_title = issue.title
-            issue_body = issue.body if issue.body else ""
-            issue_labels = [label.name for label in issue.labels]
-            issue_state = issue.state
+            comments = []
+            if scrape_comments:
+                try:
+                    for c in issue.get_comments():
+                        comments.append({
+                            "id": c.id,
+                            "user": getattr(c.user, "login", None),
+                            "created_at": c.created_at,
+                            "updated_at": getattr(c, "updated_at", None),
+                            "body": c.body or ""
+                        })
+                except Exception as e:
+                    print(f"Figyelem: nem sikerült kommenteket lekérni az issue #{issue.number}-hoz: {e}")
 
             data.append({
-                "ID": issue_number,
-                "issue_title": issue_title,
-                "issue_body": issue_body,
-                "issue_labels": issue_labels,
-                "issue_state": issue_state
+                "ID": issue.number,
+                "issue_title": issue.title,
+                "issue_body": issue.body if issue.body else "",
+                "issue_labels": [label.name for label in issue.labels],
+                "issue_state": issue.state,
+                "issue_comments": comments
             })
 
-        issues_df = pd.DataFrame(data)
-
-        return issues_df
+        return pd.DataFrame(data)
 
 
 
-
-
-    def __get_repo_PRs(self, repo, cg_nodes, num_of_PRs, done_prs):
+    def __get_repo_PRs(self, repo, cg_nodes, num_of_PRs, done_prs, scrape_comments=False):
         """
         Retrieves pull requests from the repository and saves details to a DataFrame.
         
@@ -448,17 +690,26 @@ class KnowledgeGraphBuilder():
         :return: DataFrame with PR file change details.
         """
 
+        if num_of_PRs == 0:
+            return pd.DataFrame(columns=['ID', 'pr_title', 'pr_body', 'pr_open']), pd.DataFrame(columns=['source', 'target'])
+
         # ---------------- Open Pull Requests ----------------
 
-        df_open, changed_functions_df_open = self.__get_PR_from_git(repo, num_of_PRs, 'open', done_prs)
+        df_open, changed_functions_df_open = self.__get_PR_from_git(repo, num_of_PRs, 'open', done_prs, scrape_comments=scrape_comments)
 
         # ---------------- Closed Pull Requests ----------------
 
-        df_closed, changed_functions_df_closed = self.__get_PR_from_git(repo, num_of_PRs, 'closed', done_prs)
+        df_closed, changed_functions_df_closed = self.__get_PR_from_git(repo, num_of_PRs, 'closed', done_prs, scrape_comments=scrape_comments)
 
 
         PR_df = pd.concat([df_open, df_closed], ignore_index=True).reset_index(drop=True)
         changed_functions_df = pd.concat([changed_functions_df_open, changed_functions_df_closed], ignore_index=True).reset_index(drop=True)
+
+        # handle repositories without pr-s
+        if changed_functions_df.empty:
+            PR_df = PR_df.rename(columns={'pr_number': 'ID'})
+            PR_df = PR_df[['ID', 'pr_title', 'pr_body', 'pr_open']].drop_duplicates().reset_index(drop=True) if not PR_df.empty else pd.DataFrame(columns=['ID', 'pr_title', 'pr_body', 'pr_open'])
+            return PR_df, pd.DataFrame(columns=['source', 'target'])
 
         # String formatting
         changed_functions_df['file_path'] = changed_functions_df['file_path'].str.replace(r'\\', '/', regex=True)
@@ -481,8 +732,8 @@ class KnowledgeGraphBuilder():
         return PR_df, changed_functions_df
     
 
-    def __get_PR_from_git(self, repo, num_of_PRs: int, PR_state: str, done_prs: list):
 
+    def __get_PR_from_git(self, repo, num_of_PRs: int, PR_state: str, done_prs: list, scrape_comments: bool):
         pulls = repo.get_pulls(state=PR_state, sort='created', direction='desc')
 
         changed_functions = []
@@ -491,7 +742,6 @@ class KnowledgeGraphBuilder():
         num_pulls = 0
 
         for pull in pulls:
-
             if done_prs and pull.number in done_prs:
                 continue
 
@@ -499,6 +749,25 @@ class KnowledgeGraphBuilder():
             pr_number = pr.number
             pr_title = pr.title
             pr_body = pr.body if pr.body else ""
+
+            # --- ÚJ: kommentek begyűjtése egy listába ---
+            pr_comments = []
+            if scrape_comments:
+                try:
+                    for c in pr.get_issue_comments():
+                        # Maximum 3 comment
+                        if len(pr_comments) >= 3:
+                            break
+                        pr_comments.append(
+                            json.dumps({
+                                    "id": c.id,
+                                    "user": getattr(c.user, "login", None),
+                                    "created_at": c.created_at.isoformat() if c.created_at else None,  # ← Convert to string
+                                    "updated_at": c.updated_at.isoformat() if hasattr(c, "updated_at") and c.updated_at else None, 
+                                    "body": c.body or ""
+                                }))
+                except Exception as e:
+                    print(f"Figyelem: nem sikerült kommenteket lekérni a PR #{pr_number}-hoz: {e}")
 
             try:
                 changed = extract_changed_functions_from_pr(pr)
@@ -534,7 +803,8 @@ class KnowledgeGraphBuilder():
                     "filename": f.filename,
                     "status": f.status,
                     "additions": f.additions,
-                    "deletions": f.deletions
+                    "deletions": f.deletions,
+                    "pr_comments": pr_comments
                 })
                 self.pr_file_data.append({
                     "pr_number": pr_number,
@@ -544,20 +814,18 @@ class KnowledgeGraphBuilder():
                     "filename": f.filename,
                     "status": f.status,
                     "additions": f.additions,
-                    "deletions": f.deletions
+                    "deletions": f.deletions,
+                    "pr_comments": pr_comments
                 })
             
             num_pulls += 1
-            if num_of_PRs > 0:
-                if num_pulls >= num_of_PRs:
-                    break
+            if num_of_PRs > 0 and num_pulls >= num_of_PRs:
+                break
 
         PR_df = pd.DataFrame(data)
         changed_functions_df = pd.DataFrame(changed_functions)
 
         return PR_df, changed_functions_df
-
-
 
 
 
@@ -582,8 +850,6 @@ class KnowledgeGraphBuilder():
 
         artifacts_df = pd.DataFrame(data)
         return artifacts_df
-
-
 
 
 
@@ -663,6 +929,232 @@ class KnowledgeGraphBuilder():
         return imports, imp_edges
 
 
+
+    def __create_file_connection_edges(
+        self, 
+        repo_files: pd.DataFrame, 
+        cg_nodes: pd.DataFrame,
+        imports: pd.DataFrame,
+        classes: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Create edges connecting files to their contained functions, classes, and imports.
+        
+        :param repo_files: DataFrame with columns [fl_id, file_id, name, path, is_folder, directory_id]
+        :param cg_nodes: DataFrame with function nodes (must have func_id, file_id)
+        :param imports: DataFrame with import nodes (must have import_id, import_file_ids) BEFORE format_dfs
+        :param classes: DataFrame with class nodes (must have ID, file_ids)
+        :return: (file_function_edges_df, file_class_edges_df, file_import_edges_df)
+        """
+        
+        # Create mapping: file_id (UUID) -> fl_id (int)
+        file_id_to_fl_id = dict(zip(repo_files['file_id'].astype(str), repo_files['fl_id']))
+        
+        # ========== File -> Function Edges ==========
+        file_function_edges_list = []
+        
+        if not cg_nodes.empty and 'file_id' in cg_nodes.columns and 'func_id' in cg_nodes.columns:
+            for _, row in cg_nodes.iterrows():
+                file_id = str(row['file_id'])
+                func_id = row['func_id']
+                
+                fl_id = file_id_to_fl_id.get(file_id)
+                
+                if fl_id is not None and pd.notna(func_id):
+                    file_function_edges_list.append({
+                        'source': int(fl_id),
+                        'target': int(func_id)
+                    })
+        
+        file_function_edges = pd.DataFrame(file_function_edges_list) if file_function_edges_list else pd.DataFrame(columns=['source', 'target'])
+        
+        # ========== File -> Class Edges ==========
+        file_class_edges_list = []
+        
+        if not classes.empty and 'file_ids' in classes.columns and 'ID' in classes.columns:
+            for _, row in classes.iterrows():
+                class_id = row['ID']
+                file_ids = row['file_ids']
+                
+                if isinstance(file_ids, list):
+                    for file_id in file_ids:
+                        fl_id = file_id_to_fl_id.get(str(file_id))
+                        
+                        if fl_id is not None and pd.notna(class_id):
+                            file_class_edges_list.append({
+                                'source': int(fl_id),
+                                'target': int(class_id)
+                            })
+        
+        file_class_edges = pd.DataFrame(file_class_edges_list) if file_class_edges_list else pd.DataFrame(columns=['source', 'target'])
+        
+        # ========== File -> Import Edges ==========
+        file_import_edges_list = []
+        
+        id_column = 'import_id' if 'import_id' in imports.columns else 'ID'
+        
+        if not imports.empty and 'import_file_ids' in imports.columns and id_column in imports.columns:
+            for _, row in imports.iterrows():
+                import_id = row[id_column]  # Use the correct column name
+                import_file_ids = row['import_file_ids']
+                
+                # Handle both list and string cases
+                if isinstance(import_file_ids, list):
+                    file_id_list = import_file_ids
+                elif isinstance(import_file_ids, str):
+                    file_id_list = [import_file_ids]
+                else:
+                    continue
+                    
+                for file_id in file_id_list:
+                    fl_id = file_id_to_fl_id.get(str(file_id))
+                    
+                    if fl_id is not None and pd.notna(import_id):
+                        file_import_edges_list.append({
+                            'source': int(fl_id),
+                            'target': int(import_id)
+                        })
+        
+        file_import_edges = pd.DataFrame(file_import_edges_list) if file_import_edges_list else pd.DataFrame(columns=['source', 'target'])
+        
+        return file_function_edges, file_class_edges, file_import_edges
+
+
+
+    def __create_file_nodes_and_edges(self, repo_files: pd.DataFrame) -> tuple[
+        pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Create file nodes and edges representing the directory structure.
+        Edges connect directories to their contained files/subdirectories.
+
+        :param repo_files: DataFrame with columns [fl_id, file_id, name, path, is_folder, directory_id, config]
+        :return: (file_nodes_df, file_file_edges_df, config_nodes_df, config_file_edges_df)
+        """
+        if repo_files.empty:
+            file_nodes = pd.DataFrame(columns=['ID', 'file_id', 'name', 'path', 'is_folder'])
+            file_edges = pd.DataFrame(columns=['source', 'target'])
+            config_nodes = pd.DataFrame(columns=['ID', 'file_id', 'name', 'path', 'is_folder', 'config'])
+            config_edges = pd.DataFrame(columns=['source', 'target'])
+            return file_nodes, file_edges, config_nodes, config_edges
+
+        # Separate config files, regular files, and folders
+        config_files = repo_files[(repo_files['config'].notna()) & (repo_files['is_folder'] == False)].copy()
+        regular_files = repo_files[(repo_files['config'].isna()) & (repo_files['is_folder'] == False)].copy()
+        folders = repo_files[repo_files['is_folder'] == True].copy()
+
+        # Create regular file nodes (files + folders)
+        file_nodes = pd.concat([regular_files[['fl_id', 'file_id', 'name', 'path', 'is_folder']],
+                                folders[['fl_id', 'file_id', 'name', 'path', 'is_folder']]],
+                               ignore_index=True)
+        file_nodes = file_nodes.rename(columns={'fl_id': 'ID'})
+
+        # Create config file nodes (only config files, no folders)
+        config_nodes = config_files[['fl_id', 'file_id', 'name', 'path', 'is_folder', 'config']].copy()
+        config_nodes = config_nodes.rename(columns={'fl_id': 'ID'})
+
+        # Create a mapping: file_id (UUID) -> fl_id (int) for ALL files
+        file_id_to_fl_id = dict(zip(repo_files['file_id'], repo_files['fl_id']))
+
+        file_edges_list = []
+        combined_for_edges = pd.concat([regular_files, folders], ignore_index=True)
+
+
+        for _, row in pd.concat([regular_files, folders], ignore_index=True).iterrows():
+            directory_id = row['directory_id']  # UUID of parent directory
+            fl_id = row['fl_id']  # Integer ID of current file/folder
+
+            # If this file/folder has a parent directory, create edge
+            if pd.notna(directory_id):
+                # Look up the fl_id of the parent directory
+                parent_fl_id = file_id_to_fl_id.get(directory_id)
+
+                if parent_fl_id is not None:
+                    file_edges_list.append({
+                        'source': int(parent_fl_id),  # Parent directory's fl_id
+                        'target': int(fl_id)  # Current file's fl_id
+                    })
+
+        # Create edges for config files: Directory -> Config File
+        config_edges_list = []
+        for _, row in config_files.iterrows():
+            directory_id = row['directory_id']  # UUID of parent directory
+            fl_id = row['fl_id']  # Integer ID of current config file
+
+            # If this config file has a parent directory, create edge
+            if pd.notna(directory_id):
+                # Look up the fl_id of the parent directory
+                parent_fl_id = file_id_to_fl_id.get(directory_id)
+
+                if parent_fl_id is not None:
+                    config_edges_list.append({
+                        'source': int(parent_fl_id),  # Parent directory's fl_id
+                        'target': int(fl_id)  # Current config file's fl_id
+                    })
+
+        file_edges = pd.DataFrame(file_edges_list) if file_edges_list else pd.DataFrame(columns=['source', 'target'])
+        config_edges = pd.DataFrame(config_edges_list) if config_edges_list else pd.DataFrame(
+            columns=['source', 'target'])
+
+        return file_nodes, file_edges, config_nodes, config_edges
+
+
+
+    def __create_class_edges(self, class_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Create class nodes with proper IDs and edges connecting classes to their methods.
+        Extracts class name from function's combinedName (e.g., "MyClass.method" -> "MyClass").
+        
+        :param class_df: DataFrame with columns [file_id, cls_id, name, base_classes]
+        :param cg_nodes: DataFrame with function nodes (must have func_id, combinedName, file_id)
+        :return: (classes_df, class_function_edges_df)
+        """
+        if class_df.empty:
+            classes = pd.DataFrame(columns=['ID', 'name', 'base_classes', 'file_ids'])
+            class_edges = pd.DataFrame(columns=['source', 'target'])
+            return classes, class_edges
+        
+        # Group classes by name
+        classes_grouped = (
+            class_df.groupby(['name'], dropna=False)
+            .agg({
+                'file_id': lambda x: list(set(x)),
+                'base_classes': 'first'
+            })
+            .reset_index()
+        )
+        
+        # Assign sequential IDs
+        classes_grouped.insert(0, 'ID', range(1, len(classes_grouped) + 1))
+        classes_grouped = classes_grouped.rename(columns={'file_id': 'file_ids'})
+        
+        # Extract class name from combinedName
+        cg_nodes['class_from_name'] = cg_nodes['combinedName'].apply(
+            lambda x: x.split('.')[0] if '.' in str(x) else None
+        )
+        
+        # Create edges: Class -> Functions
+        class_edges_list = []
+        
+        for _, class_row in classes_grouped.iterrows():
+            class_id = class_row['ID']
+            class_name = class_row['name']
+            
+            # Match by extracted class name
+            matching_functions = cg_nodes[cg_nodes['class_from_name'] == class_name]['func_id'].tolist()
+            
+            for func_id in matching_functions:
+                class_edges_list.append({
+                    'source': class_id,
+                    'target': func_id
+                })
+        
+        class_edges = pd.DataFrame(class_edges_list) if class_edges_list else pd.DataFrame(columns=['source', 'target'])
+        classes = classes_grouped[['ID', 'name', 'base_classes', 'file_ids']]
+        
+        return classes, class_edges
+
+
+
     def __cluster_function_nodes(self, cg_nodes):
         """
         Clusters function nodes based on their names using semantic clustering.
@@ -684,6 +1176,7 @@ class KnowledgeGraphBuilder():
         return cluster_nodes, cluster_edges, cluster_df
     
     
+
     def __create_ensemble_clusters(self, cg_edges, cg_nodes, semantic_clusters):
         """
         Creates ensemble clusters by combining semantic and algorithmic clustering methods,
@@ -743,7 +1236,11 @@ class KnowledgeGraphBuilder():
         return ensemble_cluster_nodes, ensemble_cluster_edges
 
 
+
     def __get_issue_to_pr_edges(self, issue_df, pr_df):
+        
+        if issue_df.empty or 'ID' not in issue_df.columns or pr_df.empty or 'ID' not in pr_df.columns:
+                return pd.DataFrame(columns=['source', 'target'])
 
         # Issue to PR edges
         linked_issues = []
@@ -767,11 +1264,15 @@ class KnowledgeGraphBuilder():
 
         return issue_to_pr_edges
 
+
+
     def __extract_issue_references(self, text):
         """
         Extract issue numbers from a text like #123
         """
         return list(set(map(int, re.findall(r'#(\d+)', text or ""))))
+
+
 
     def __get_linked_issues(self, pr_number):
         """
@@ -789,6 +1290,8 @@ class KnowledgeGraphBuilder():
         
         return list(linked_issue_numbers)
 
+
+
     def __validated_linked_issues_to_dataframe(self, linked_issues_data, existing_issue_numbers):
         existing_set = set(existing_issue_numbers)
         records = []
@@ -803,7 +1306,7 @@ class KnowledgeGraphBuilder():
                         'pr_number': pr_number,
                     })
 
-        return pd.DataFrame(records)
+        return pd.DataFrame(records, columns=['issue_number', 'pr_number'])
 
 
 
@@ -868,6 +1371,8 @@ class KnowledgeGraphBuilder():
                 dev_edges_df = tmp[['dev_id', 'func_id', 'pr_number']].drop_duplicates().reset_index(drop=True)
 
         return developers_df, dev_edges_df
+
+
 
     def __get_developers_from_commits(self, repo, cg_nodes, max_commits=None):
         """Collect developers and function edges from individual commit authors.
@@ -934,7 +1439,8 @@ class KnowledgeGraphBuilder():
         return developers_df, dev_edges_df
     
 
-    def __format_dfs(self, cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2):
+    
+    def __format_dfs(self, cg_nodes, cg_edges, sg_nodes, sg_edges, imports, classes, imp_edges, hier_1, hier_2):
         """
         Formats the DataFrames for the knowledge graph.
 
@@ -948,9 +1454,175 @@ class KnowledgeGraphBuilder():
         sg_nodes = sg_nodes.rename(columns={'node_id': 'ID'})
         sg_edges = sg_edges.rename(columns={'source_id': 'source', 'target_id': 'target'})
         imports = imports.rename(columns={'import_id': 'ID'})
+        
         imp_edges = imp_edges.rename(columns={'import_id': 'source', 'func_id': 'target'})
-
         hier_1 = hier_1.rename(columns={'source_id': 'source', 'target_id': 'target'})
         hier_2 = hier_2.rename(columns={'source_id': 'source', 'target_id': 'target'})
 
+        cg_nodes['class_name'] = cg_nodes['combinedName'].apply(lambda x: x.split(".")[0] if "." in x else "")
+        cg_nodes['function_name'] = cg_nodes['combinedName'].apply(lambda x: x.split(".")[1] if "." in x else x)
+
+        cg_nodes['docstring'] = cg_nodes['docstring'].fillna("")
+
         return cg_nodes, cg_edges, sg_nodes, sg_edges, imports, imp_edges, hier_1, hier_2
+    
+
+
+    def __create_question_nodes(self, cluster_nodes):
+
+        questions = pd.DataFrame([
+            [0, "general"],
+            [1, " bug report/issue/PR"],
+            [2, "performance"],
+            [3, "feature request"],
+        ], columns=["ID", "type"])
+
+        question_edges = []
+
+        for _, row in cluster_nodes.iterrows():
+            for question in range(len(questions)):
+                question_edges.extend([
+                    {"source": questions.iloc[question]["ID"], "target": row["ID"]},
+                ])
+
+        question_edges = pd.DataFrame(question_edges, columns=["source", "target"])
+
+        return questions, question_edges
+
+
+
+
+
+
+
+
+    def _hex_color_from_key(self, key: str) -> str:
+        """
+        Deterministic hex color from an arbitrary string (stable across runs).
+        """
+        h = hashlib.md5(key.encode("utf-8")).hexdigest()
+        # use first 6 hex chars, but avoid too-dark colors by nudging channels
+        r = int(h[0:2], 16)
+        g = int(h[2:4], 16)
+        b = int(h[4:6], 16)
+        # lift very dark colors a bit
+        r = int(0.5 * r + 64) if r < 64 else r
+        g = int(0.5 * g + 64) if g < 64 else g
+        b = int(0.5 * b + 64) if b < 64 else b
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+
+    def _coerce_int_or_str(self, v) -> str:
+        """
+        Try to coerce to int (for clean IDs); fall back to str.
+        """
+        try:
+            # Handle numpy types / floats that are whole numbers
+            iv = int(round(float(v)))
+            return str(iv)
+        except Exception:
+            return str(v)
+
+
+    def _pick_source_target_cols(self, df) -> Tuple[str, str]:
+        """
+        Find best-fit source/target columns, tolerant of typos/variants.
+        """
+        # common variants and typos
+        source_candidates = ["source", "sourrce", "src", "from", "start", "u", "left"]
+        target_candidates = ["target", "dst", "to", "end", "v", "right"]
+
+        cols = {c.lower(): c for c in df.columns}
+
+        def find(cands):
+            for c in cands:
+                if c in cols:
+                    return cols[c]
+            # Also try regexy matches like anything ending with 'source'/'target'
+            for c in df.columns:
+                lc = c.lower()
+                if any(re.search(rf"\b{cand}\b", lc) for cand in cands):
+                    return c
+            return None
+
+        s_col = find(source_candidates)
+        t_col = find(target_candidates)
+
+        if s_col is None or t_col is None:
+            # As a last resort, guess the first two numeric-ish columns
+            numericish = [c for c in df.columns if c.lower() not in ("label", "title", "name")]
+            if len(numericish) >= 2:
+                return numericish[0], numericish[1]
+            raise ValueError("Could not infer source/target columns in edges DataFrame.")
+
+        return s_col, t_col
+
+
+    def _pick_label(self, row: Dict[str, Any], node_type: str, max_len: int = 30) -> str:
+        """
+        Heuristic label for nodes. Tries useful columns first; falls back to ID.
+        """
+        keys_in_priority = [
+            "label",
+            "title",
+            "name",
+            f"{node_type}_label",
+            f"{node_type}_title",
+            f"{node_type}_name",
+            "combinedName",
+            "issue_title",
+            "pr_title",
+            "import_name",
+            "code",
+            "path",
+            "file",
+            "ID",
+            "id",
+        ]
+        text = None
+        for k in keys_in_priority:
+            if k in row and row[k] not in (None, ""):
+                text = str(row[k])
+                break
+
+        if text is None:
+            # try the first non-NaN, non-ID column
+            for k, v in row.items():
+                if k.lower() not in ("id",) and v not in (None, ""):
+                    text = str(v)
+                    break
+
+        if text is None:
+            text = str(row.get("ID", row.get("id", "")))
+
+        # trim long texts
+        text = text.strip().replace("\n", " ")
+        prefix = f"[{node_type.upper()}] "
+        if len(text) > max_len:
+            text = text[:max_len] + "..."
+        return prefix + text
+
+
+    def _node_prefix(self, node_type: str) -> str:
+        """
+        Prefix used in node IDs to keep namespaces clear.
+        """
+        return node_type.upper()
+
+
+    def _node_id(self, node_type: str, raw_id: Any) -> str:
+        return f"{self._node_prefix(node_type)}_{self._coerce_int_or_str(raw_id)}"
+
+
+    def _edge_types_from_key(self, edge_key: str) -> Tuple[str, Optional[str]]:
+        """
+        Convert a key like 'function_edges' -> ('function', None)
+        or 'cluster_function_edges' -> ('cluster', 'function').
+        """
+        assert edge_key.endswith("_edges")
+        core = edge_key[: -len("_edges")]
+        parts = core.split("_")
+        if len(parts) == 1:
+            return parts[0], None
+
+        return parts[0], parts[-1]

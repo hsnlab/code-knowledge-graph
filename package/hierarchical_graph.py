@@ -28,8 +28,8 @@ from tqdm import tqdm
 
 from .call_graph import CallGraphBuilder
 from .function_graph import FunctionGraphBuilder
-
-# ignore warnings
+from .function_versioning import FunctionVersioning
+from package.adapters import LanguageAstAdapterRegistry
 
 
 class HierarchicalGraphBuilder:
@@ -42,6 +42,10 @@ class HierarchicalGraphBuilder:
 
     hierarchical_sub_to_main_edges = None
     hierarchical_main_to_sub_edges = None
+    
+    function_version_nodes = None
+    version_edges = None
+    functionversion_function_edges = None
 
 
     def __init__(self):
@@ -57,9 +61,11 @@ class HierarchicalGraphBuilder:
         package='ts', 
         edge_set='default', 
         remove_isolated=False,
-        remove_subgraph_missing=True,
+        remove_subgraph_missing=False,
         batch_size=64,
-        create_embedding=False
+        create_embedding=False,
+        project_language=None,
+        repo_root_override=None
     ):
         """
         Create a hierarchical graph from the given code.
@@ -86,7 +92,8 @@ class HierarchicalGraphBuilder:
             - A PyTorch Geometric HeteroData object containing the hierarchical graph.
         """
         print("Building CG...")
-        self.nodes, self.edges, self.imports = CallGraphBuilder().build_call_graph(path, return_type="pandas", repo_functions_only=repo_functions_only)
+        # return the project language
+        self.nodes, self.edges, self.imports, self.classes, self.files, language = CallGraphBuilder().build_call_graph(path, return_type="pandas", repo_functions_only=repo_functions_only, project_language=project_language)
 
         # Convert function IDs to integers
         self.nodes['fnc_id'] = self.nodes['fnc_id'].astype(int)
@@ -104,28 +111,58 @@ class HierarchicalGraphBuilder:
             graph_type == "AST" else pd.DataFrame(columns=['func_id', 'node_id', 'code'])
         self.subgraph_edges = pd.DataFrame(columns=['func_id', 'source_id', 'target_id'])
 
-
-        for _, row in tqdm(self.nodes.iterrows()):
-            code = row['function_code']
-            if pd.isna(code):
-                continue
+        if language != "python" and graph_type.lower() == "cfg":
+            adapter_class = LanguageAstAdapterRegistry.get_cfg_adapter(language)
+            adapter = adapter_class()
             
-            subg_nodes, subg_edges = FunctionGraphBuilder().create_graph(
-                code=code, 
-                graph_type=graph_type, 
-                package=package, 
-                edge_set=edge_set,
-                visualize=False
-            )
+            # Process in mini-batches to avoid timeout
+            BATCH_SIZE = 10
+            all_nodes = []
+            all_edges = []
+            
+            for i in range(0, len(self.nodes), BATCH_SIZE):
+                batch = self.nodes.iloc[i:i+BATCH_SIZE]
+                
+                for _, row in batch.iterrows():
+                    if pd.isna(row['function_code']):
+                        continue
+                    
+                    # Call Java API
+                    nodes, edges = adapter.extract_cfg(row['function_code'], language)
+                    nodes['func_id'] = row['fnc_id']
+                    edges['func_id'] = row['fnc_id']
+                    
+                    all_nodes.append(nodes)
+                    all_edges.append(edges)
+            
+            self.subgraph_nodes = pd.concat(all_nodes) if all_nodes else pd.DataFrame()
+            self.subgraph_edges = pd.concat(all_edges) if all_edges else pd.DataFrame()
 
-            subg_nodes['func_id'] = row['fnc_id']
-            subg_edges['func_id'] = row['fnc_id']
+            self.subgraph_edges = self.subgraph_edges.drop_duplicates(subset=['func_id', 'source_id', 'target_id']).reset_index(drop=True)
 
-            subg_nodes = subg_nodes[['func_id', 'node_id', 'name', 'code', 'parent_id', 'is_leaf']] if graph_type == "AST" else subg_nodes[['func_id', 'node_id', 'code']]
-            subg_edges = subg_edges[['func_id', 'source_id', 'target_id']]
+        else:
+            for _, row in tqdm(self.nodes.iterrows()):
+                code = row['function_code']
+                if pd.isna(code):
+                    continue
+                
+                subg_nodes, subg_edges = FunctionGraphBuilder().create_graph(
+                    code=code, 
+                    graph_type=graph_type, 
+                    package=package, 
+                    edge_set=edge_set,
+                    visualize=False,
+                    language=language
+                )
 
-            self.subgraph_nodes = pd.concat([self.subgraph_nodes, subg_nodes], ignore_index=True).reset_index(drop=True)
-            self.subgraph_edges = pd.concat([self.subgraph_edges, subg_edges], ignore_index=True).reset_index(drop=True)
+                subg_nodes['func_id'] = row['fnc_id']
+                subg_edges['func_id'] = row['fnc_id']
+
+                subg_nodes = subg_nodes[['func_id', 'node_id', 'name', 'code', 'parent_id', 'is_leaf']] if graph_type == "AST" else subg_nodes[['func_id', 'node_id', 'code']]
+                subg_edges = subg_edges[['func_id', 'source_id', 'target_id']]
+
+                self.subgraph_nodes = pd.concat([self.subgraph_nodes, subg_nodes], ignore_index=True).reset_index(drop=True)
+                self.subgraph_edges = pd.concat([self.subgraph_edges, subg_edges], ignore_index=True).reset_index(drop=True)
 
         # Convert node IDs to integers
         self.subgraph_nodes['node_id'] = self.subgraph_nodes['node_id'].astype(int)
@@ -153,17 +190,54 @@ class HierarchicalGraphBuilder:
             pass
         
         print("Hierarchical graph building successful.")
-
+        
+        # ---- Function Versioning: mindig a GIT GYÖKÉREN nyissuk a repót ----
+        git_root = repo_root_override or self._find_git_root(path)
+        fv = FunctionVersioning(repo_path=git_root)
+        fv_out = fv.build(function_nodes_df=self.nodes, branch_ref="HEAD", only_changed_files=True, max_commits=300)
+        self.function_version_nodes = fv_out["function_version_nodes"]
+        # ÚJ séma: commit meta az éleken
+        self.version_edges = fv_out["version_edges"]
+        # Megtartjuk a verzió->függvény kötést a CG-hez
+        self.functionversion_function_edges = fv_out["functionversion_function_edges"]
 
 
         if return_type.lower() in ["pandas", "pandas_df", 'pd', 'df', 'dataframe']:
-            return self.nodes, self.edges, self.subgraph_nodes, self.subgraph_edges, self.hierarchical_sub_to_main_edges, self.hierarchical_main_to_sub_edges, self.imports
+            return (
+                self.nodes,
+                self.edges,
+                self.subgraph_nodes,
+                self.subgraph_edges,
+                self.hierarchical_sub_to_main_edges,
+                self.hierarchical_main_to_sub_edges,
+                self.imports,
+                self.function_version_nodes,
+                self.version_edges,
+                self.functionversion_function_edges,
+                self.classes,
+                self.files
+            )
         
         else:
             return self._create_hetero_data()
         
 
-
+    def _find_git_root(self, start_path: str) -> str:
+        """
+        Felmászik a könyvtárstruktúrában, amíg meg nem találja a .git mappát.
+        Visszaadja a repo gyökerét. Ha nem található, az eredeti path-ot adja vissza.
+        """
+        p = os.path.abspath(start_path)
+        if os.path.isfile(p):
+            p = os.path.dirname(p)
+        while True:
+            if os.path.isdir(os.path.join(p, ".git")):
+                return p
+            parent = os.path.dirname(p)
+            if parent == p:
+                # nem talált .git-et — utolsó esély: a kiinduló path
+                return os.path.abspath(start_path)
+            p = parent
 
 
     def _embed_graph_nodes(self, batch_size=128):
@@ -291,7 +365,8 @@ class HierarchicalGraphBuilder:
         tmp1 = self.subgraph_edges.merge(filtered_subgraph_nodes, left_on=['func_id', 'source_id'], right_on=['func_id', 'node_id'])
         tmp2 = tmp1.merge(filtered_subgraph_nodes, left_on=['func_id', 'target_id'], right_on=['func_id', 'node_id'])
         self.subgraph_edges = tmp2[['source_id', 'target_id', 'func_id']]
-
+        self.subgraph_edges = self.subgraph_edges.drop_duplicates(subset=['func_id', 'source_id', 'target_id']).reset_index(drop=True)
+        
         # Remove nodes that are not present in the subgraph edges
         filtered_subgraph_nodes = filtered_subgraph_nodes[filtered_subgraph_nodes['node_id'].isin(self.subgraph_edges['source_id']) | filtered_subgraph_nodes['node_id'].isin(self.subgraph_edges['target_id'])]
 
@@ -299,6 +374,9 @@ class HierarchicalGraphBuilder:
         self.subgraph_nodes = filtered_subgraph_nodes.reset_index(drop=True)
         # Reset node_id-s
         self.subgraph_nodes['RS_node_id'] = self.subgraph_nodes.index
+
+        self.subgraph_nodes = self.subgraph_nodes.drop_duplicates(subset=['func_id', 'node_id']).reset_index(drop=True)
+        self.subgraph_nodes['RS_node_id'] = self.subgraph_nodes.index  # Re-assign after dedup
 
         # Change the source_id indexes in the subgraph edges to match the new node_id
         self.subgraph_edges = self.subgraph_edges.merge(self.subgraph_nodes[['func_id', 'node_id', 'RS_node_id']], left_on=['func_id', 'source_id'], right_on=['func_id', 'node_id'], how='left')
@@ -311,7 +389,9 @@ class HierarchicalGraphBuilder:
         # Edges as integers
         self.subgraph_edges['source_id'] = self.subgraph_edges['source_id'].round().astype(int)
         self.subgraph_edges['target_id'] = self.subgraph_edges['target_id'].round().astype(int)
-
+        
+        self.subgraph_edges = self.subgraph_edges.drop_duplicates(subset=['func_id', 'source_id', 'target_id']).reset_index(drop=True)
+        
         # Rename node_id column to RS_node_id in the subgraph nodes
         self.subgraph_nodes = self.subgraph_nodes.drop(columns=['node_id']).rename(columns={'RS_node_id': 'node_id'})
 

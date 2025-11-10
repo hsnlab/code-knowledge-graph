@@ -3,3 +3,7 @@ from .function_graph import FunctionGraphBuilder
 from .hierarchical_graph import HierarchicalGraphBuilder
 from .knowledge_graph import KnowledgeGraphBuilder
 from .semantic_clustering import SemanticClustering
+from .constants import REVERSE_EXTENSION_MAP
+from .function_versioning import FunctionVersioning
+
+from .adapters import CppCfgAdapter
