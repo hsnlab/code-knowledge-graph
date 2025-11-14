@@ -50,6 +50,7 @@ class KnowledgeGraphBuilder():
         project_language: str | None = None,
         developer_mode: str | None = 'contributors',
         max_commits: int = 200,
+        skip_artifacts: bool = False,
     ):
         """
         Builds a knowledge graph from the given repository.
@@ -103,7 +104,8 @@ class KnowledgeGraphBuilder():
             repo_path,
             graph_type=graph_type,
             create_embedding=create_embedding,
-            project_language=project_language
+            project_language=project_language,
+            repo_functions_only=True
         )
 
         
@@ -142,7 +144,10 @@ class KnowledgeGraphBuilder():
         print('Issue to PR edges created.')
 
         # Artifacts
-        artifacts = self.__get_repo_CI_artifacts(self.repository)
+        if skip_artifacts:
+            artifacts = pd.DataFrame(columns=["ID", "artifact_name", "artifact_size", "created_at", "updated_at"])
+        else:
+            artifacts = self.__get_repo_CI_artifacts(self.repository)
         print('Artifacts scraped.')
         
         # Actions
@@ -197,7 +202,7 @@ class KnowledgeGraphBuilder():
             imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
         
         # Classes
-        classes, class_edges = self.__create_class_edges(classes, cg_nodes)
+        classes, class_edges, class_class_edges = self.__create_class_edges(classes, cg_nodes)
 
         # File nodes
         files_nodes, file_file_edges, config_nodes, config_file_edges = self.__create_file_nodes_and_edges(repo_files)
@@ -222,6 +227,7 @@ class KnowledgeGraphBuilder():
             "import_nodes": imports,
             "class_nodes": classes,
             "class_function_edges": class_edges,
+            "class_class_edges": class_class_edges,
             "file_nodes": files_nodes,
             "file_edges": file_file_edges,
             "file_function_edges": file_function_edges, 
@@ -1102,7 +1108,7 @@ class KnowledgeGraphBuilder():
 
 
 
-    def __create_class_edges(self, class_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def __create_class_edges(self, class_df: pd.DataFrame, cg_nodes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Create class nodes with proper IDs and edges connecting classes to their methods.
         Extracts class name from function's combinedName (e.g., "MyClass.method" -> "MyClass").
@@ -1130,6 +1136,9 @@ class KnowledgeGraphBuilder():
         classes_grouped.insert(0, 'ID', range(1, len(classes_grouped) + 1))
         classes_grouped = classes_grouped.rename(columns={'file_id': 'file_ids'})
         
+        # Create a mapping from class name to ID for quick lookup
+        class_name_to_id = dict(zip(classes_grouped['name'], classes_grouped['ID']))
+
         # Extract class name from combinedName
         cg_nodes['class_from_name'] = cg_nodes['combinedName'].apply(
             lambda x: x.split('.')[0] if '.' in str(x) else None
@@ -1150,11 +1159,30 @@ class KnowledgeGraphBuilder():
                     'source': class_id,
                     'target': func_id
                 })
+
+        class_class_edges_list = []
+        for _, class_row in classes_grouped.iterrows():
+            class_id = class_row['ID']
+            base_classes = class_row['base_classes']
+            
+            # Check if base_classes is a non-empty list
+            if isinstance(base_classes, list) and base_classes:
+                # Create edges for each base class that exists in our class list
+                for base_class_name in base_classes:
+                    if base_class_name and base_class_name in class_name_to_id:
+                        parent_class_id = class_name_to_id[base_class_name]
+                        class_class_edges_list.append({
+                            'source': class_id,
+                            'target': parent_class_id,
+                            'relationship': 'inherits_from'
+                        })
+        
+        class_class_edges = pd.DataFrame(class_class_edges_list) if class_class_edges_list else pd.DataFrame(columns=['source', 'target', 'relationship'])
         
         class_edges = pd.DataFrame(class_edges_list) if class_edges_list else pd.DataFrame(columns=['source', 'target'])
         classes = classes_grouped[['ID', 'name', 'base_classes', 'file_ids']]
         
-        return classes, class_edges
+        return classes, class_edges, class_class_edges
 
 
 
