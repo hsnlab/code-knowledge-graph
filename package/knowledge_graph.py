@@ -44,6 +44,7 @@ class KnowledgeGraphBuilder():
         create_embedding: bool = False,
         scrape_comments: bool = False,
         repo_path_modifier: str = None,
+        repo_functions_only: bool = True,
         URI: str = None,
         user: str = None,
         password: str = None,
@@ -64,6 +65,7 @@ class KnowledgeGraphBuilder():
         :param create_embedding (optional): Whether to create embeddings for the nodes. Defaults to False.
         :param scrape_comments (optional): Whether to scrape comments from issues and PRs. Defaults to False.
         :param repo_path_modifier (optional): Path modifier for the repository for cases when only a subfolder is meant to be parsed.
+        :param repo_functions_only (optional): Whether to include only repository functions. Defaults to True.
         :param URI (optional): URI for the Neo4J data saving.
         :param user (optional): Username for the Neo4J data saving.
         :param password (optional): Password for the Neo4J data saving.
@@ -105,7 +107,7 @@ class KnowledgeGraphBuilder():
             graph_type=graph_type,
             create_embedding=create_embedding,
             project_language=project_language,
-            repo_functions_only=True
+            repo_functions_only=repo_functions_only
         )
 
         
