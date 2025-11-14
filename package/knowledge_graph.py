@@ -274,6 +274,7 @@ class KnowledgeGraphBuilder():
         self, 
         repo_name: str, 
         cg_nodes,
+        num_of_issues: int = 0,
         num_of_PRs: int = 0, 
         done_prs: list = None
     ):
@@ -288,10 +289,10 @@ class KnowledgeGraphBuilder():
         # Initialize repository
         self.repository = self.git.get_repo(repo_name)
 
-        issues = self.__get_repo_issues(self.repository)
+        issues = self.__get_repo_issues(self.repository, num_of_issues=num_of_issues)
         print('Issues scraped.')
         
-        prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs)
+        prs, pr_edges = self.__get_repo_PRs(self.repository, cg_nodes, num_of_PRs=num_of_PRs, done_prs=done_prs, cg_nodes_id_col='ID')
         print('PRs scraped.')
         
         
@@ -306,7 +307,7 @@ class KnowledgeGraphBuilder():
             "issue_nodes": issues,
             "issue_pr_edges": issue_to_pr_edges,
         }
-        return self.knowledge_graph
+        return issue_pr_data
 
 
 
@@ -683,7 +684,7 @@ class KnowledgeGraphBuilder():
 
 
 
-    def __get_repo_PRs(self, repo, cg_nodes, num_of_PRs, done_prs, scrape_comments=False):
+    def __get_repo_PRs(self, repo, cg_nodes, num_of_PRs, done_prs, scrape_comments=False, cg_nodes_id_col: str = 'func_id'):
         """
         Retrieves pull requests from the repository and saves details to a DataFrame.
         
@@ -723,8 +724,8 @@ class KnowledgeGraphBuilder():
             .str[1:]
             .str.join('/')
         )
-        changed_functions_df = changed_functions_df.merge(cg_nodes[['func_id', 'combinedName', 'function_location']], left_on=['file_path','class_and_function'], right_on=['function_location', 'combinedName'], how='left')
-        changed_functions_df = changed_functions_df[['pr_number', 'func_id']].dropna().reset_index(drop=True).rename(columns={'pr_number': 'source', 'func_id': 'target'})
+        changed_functions_df = changed_functions_df.merge(cg_nodes[[cg_nodes_id_col, 'combinedName', 'function_location']], left_on=['file_path','class_and_function'], right_on=['function_location', 'combinedName'], how='left')
+        changed_functions_df = changed_functions_df[['pr_number', cg_nodes_id_col]].dropna().reset_index(drop=True).rename(columns={'pr_number': 'source', cg_nodes_id_col: 'target'})
 
         PR_df = PR_df.rename(columns={
             'pr_number': 'ID'
