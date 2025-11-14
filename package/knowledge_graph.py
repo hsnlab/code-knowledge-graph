@@ -113,10 +113,8 @@ class KnowledgeGraphBuilder():
         
         # Semantic clustering
         if semantic_clustering:
-            cluster_nodes, cluster_edges = self.__cluster_function_nodes(cg_nodes)
-            ensemble_cluster_nodes, ensemble_cluster_edges = self.__create_ensemble_clusters(cg_edges, cg_nodes, cluster_nodes) 
-            # ensemble_cluster_nodes = pd.DataFrame(columns=['ID', 'summary'])
-            # ensemble_cluster_edges = pd.DataFrame(columns=['source', 'target'])
+            cluster_nodes, cluster_edges, cluster_df = self.__cluster_function_nodes(cg_nodes)
+            ensemble_cluster_nodes, ensemble_cluster_edges = self.__create_ensemble_clusters(cg_edges, cg_nodes, cluster_df) 
             print('Function nodes clustered.')
         else:
             # Skip clustering
@@ -914,7 +912,6 @@ class KnowledgeGraphBuilder():
         return actions_df
 
 
-
     def __create_import_edges(self, import_df, cg_nodes):
         """
         Creates edges for imports in the graph.
@@ -1201,12 +1198,13 @@ class KnowledgeGraphBuilder():
 
         # Create edges for the clusters
         cluster_df = cluster_df.merge(cg_nodes[['func_id', 'combinedName']], left_on='original', right_on='combinedName', how='left')
+        #cluster_nodes = cluster_df[['cluster', 'cluster_summary']].drop_duplicates().rename(columns={'cluster': 'ID', 'cluster_summary': 'summary'})
+        cluster_nodes = cluster_df[['cluster']].rename(columns={'cluster': 'ID'})
 
-        cluster_nodes = cluster_df[['cluster', 'cluster_summary']].drop_duplicates().rename(columns={'cluster': 'ID', 'cluster_summary': 'summary'})
         cluster_nodes['ID'] = cluster_nodes['ID'].astype(int) + 1
         cluster_edges = cluster_df[['cluster', 'func_id']].drop_duplicates().rename(columns={'cluster': 'source', 'func_id': 'target'})
 
-        return cluster_nodes, cluster_edges
+        return cluster_nodes, cluster_edges, cluster_df
     
     
 
@@ -1224,7 +1222,7 @@ class KnowledgeGraphBuilder():
         
         # Step 1: Apply graph-based algorithmic clustering
         algorithmic_clusters = sc.apply_clustering_methods(cg_edges, cg_nodes)
-        
+
         # Step 2: Combine algorithmic + semantic clusters into ensemble clusters
         ensemble_cluster_nodes = sc.ensemble(algorithmic_clusters, semantic_clusters)
         ensemble_cluster_edges = sc.agreement_graph(semantic_clusters, algorithmic_clusters)
@@ -1236,6 +1234,11 @@ class KnowledgeGraphBuilder():
             cg_nodes[['func_id', 'combinedName']], on='func_id', how='left'
         )
 
+        if 'combinedName_x' in merged_df.columns:
+            merged_df = merged_df.drop(columns=['combinedName_x'])
+        if 'combinedName_y' in merged_df.columns:
+            merged_df = merged_df.rename(columns={'combinedName_y': 'combinedName'})
+            
         # Create a prompt for each ensemble cluster
         prompts = []
         for cluster_id in merged_df['cluster'].unique():
@@ -1246,7 +1249,6 @@ class KnowledgeGraphBuilder():
                 f"Write a concise one-sentence summary describing what these functions might have in common."
             )
             prompts.append((cluster_id, prompt))
-
         # Use your existing text-generation pipeline
         responses = sc.pipe(
             [p for _, p in prompts],
@@ -1254,13 +1256,11 @@ class KnowledgeGraphBuilder():
             temperature=0.3,
             batch_size=16
         )
-
         # Map responses to clusters
         cluster_summaries = {}
         for (cluster_id, prompt), resp in zip(prompts, responses):
             summary = resp[0]["generated_text"].replace(prompt, "").strip()
             cluster_summaries[cluster_id] = summary
-
         # Add summaries to ensemble_cluster_nodes
         ensemble_cluster_nodes['cluster_summary'] = ensemble_cluster_nodes['cluster'].map(cluster_summaries)
 

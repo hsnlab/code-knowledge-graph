@@ -89,10 +89,10 @@ class SemanticClustering():
             temperature=0.3,
             batch_size=16
         )
-
         # hozzárendeljük a válaszokat a clusterekhez
         cluster_summaries = {}
         for (c, prompt), resp in zip(prompts, responses):
+            print(resp)
             summary = resp[0]["generated_text"].replace(prompt, "").strip()
             cluster_summaries[c] = summary
 
@@ -166,112 +166,76 @@ class SemanticClustering():
                 
             return results
             
-            
-    def ensemble(self, df_sem, df_algos, project="default"):
-        """Ensemble clustering:
-        - Align labels across methods
-        - Build co-association matrix
-        - Cluster on agreement matrix with AgglomerativeClustering
-        """
+    def _merge_and_align(self, df_sem, df_algos):
+        """Common helper: merge semantic clusters with algo outputs and align labels."""
         df = df_sem.copy()
-        
-        # Merge semantic clusters with graph-based algorithm outputs
         for name, df_algo in df_algos.items():
-            df = pd.merge(df, df_algo[["node_id", f"cluster_{name}"]], on="node_id", how="inner")
+            df = pd.merge(
+                df,
+                df_algo[["node_id", f"cluster_{name}"]],
+                left_on="func_id",
+                right_on="node_id",
+                how="inner",
+                suffixes=("", f"_{name}")
+            )
+            df = df.drop(columns=["node_id"])
 
-        df = df.drop_duplicates(subset=["node_id"]).reset_index(drop=True)
-
-        # Align predicted labels to semantic clusters using Hungarian algorithm
         def align_labels(true_labels, pred_labels):
             contingency = pd.crosstab(true_labels, pred_labels)
             row_ind, col_ind = linear_sum_assignment(-contingency.values)
             mapping = {contingency.columns[c]: contingency.index[r] for r, c in zip(row_ind, col_ind)}
             return pred_labels.map(mapping)
 
-        # Align each graph-based algorithm to semantic clusters
         for name in df_algos.keys():
             df[f"cluster_{name}_mapped"] = align_labels(df["cluster"], df[f"cluster_{name}"])
+        return df
 
-        # Build co-association matrix:
-        #   co_matrix[i,j] = fraction of methods where nodes i and j are in same cluster
+
+    def _build_co_matrix(self, df, df_algos):
+        """Common helper: build normalized co-association matrix."""
         N = len(df)
         label_sources = [df["cluster"]] + [df[f"cluster_{name}_mapped"] for name in df_algos.keys()]
-
         co_matrix = np.zeros((N, N), dtype=float)
         for labels in label_sources:
             arr = labels.to_numpy()
-            # Broadcasting: (N,1) == (1,N) → boolean matrix of shape (N,N)
             mask = (arr[:, None] == arr[None, :]).astype(float)
             co_matrix += mask
+        return co_matrix / len(label_sources)
+    
+    
+    def ensemble(self, df_algos, df_sem, project="default"):
+        df = self._merge_and_align(df_sem, df_algos)
+        N = len(df)
+        co_matrix = self._build_co_matrix(df, df_algos)
 
-        co_matrix /= len(label_sources)  # normalize by number of methods
-
-        # Run AgglomerativeClustering on the similarity matrix (1 - co_matrix = distance)
-        desired_k = len(np.unique(df["cluster"]))  # match number of semantic clusters
+        desired_k = len(np.unique(df["cluster"]))
         ensemble = AgglomerativeClustering(
-            n_clusters=desired_k,
-            metric="precomputed",
-            linkage="average"
+            n_clusters=desired_k, metric="precomputed", linkage="average"
         )
         final_labels = ensemble.fit_predict(1 - co_matrix)
-
         df["ensemble_cluster"] = final_labels
         return df
-        
-        
+
+
     def agreement_graph(self, df_sem, df_algos, threshold=0.5, weighted=False):
-        """Build an agreement graph from semantic + algorithmic clusterings.
-
-        Nodes are taken from the semantic dataframe (df_sem with 'node_id' and 'cluster').
-        Edges are created between node pairs whose co-association (fraction of methods that put
-        them in the same cluster) meets the threshold.
-
-        :param df_sem: DataFrame returned by cluster_text() with columns ['node_id','cluster']
-        :param df_algos: dict of DataFrames returned by apply_methods() with keys like 'louvain'
-        :param threshold: Fraction threshold in [0,1] to include an edge (default 0.5).
-        :param weighted: If True, include weight column with co-association value for every pair (no thresholding).
-        :return: edges_df (DataFrame with columns ['source_id','target_id','weight']).
-        """
-        # Merge semantic clusters with graph-based algorithm outputs (same logic as ensemble)
-        df = df_sem.copy()
-        for name, df_algo in df_algos.items():
-            df = pd.merge(df, df_algo[["node_id", f"cluster_{name}"]], on="node_id", how="inner")
-        df = df.drop_duplicates(subset=["node_id"]).reset_index(drop=True)
-
-        # Align predicted labels to semantic clusters using Hungarian algorithm
-        def align_labels(true_labels, pred_labels):
-            contingency = pd.crosstab(true_labels, pred_labels)
-            row_ind, col_ind = linear_sum_assignment(-contingency.values)
-            mapping = {contingency.columns[c]: contingency.index[r] for r, c in zip(row_ind, col_ind)}
-            return pred_labels.map(mapping)
-
-        for name in df_algos.keys():
-            df[f"cluster_{name}_mapped"] = align_labels(df["cluster"], df[f"cluster_{name}"])
-
-        # Build co-association matrix
+        df = self._merge_and_align(df_sem, df_algos)
         N = len(df)
         if N == 0:
             return pd.DataFrame(columns=['source_id','target_id','weight'])
-        co_matrix = np.zeros((N, N))
-        label_sources = [df["cluster"]] + [df[f"cluster_{name}_mapped"] for name in df_algos.keys()]
-        for labels in label_sources:
-            arr = labels.values
-            for i in range(N):
-                for j in range(N):
-                    if arr[i] == arr[j]:
-                        co_matrix[i, j] += 1
-        co_matrix /= len(label_sources)
+        co_matrix = self._build_co_matrix(df, df_algos)
 
-        node_ids = df['node_id'].values
+        node_ids = df['node_id'].values if 'node_id' in df else df['func_id'].values
         edges = []
         for i in range(N):
-            for j in range(i+1, N):
+            for j in range(i + 1, N):
                 weight = float(co_matrix[i, j])
-                if weighted:
-                    edges.append({'source_id': int(node_ids[i]), 'target_id': int(node_ids[j]), 'weight': weight})
-                else:
-                    if weight >= threshold:
-                        edges.append({'source_id': int(node_ids[i]), 'target_id': int(node_ids[j]), 'weight': weight})
-        edges_df = pd.DataFrame(edges)
-        return edges_df
+                if weighted or weight >= threshold:
+                    edges.append({
+                        'source_id': int(node_ids[i]),
+                        'target_id': int(node_ids[j]),
+                        'weight': weight
+                    })
+        return pd.DataFrame(edges)
+
+   
 
