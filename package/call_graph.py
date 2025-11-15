@@ -503,6 +503,10 @@ class CallGraphBuilder:
                 else:
                     param_types[arg.arg] = 'Any'
 
+            return_type = None
+            if node.returns:
+                return_type = self._extract_type_from_annotation(node.returns)
+
             if file_id:
                 new_row = pd.DataFrame([{
                     'file_id': file_id,
@@ -513,7 +517,8 @@ class CallGraphBuilder:
                     'class_id': class_id if class_id is not None else None,
                     'class': class_name,
                     'class_base_classes': base_classes,
-                    'params': json.dumps(param_types)
+                    'params': json.dumps(param_types),
+                    'return_type': return_type
                 }])
             else:
                 new_row = pd.DataFrame([{
@@ -524,7 +529,8 @@ class CallGraphBuilder:
                     'class_id': class_id if class_id is not None else None,
                     'class': class_name,
                     'class_base_classes': base_classes,
-                    'params': json.dumps(param_types)
+                    'params': json.dumps(param_types),
+                    'return_type': return_type
                 }])
             self.functions = pd.concat([self.functions, new_row], ignore_index=True).reset_index(drop=True)
             self.fnc_id += 1
@@ -533,7 +539,133 @@ class CallGraphBuilder:
         else:
             return None, None, None
             
+    def _extract_local_variables_python(self, func_code, func_params, function_return_type_lookup):
+        """
+        Extract local variables from function code.
         
+        Handles ALL patterns in one sequential pass:
+        - Type annotations: x: Helper = ...
+        - Constructors: x = Helper()
+        - Function calls: x = get_helper() (uses return type lookup)
+        
+        Args:
+            func_code: The function's source code (string)
+            func_params: Dict of parameter names -> types
+            function_return_type_lookup: Dict of combinedName -> return_type
+            
+        Returns:
+            Dict mapping variable names to types
+        """
+        local_vars = {}
+        
+        # Parse the function code
+        try:
+            tree = ast.parse(func_code)
+            func_node = tree.body[0]
+            
+            if not isinstance(func_node, ast.FunctionDef):
+                return local_vars
+        except:
+            return local_vars
+        
+        # Walk through assignments sequentially
+        for node in ast.walk(func_node):
+            var_name = None
+            var_type = None
+            
+            # Pattern 1: Annotated assignments
+            if isinstance(node, ast.AnnAssign):
+                if isinstance(node.target, ast.Name):
+                    var_name = node.target.id
+                    
+                    # Type annotation takes precedence
+                    if node.annotation:
+                        var_type = self._extract_type_from_annotation(node.annotation)
+            
+            # Pattern 2 & 3: Regular assignments
+            elif isinstance(node, ast.Assign):
+                if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                    var_name = node.targets[0].id
+                    
+                    # Skip if we already have this variable
+                    if var_name in local_vars:
+                        continue
+                    
+                    # Check if it's a Call
+                    if isinstance(node.value, ast.Call):
+                        call_func = node.value.func
+                        
+                        # Pattern 2a: Constructor
+                        if isinstance(call_func, ast.Name):
+                            var_type = call_func.id
+                        
+                        # Pattern 2b: Qualified constructor
+                        elif isinstance(call_func, ast.Attribute):
+                            var_type = call_func.attr
+                        
+                        # Pattern 3: Function call with return type
+                        # Try to resolve the call and look up return type
+                        call_name = ast.unparse(call_func)
+                        
+                        # Simple call
+                        if '.' not in call_name:
+                            lookup_key = call_name
+                        
+                        # Method call: obj.method()
+                        else:
+                            parts = call_name.split('.', 1)
+                            obj_name = parts[0]
+                            method_name = parts[1]
+                            
+                            # Try to resolve the object
+                            if obj_name in local_vars:
+                                # obj is a local variable
+                                lookup_key = f"{local_vars[obj_name]}.{method_name}"
+                            elif obj_name in func_params:
+                                # obj is a parameter
+                                lookup_key = f"{func_params[obj_name]}.{method_name}"
+                            else:
+                                # Assume obj is a class name
+                                lookup_key = call_name
+                        
+                        # Look up return type
+                        if lookup_key in function_return_type_lookup:
+                            return_type = function_return_type_lookup[lookup_key]
+                            if return_type:
+                                var_type = return_type  # Override with return type
+            
+            # Store the variable type
+            if var_name and var_type:
+                local_vars[var_name] = var_type
+        
+        return local_vars
+    
+    def _extract_type_from_annotation(self, annotation_node):
+        """
+        Extract type from annotation node.
+               
+        Args:
+            annotation_node: AST node representing the type annotation
+            
+        Returns:
+            String representation of the type
+        """
+        # For simple names: Helper
+        if isinstance(annotation_node, ast.Name):
+            return annotation_node.id
+        
+        # For qualified names: module.Helper
+        elif isinstance(annotation_node, ast.Attribute):
+            # Extract only the class name (the attribute part)
+            return annotation_node.attr
+        
+        # For subscripted types: List[Helper]
+        elif isinstance(annotation_node, ast.Subscript):
+            # Keep the whole thing (e.g., "List[Helper]")
+            return ast.unparse(annotation_node)
+        
+        else:
+            return ast.unparse(annotation_node)
 
     def _handle_call_expressions(self, node, file_id=None, class_id=None, class_name=None, base_classes=None, func_id=None, func_name=None, func_params=None):
         if isinstance(node, ast.Call):
@@ -569,7 +701,30 @@ class CallGraphBuilder:
 
 
     def _resolve_caller_object(self):
-
+        # Build function return type lookup
+        function_return_type_lookup = {}
+        if 'return_type' in self.functions.columns and 'combinedName' in self.functions.columns:
+            function_return_type_lookup = {
+                row['combinedName']: row['return_type']
+                for _, row in self.functions.iterrows()
+                if pd.notnull(row.get('return_type'))
+            }
+        
+        # Build local vars for each function
+        func_local_vars_lookup = {}
+        
+        for _, func_row in self.functions.iterrows():
+            func_code = func_row.get('function_code', '')
+            func_params = json.loads(func_row.get('params', '{}'))
+            
+            # Extract local vars (all patterns at once!)
+            local_vars = self._extract_local_variables_python(
+                func_code,
+                func_params,
+                function_return_type_lookup
+            )
+            
+            func_local_vars_lookup[func_row['fnc_id']] = local_vars
         # Create a lookup table for the imports
         import_alias_map = {
             (row['file_id'], row['as_name']): row['name']
@@ -583,9 +738,12 @@ class CallGraphBuilder:
                 x["class"] if x["call_object"] == 'self' and pd.notnull(x["call_functiondot"]) else
                 # Handle 'super' calls
                 x["class_base_classes"][0] if isinstance(x["call_object"], str) and 'super' in x["call_object"] and pd.notnull(x["call_functiondot"]) and len(x["class_base_classes"]) > 0 else
-                # Handle function parameters
-                x["func_params"].get(x["call_object"], x["call_object"]) if isinstance(x["func_params"], dict) and x["call_object"] in x["func_params"] else
-                # Handle imports - if no import alias is found, use the original call object
-                import_alias_map.get((x["file_id"], x["call_object"]), x["call_object"])
+                #Handle local variables
+                func_local_vars_lookup.get(x["func_id"], {}).get(x["call_object"]) if x["func_id"] in func_local_vars_lookup and x["call_object"] in func_local_vars_lookup.get(x["func_id"], {}) else (
+                    # Handle function parameters
+                    x["func_params"].get(x["call_object"], x["call_object"]) if isinstance(x["func_params"], dict) and x["call_object"] in x["func_params"] else
+                    # Handle imports - if no import alias is found, use the original call object
+                    import_alias_map.get((x["file_id"], x["call_object"]), x["call_object"])
+                )
             ), axis=1
         )
