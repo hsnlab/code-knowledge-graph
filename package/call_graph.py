@@ -503,6 +503,10 @@ class CallGraphBuilder:
                 else:
                     param_types[arg.arg] = 'Any'
 
+            return_type = None
+            if node.returns:
+                return_type = self._extract_type_from_annotation(node.returns)
+
             local_vars = self._extract_local_variables_python(node)
 
             if file_id:
@@ -516,7 +520,8 @@ class CallGraphBuilder:
                     'class': class_name,
                     'class_base_classes': base_classes,
                     'params': json.dumps(param_types),
-                    'local_vars': local_vars
+                    'local_vars': local_vars,
+                    'return_type': return_type
                 }])
             else:
                 new_row = pd.DataFrame([{
@@ -528,7 +533,8 @@ class CallGraphBuilder:
                     'class': class_name,
                     'class_base_classes': base_classes,
                     'params': json.dumps(param_types),
-                    'local_vars': local_vars
+                    'local_vars': local_vars,
+                    'return_type': return_type
                 }])
             self.functions = pd.concat([self.functions, new_row], ignore_index=True).reset_index(drop=True)
             self.fnc_id += 1
