@@ -1120,7 +1120,8 @@ class KnowledgeGraphBuilder():
         if class_df.empty:
             classes = pd.DataFrame(columns=['ID', 'name', 'base_classes', 'file_ids'])
             class_edges = pd.DataFrame(columns=['source', 'target'])
-            return classes, class_edges
+            class_class_edges = pd.DataFrame(columns=['source', 'target'])
+            return classes, class_edges, class_class_edges
         
         # Group classes by name
         classes_grouped = (
