@@ -503,6 +503,8 @@ class CallGraphBuilder:
                 else:
                     param_types[arg.arg] = 'Any'
 
+            local_vars = self._extract_local_variables_python(node)
+
             if file_id:
                 new_row = pd.DataFrame([{
                     'file_id': file_id,
@@ -513,7 +515,8 @@ class CallGraphBuilder:
                     'class_id': class_id if class_id is not None else None,
                     'class': class_name,
                     'class_base_classes': base_classes,
-                    'params': json.dumps(param_types)
+                    'params': json.dumps(param_types),
+                    'local_vars': local_vars
                 }])
             else:
                 new_row = pd.DataFrame([{
@@ -524,7 +527,8 @@ class CallGraphBuilder:
                     'class_id': class_id if class_id is not None else None,
                     'class': class_name,
                     'class_base_classes': base_classes,
-                    'params': json.dumps(param_types)
+                    'params': json.dumps(param_types),
+                    'local_vars': local_vars
                 }])
             self.functions = pd.concat([self.functions, new_row], ignore_index=True).reset_index(drop=True)
             self.fnc_id += 1
@@ -533,7 +537,47 @@ class CallGraphBuilder:
         else:
             return None, None, None
             
+    def _extract_local_variables_python(self, func_node):
+        """
+        Extract local variables assigned to class constructors.
         
+        Handles patterns like:
+            - x = ClassName()
+            - y = module.ClassName()
+        
+        Args:
+            func_node: ast.FunctionDef node
+            
+        Returns:
+            JSON string of dict mapping variable names to class names
+        """
+        local_vars = {}
+        
+        # Walk through all nodes in the function
+        for node in ast.walk(func_node):
+            # Look for assignment statements
+            if isinstance(node, ast.Assign):
+                # Only handle simple single assignments (x = ...)
+                if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                    var_name = node.targets[0].id
+                    
+                    # Check if the assigned value is a function/constructor call
+                    if isinstance(node.value, ast.Call):
+                        class_name = None
+                        
+                        # Pattern 1: ClassName() - direct constructor call
+                        if isinstance(node.value.func, ast.Name):
+                            class_name = node.value.func.id
+                        
+                        # Pattern 2: module.ClassName() - qualified constructor call
+                        elif isinstance(node.value.func, ast.Attribute):
+                            class_name = node.value.func.attr
+                        
+                        # Store the mapping if we found a class name
+                        if class_name:
+                            local_vars[var_name] = class_name
+        
+        return json.dumps(local_vars)
 
     def _handle_call_expressions(self, node, file_id=None, class_id=None, class_name=None, base_classes=None, func_id=None, func_name=None, func_params=None):
         if isinstance(node, ast.Call):
@@ -576,6 +620,17 @@ class CallGraphBuilder:
             for _, row in self.imports.dropna(subset=['as_name']).iterrows()
         }
 
+        func_local_vars_lookup = {}
+        if 'local_vars' in self.functions.columns:
+            for _, row in self.functions.iterrows():
+                if pd.notnull(row.get('local_vars')):
+                    try:
+                        func_local_vars_lookup[row['fnc_id']] = json.loads(row['local_vars'])
+                    except (json.JSONDecodeError, TypeError):
+                        func_local_vars_lookup[row['fnc_id']] = {}
+                else:
+                    func_local_vars_lookup[row['fnc_id']] = {}
+
         # Handle self and super calls
         self.calls['resolved_call_object'] = self.calls.apply(
             lambda x: (
@@ -583,9 +638,12 @@ class CallGraphBuilder:
                 x["class"] if x["call_object"] == 'self' and pd.notnull(x["call_functiondot"]) else
                 # Handle 'super' calls
                 x["class_base_classes"][0] if isinstance(x["call_object"], str) and 'super' in x["call_object"] and pd.notnull(x["call_functiondot"]) and len(x["class_base_classes"]) > 0 else
-                # Handle function parameters
-                x["func_params"].get(x["call_object"], x["call_object"]) if isinstance(x["func_params"], dict) and x["call_object"] in x["func_params"] else
-                # Handle imports - if no import alias is found, use the original call object
-                import_alias_map.get((x["file_id"], x["call_object"]), x["call_object"])
+                #Handle local variables
+                func_local_vars_lookup.get(x["func_id"], {}).get(x["call_object"]) if x["func_id"] in func_local_vars_lookup and x["call_object"] in func_local_vars_lookup.get(x["func_id"], {}) else (
+                    # Handle function parameters
+                    x["func_params"].get(x["call_object"], x["call_object"]) if isinstance(x["func_params"], dict) and x["call_object"] in x["func_params"] else
+                    # Handle imports - if no import alias is found, use the original call object
+                    import_alias_map.get((x["file_id"], x["call_object"]), x["call_object"])
+                )
             ), axis=1
         )
