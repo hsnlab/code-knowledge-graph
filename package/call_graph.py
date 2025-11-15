@@ -555,29 +555,67 @@ class CallGraphBuilder:
         
         # Walk through all nodes in the function
         for node in ast.walk(func_node):
-            # Look for assignment statements
-            if isinstance(node, ast.Assign):
+            var_name = None
+            var_type = None
+            
+            # Handle annotated assignments: x: Type = value
+            if isinstance(node, ast.AnnAssign):
+                # Get variable name
+                if isinstance(node.target, ast.Name):
+                    var_name = node.target.id
+                    
+                    # Extract type from annotation (takes precedence)
+                    if node.annotation:
+                        var_type = self._extract_type_from_annotation(node.annotation)
+            
+            # Handle regular assignments: x = value
+            elif isinstance(node, ast.Assign):
                 # Only handle simple single assignments (x = ...)
                 if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
                     var_name = node.targets[0].id
                     
                     # Check if the assigned value is a function/constructor call
                     if isinstance(node.value, ast.Call):
-                        class_name = None
-                        
                         # Pattern 1: ClassName() - direct constructor call
                         if isinstance(node.value.func, ast.Name):
-                            class_name = node.value.func.id
+                            var_type = node.value.func.id
                         
                         # Pattern 2: module.ClassName() - qualified constructor call
                         elif isinstance(node.value.func, ast.Attribute):
-                            class_name = node.value.func.attr
-                        
-                        # Store the mapping if we found a class name
-                        if class_name:
-                            local_vars[var_name] = class_name
+                            var_type = node.value.func.attr
+            
+            # Store the mapping if we found both name and type
+            if var_name and var_type:
+                local_vars[var_name] = var_type
         
         return json.dumps(local_vars)
+
+    def _extract_type_from_annotation(self, annotation_node):
+        """
+        Extract type from annotation node.
+               
+        Args:
+            annotation_node: AST node representing the type annotation
+            
+        Returns:
+            String representation of the type
+        """
+        # For simple names: Helper
+        if isinstance(annotation_node, ast.Name):
+            return annotation_node.id
+        
+        # For qualified names: module.Helper
+        elif isinstance(annotation_node, ast.Attribute):
+            # Extract only the class name (the attribute part)
+            return annotation_node.attr
+        
+        # For subscripted types: List[Helper]
+        elif isinstance(annotation_node, ast.Subscript):
+            # Keep the whole thing (e.g., "List[Helper]")
+            return ast.unparse(annotation_node)
+        
+        else:
+            return ast.unparse(annotation_node)
 
     def _handle_call_expressions(self, node, file_id=None, class_id=None, class_name=None, base_classes=None, func_id=None, func_name=None, func_params=None):
         if isinstance(node, ast.Call):
