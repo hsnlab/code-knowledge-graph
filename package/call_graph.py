@@ -507,8 +507,6 @@ class CallGraphBuilder:
             if node.returns:
                 return_type = self._extract_type_from_annotation(node.returns)
 
-            local_vars = self._extract_local_variables_python(node)
-
             if file_id:
                 new_row = pd.DataFrame([{
                     'file_id': file_id,
@@ -520,7 +518,6 @@ class CallGraphBuilder:
                     'class': class_name,
                     'class_base_classes': base_classes,
                     'params': json.dumps(param_types),
-                    'local_vars': local_vars,
                     'return_type': return_type
                 }])
             else:
@@ -533,7 +530,6 @@ class CallGraphBuilder:
                     'class': class_name,
                     'class_base_classes': base_classes,
                     'params': json.dumps(param_types),
-                    'local_vars': local_vars,
                     'return_type': return_type
                 }])
             self.functions = pd.concat([self.functions, new_row], ignore_index=True).reset_index(drop=True)
@@ -543,59 +539,107 @@ class CallGraphBuilder:
         else:
             return None, None, None
             
-    def _extract_local_variables_python(self, func_node):
+    def _extract_local_variables_python(self, func_code, func_params, function_return_type_lookup):
         """
-        Extract local variables assigned to class constructors.
+        Extract local variables from function code.
         
-        Handles patterns like:
-            - x = ClassName()
-            - y = module.ClassName()
+        Handles ALL patterns in one sequential pass:
+        - Type annotations: x: Helper = ...
+        - Constructors: x = Helper()
+        - Function calls: x = get_helper() (uses return type lookup)
         
         Args:
-            func_node: ast.FunctionDef node
+            func_code: The function's source code (string)
+            func_params: Dict of parameter names -> types
+            function_return_type_lookup: Dict of combinedName -> return_type
             
         Returns:
-            JSON string of dict mapping variable names to class names
+            Dict mapping variable names to types
         """
         local_vars = {}
         
-        # Walk through all nodes in the function
+        # Parse the function code
+        try:
+            tree = ast.parse(func_code)
+            func_node = tree.body[0]
+            
+            if not isinstance(func_node, ast.FunctionDef):
+                return local_vars
+        except:
+            return local_vars
+        
+        # Walk through assignments sequentially
         for node in ast.walk(func_node):
             var_name = None
             var_type = None
             
-            # Handle annotated assignments: x: Type = value
+            # Pattern 1: Annotated assignments
             if isinstance(node, ast.AnnAssign):
-                # Get variable name
                 if isinstance(node.target, ast.Name):
                     var_name = node.target.id
                     
-                    # Extract type from annotation (takes precedence)
+                    # Type annotation takes precedence
                     if node.annotation:
                         var_type = self._extract_type_from_annotation(node.annotation)
             
-            # Handle regular assignments: x = value
+            # Pattern 2 & 3: Regular assignments
             elif isinstance(node, ast.Assign):
-                # Only handle simple single assignments (x = ...)
                 if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
                     var_name = node.targets[0].id
                     
-                    # Check if the assigned value is a function/constructor call
+                    # Skip if we already have this variable
+                    if var_name in local_vars:
+                        continue
+                    
+                    # Check if it's a Call
                     if isinstance(node.value, ast.Call):
-                        # Pattern 1: ClassName() - direct constructor call
-                        if isinstance(node.value.func, ast.Name):
-                            var_type = node.value.func.id
+                        call_func = node.value.func
                         
-                        # Pattern 2: module.ClassName() - qualified constructor call
-                        elif isinstance(node.value.func, ast.Attribute):
-                            var_type = node.value.func.attr
+                        # Pattern 2a: Constructor
+                        if isinstance(call_func, ast.Name):
+                            var_type = call_func.id
+                        
+                        # Pattern 2b: Qualified constructor
+                        elif isinstance(call_func, ast.Attribute):
+                            var_type = call_func.attr
+                        
+                        # Pattern 3: Function call with return type
+                        # Try to resolve the call and look up return type
+                        call_name = ast.unparse(call_func)
+                        
+                        # Simple call
+                        if '.' not in call_name:
+                            lookup_key = call_name
+                        
+                        # Method call: obj.method()
+                        else:
+                            parts = call_name.split('.', 1)
+                            obj_name = parts[0]
+                            method_name = parts[1]
+                            
+                            # Try to resolve the object
+                            if obj_name in local_vars:
+                                # obj is a local variable
+                                lookup_key = f"{local_vars[obj_name]}.{method_name}"
+                            elif obj_name in func_params:
+                                # obj is a parameter
+                                lookup_key = f"{func_params[obj_name]}.{method_name}"
+                            else:
+                                # Assume obj is a class name
+                                lookup_key = call_name
+                        
+                        # Look up return type
+                        if lookup_key in function_return_type_lookup:
+                            return_type = function_return_type_lookup[lookup_key]
+                            if return_type:
+                                var_type = return_type  # Override with return type
             
-            # Store the mapping if we found both name and type
+            # Store the variable type
             if var_name and var_type:
                 local_vars[var_name] = var_type
         
-        return json.dumps(local_vars)
-
+        return local_vars
+    
     def _extract_type_from_annotation(self, annotation_node):
         """
         Extract type from annotation node.
@@ -657,23 +701,35 @@ class CallGraphBuilder:
 
 
     def _resolve_caller_object(self):
-
+        # Build function return type lookup
+        function_return_type_lookup = {}
+        if 'return_type' in self.functions.columns and 'combinedName' in self.functions.columns:
+            function_return_type_lookup = {
+                row['combinedName']: row['return_type']
+                for _, row in self.functions.iterrows()
+                if pd.notnull(row.get('return_type'))
+            }
+        
+        # Build local vars for each function
+        func_local_vars_lookup = {}
+        
+        for _, func_row in self.functions.iterrows():
+            func_code = func_row.get('function_code', '')
+            func_params = json.loads(func_row.get('params', '{}'))
+            
+            # Extract local vars (all patterns at once!)
+            local_vars = self._extract_local_variables_python(
+                func_code,
+                func_params,
+                function_return_type_lookup
+            )
+            
+            func_local_vars_lookup[func_row['fnc_id']] = local_vars
         # Create a lookup table for the imports
         import_alias_map = {
             (row['file_id'], row['as_name']): row['name']
             for _, row in self.imports.dropna(subset=['as_name']).iterrows()
         }
-
-        func_local_vars_lookup = {}
-        if 'local_vars' in self.functions.columns:
-            for _, row in self.functions.iterrows():
-                if pd.notnull(row.get('local_vars')):
-                    try:
-                        func_local_vars_lookup[row['fnc_id']] = json.loads(row['local_vars'])
-                    except (json.JSONDecodeError, TypeError):
-                        func_local_vars_lookup[row['fnc_id']] = {}
-                else:
-                    func_local_vars_lookup[row['fnc_id']] = {}
 
         # Handle self and super calls
         self.calls['resolved_call_object'] = self.calls.apply(
