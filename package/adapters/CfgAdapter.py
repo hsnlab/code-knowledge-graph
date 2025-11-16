@@ -26,7 +26,7 @@ class CfgAdapter():
         self.api_url = api_url
     
     @abstractmethod
-    def extract_cfg(self, code: str, language: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def extract_cfg(self, function: pd.DataFrame, language: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Extract CFG from a single code snippet.
         

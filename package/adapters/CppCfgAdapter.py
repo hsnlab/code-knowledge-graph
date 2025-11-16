@@ -44,7 +44,7 @@ class CppCfgAdapter(CfgAdapter):
             print(f"Health check failed: {e}")
             return False
     
-    def extract_cfg(self, code: str, language: str = "cpp") -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def extract_cfg(self, function: pd.DataFrame, language: str = "cpp") -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Extract CFG from C++ code using Joern API.
         
@@ -63,9 +63,10 @@ class CppCfgAdapter(CfgAdapter):
                 self.cfg_endpoint,
                 json={
                     "language": language,
-                    "code_snippet": code
+                    "code_snippet": function['function_code'],
+                    "method_name": function['name']
                 },
-                timeout=60
+                timeout=120
             )
             
             # Check response
@@ -83,7 +84,7 @@ class CppCfgAdapter(CfgAdapter):
             nodes_data = result.get('nodes', [])
             edges_data = result.get('edges', [])
             
-            # Create nodes DataFrame (matching your CFG format)
+            # Create nodes DataFrame
             nodes_df = pd.DataFrame(nodes_data)
             if not nodes_df.empty:
                 # Ensure correct column types
@@ -119,85 +120,4 @@ class CppCfgAdapter(CfgAdapter):
         
         except Exception as e:
             print(f"Error extracting CFG: {e}")
-            return self._create_empty_dataframes()
-
-
-    def extract_cfg_batch(self, code_list: List[str], language: str = "cpp") -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """
-        Extract CFG for multiple code snippets in one batch request.
-        Much faster than calling extract_cfg multiple times.
-        
-        Args:
-            code_list: List of code strings to analyze
-            language: The language ('cpp', 'c++', or 'c')
-        
-        Returns:
-            Tuple of (nodes_df, edges_df) where each row has a 'func_id' column
-            indicating which function it belongs to (0-indexed)
-        """
-        try:
-            # Prepare batch request with indexed IDs
-            snippets = [{"id": str(i), "code": code} for i, code in enumerate(code_list)]
-            
-            # Make API request
-            response = requests.post(
-                f"{self.cfg_endpoint}_batch",
-                json={
-                    "language": language,
-                    "code_snippets": snippets
-                },
-                timeout=300  # Longer timeout for batch processing
-            )
-            
-            # Check response
-            if response.status_code != 200:
-                error_data = response.json()
-                raise Exception(f"Batch API error: {error_data.get('error', 'Unknown error')}")
-            
-            # Parse response
-            result = response.json()
-            
-            if not result.get('success'):
-                raise Exception(f"Batch CFG extraction failed: {result.get('error', 'Unknown error')}")
-            
-            # Convert to DataFrames - NO FILTERING
-            nodes_data = result.get('nodes', [])
-            edges_data = result.get('edges', [])
-            
-            # Create nodes DataFrame
-            nodes_df = pd.DataFrame(nodes_data)
-            if not nodes_df.empty:
-                nodes_df['node_id'] = nodes_df['node_id'].astype(str)
-                nodes_df['func_id'] = nodes_df['func_id'].astype(str)
-            else:
-                nodes_df = pd.DataFrame(columns=['func_id', 'node_id', 'code'])
-            
-            # Create edges DataFrame
-            edges_df = pd.DataFrame(edges_data)
-            if not edges_df.empty:
-                edges_df['source_id'] = edges_df['source_id'].astype(str)
-                edges_df['target_id'] = edges_df['target_id'].astype(str)
-                edges_df['func_id'] = edges_df['func_id'].astype(str)
-                
-                # Deduplicate edges per function
-                edges_df = edges_df.drop_duplicates(subset=['func_id', 'source_id', 'target_id']).reset_index(drop=True)
-                
-                # Drop label column if it's empty
-                if 'label' in edges_df.columns and edges_df['label'].str.strip().eq('').all():
-                    edges_df = edges_df[['func_id', 'source_id', 'target_id']]
-            else:
-                edges_df = pd.DataFrame(columns=['func_id', 'source_id', 'target_id'])
-            
-            return nodes_df, edges_df
-            
-        except requests.exceptions.Timeout:
-            print("Batch request timeout - processing took too long")
-            return self._create_empty_dataframes()
-        
-        except requests.exceptions.ConnectionError:
-            print(f"Connection error - Make sure Joern service is running at {self.api_url}")
-            return self._create_empty_dataframes()
-        
-        except Exception as e:
-            print(f"Error in batch CFG extraction: {e}")
             return self._create_empty_dataframes()

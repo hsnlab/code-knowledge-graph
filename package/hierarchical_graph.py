@@ -127,8 +127,7 @@ class HierarchicalGraphBuilder:
                     if pd.isna(row['function_code']):
                         continue
                     
-                    # Call Java API
-                    nodes, edges = adapter.extract_cfg(row['function_code'], language)
+                    nodes, edges = adapter.extract_cfg(row, language)
                     nodes['func_id'] = row['fnc_id']
                     edges['func_id'] = row['fnc_id']
                     
