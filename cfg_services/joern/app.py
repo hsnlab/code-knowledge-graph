@@ -249,7 +249,6 @@ class PersistentJoernManager:
                 
                 logging.info(f"Request {request_id}: Export complete")
                 dot_files = [f for f in os.listdir(cfg_output_dir) if f.endswith('.dot')]
-                logging.info(f"Request {request_id}: Found DOT files: {dot_files}")
                 
                 # Step 3: determine which file to parse
                 main_cfg_file = self.find_target_dot_file(cfg_output_dir, target_method)
@@ -262,12 +261,6 @@ class PersistentJoernManager:
 
                 nodes = []
                 edges = []
-
-                # Read dot content
-                with open(main_cfg_file, 'r') as f:
-                    dot_content = f.read()
-
-                logging.info(f"Request {request_id}: DOT preview: {dot_content[:150]}...")
 
                 # Parse DOT file with pydot
                 graphs = pydot.graph_from_dot_file(main_cfg_file)
@@ -384,12 +377,11 @@ class PersistentJoernManager:
                 logging.info(f"Request {request_id}: Filtered {original_node_count} -> {len(nodes)} nodes")
                 logging.info(f"Request {request_id}: COMPLETE - {len(nodes)} nodes, {len(edges)} edges")
                 
-
-                return nodes, edges, dot_content
+                return nodes, edges
                 
             except Exception as e:
                 logging.error(f"Request {request_id}: ERROR - {e}", exc_info=True)
-                return [], [], None
+                return [], []
                 
             finally:
 
@@ -434,14 +426,13 @@ def get_cfg():
         logging.info(f"API: Received request for {language} code ({len(code)} chars)")
         
         # This will wait if another request is processing
-        nodes, edges, dot = joern_manager.extract_cfg(code, language, method_name)
+        nodes, edges = joern_manager.extract_cfg(code, language, method_name)
         
         response = {
             'success': True,
             'nodes': nodes,
             'edges': edges,
-            'language': language,
-            'dot': dot
+            'language': language
         }
         
         logging.info(f"API: Returning {len(nodes)} nodes, {len(edges)} edges")
