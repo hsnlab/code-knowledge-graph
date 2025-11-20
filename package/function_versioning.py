@@ -94,26 +94,7 @@ class _PyFuncVisitor(ast.NodeVisitor):
 # -----------------------
 
 class FunctionVersioning:
-    """
-    Használat:
-        fv = FunctionVersioning(repo_path="/abszolút/út/a/klónozott/repo-hoz")
-        out = fv.build(function_nodes_df=cg_nodes)   # cg_nodes a CallGraphBuilder outputja
-
-    Visszatér:
-        {
-          "function_version_nodes": DataFrame[
-              ID, function_id, symbol_id, commit_sha, authored_datetime,
-              file_path, qualified_name, body_hash, start_line, end_line, code
-          ],
-          # Commit MINT ÉL metaadat: csak akkor jön létre, ha a függvény kódja tényleg változik
-          "version_edges": DataFrame[
-              source, target,
-              commit_sha, authored_datetime, author_name, author_email, message,
-              file_path, qualified_name
-          ],
-          "functionversion_function_edges": DataFrame[ source, target ]  # version(ID) -> function(ID)
-        }
-    """
+    
 
     def __init__(self, repo_path: str, log_errors: bool = False):
         if not os.path.isdir(repo_path):
@@ -131,14 +112,7 @@ class FunctionVersioning:
         only_changed_files: bool = True,
         max_commits: Optional[int] = None,
     ) -> Dict[str, pd.DataFrame]:
-        """
-        Commitonként kinyer minden érintett .py fájlból függvényeket, és verzióláncokat épít.
-        :param function_nodes_df: a CallGraphBuilder().build_call_graph(...) által visszaadott nodes DF (cg_nodes)
-                                  (legalább: ['func_id' vagy 'ID', 'combinedName', 'function_location'])
-        :param branch_ref: melyik ágat kövessük (HEAD alapértelmezés)
-        :param only_changed_files: ha True, csak a commit által érintett .py fájlokat nézzük;
-                                   ha False, minden .py fájlt a fában (lassabb).
-        """
+       
         # 1) commitok időrendben
         commits = list(self.repo.iter_commits(branch_ref))
         commits.reverse()  # legrégebbitől a legfrissebbig
