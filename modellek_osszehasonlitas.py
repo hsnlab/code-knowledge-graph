@@ -721,7 +721,7 @@ plt.close()
 # =========================
 # MODELL VÁLASZTÁS
 # =========================
-MODEL = 'ggnn'  # 'ggnn' | 'gcn' | 'gine' | 'mlp'
+MODEL = 'mlp'  # 'ggnn' | 'gcn' | 'gine' | 'mlp'
 num_edge_types = len(EDGE_TYPES)
 
 model = build_model(
