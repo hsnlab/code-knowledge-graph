@@ -403,7 +403,7 @@ class GGNNClassifierFeatsNoEmb(nn.Module):
         hg = self.pool(h, data.batch)
         return self.head(hg).view(-1)  # [B]
 
-
+from torch_geometric.nn import global_max_pool
 class MLPBaseline(nn.Module):
     """Egyszerű baseline: nem használ gráfot.
     A node feature-ökből (AST csúcsok) globális aggregált statisztikákat számolunk
