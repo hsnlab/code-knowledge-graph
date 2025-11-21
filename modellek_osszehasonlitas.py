@@ -69,23 +69,21 @@ print('Tree-Sitter OK, LANG =', LANG)
 # =========================
 # 3) ADATBETÖLTÉS + CÉL OSZLOPOK
 # =========================
-def load_any_dataset(select: str):
-    if select == 'code_x_glue':
-        ds = load_dataset("code_x_glue_cc_defect_detection")
-        rows = []
-        for split in ["train", "validation", "test"]:
-            for ex in ds[split]:
-                rows.append({"code": ex["func"], "label": ex["target"]})
-        df = pd.DataFrame(rows)
-        return df
-    elif select == 'draper_hf':
-        ds = load_dataset("muellerzr/draper", "c")
-        rows = []
-        for split in ["train", "validation", "test"]:
-            for ex in ds[split]:
-                rows.append({"code": ex["func"], "label": ex["target"]})
-        df = pd.DataFrame(rows)
-        return df
+def load_any_dataset(select: str) -> pd.DataFrame:
+    s = select.lower()
+    if s == 'code_x_glue':
+        ds = load_dataset('google/code_x_glue_cc_defect_detection')
+        df = pd.DataFrame({'code': ds['train']['func'], 'label': ds['train']['target']})
+        df['label'] = df['label'].apply(_normalize_label)
+        return df.dropna(subset=['code','label']).reset_index(drop=True)
+    elif s == 'draper_hf':
+        ds = load_dataset('claudios/Draper')
+        split = 'train' if 'train' in ds else list(ds.keys())[0]
+        df = pd.DataFrame({c: ds[split][c] for c in ds[split].column_names})
+        ccol, lcol = _auto_pick_columns(df)
+        df = df[[ccol, lcol]].rename(columns={ccol:'code', lcol:'label'})
+        df['label'] = df['label'].apply(_normalize_label)
+        return df.dropna(subset=['code','label']).reset_index(drop=True)
     else:
         raise ValueError(select)
 
