@@ -56,21 +56,16 @@ use_amp = (device.type == "cuda")
 # =========================
 # TREE-SITTER INIT
 # =========================
-ROOT = Path(__file__).parent
-LIB_PATH = ROOT / "build" / "my-languages.so"
-if not LIB_PATH.exists():
-    raise FileNotFoundError(f"Hiányzik a tree-sitter .so: {LIB_PATH}")
+import tree_sitter_c as tsc
+import tree_sitter_cpp as tscpp
+from tree_sitter import Language, Parser
 
-if LANG == 'c':
-    LANG_NAME = 'c'
-elif LANG == 'cpp':
-    LANG_NAME = 'cpp'
-else:
-    raise ValueError(LANG)
+# LANG változó maradhat, ahogy eddig volt: 'c' vagy 'cpp'
 
-CPP_LANG = Language(str(LIB_PATH), LANG_NAME)
-parser = Parser()
-parser.set_language(CPP_LANG)
+TS_LANG = Language(tsc.language()) if LANG.lower() == 'c' else Language(tscpp.language())
+parser = Parser(TS_LANG)
+print('Tree-Sitter OK, LANG =', LANG)
+
 
 
 # =========================
