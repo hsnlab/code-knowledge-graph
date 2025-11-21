@@ -436,19 +436,25 @@ class GGNNClassifierFeatsNoEmb(torch.nn.Module):
         self.blocks = blocks
         self.num_edge_types = num_edge_types
 
+        # node-reprezentáció dimenziója
         in_dim = 32 + 32 + small_dim
-        self.type_emb = torch.nn.Embedding(num_types, 32)
-        self.tok_emb  = torch.nn.Embedding(tok_dim+1, 32)
 
+        # beágyazások
+        self.type_emb = torch.nn.Embedding(num_types, 32)
+        self.tok_emb  = torch.nn.Embedding(tok_dim + 1, 32)  # +1 sentinel
+
+        # üzenetlineárisok edge-típusonként
         self.msg_linears = torch.nn.ModuleList([
             torch.nn.Linear(in_dim, in_dim) for _ in range(num_edge_types)
         ])
-        self.gru = torch.nn.GRU(
+
+        # FONTOS: GRU helyett GRUCell, node-szinten
+        self.gru_cell = torch.nn.GRUCell(
             input_size=in_dim,
-            hidden_size=in_dim,
-            batch_first=True
+            hidden_size=in_dim
         )
 
+        # gráf-szintű projekció logitra
         self.proj = torch.nn.Sequential(
             torch.nn.Linear(in_dim, proj_dim),
             torch.nn.ReLU(),
@@ -457,41 +463,60 @@ class GGNNClassifierFeatsNoEmb(torch.nn.Module):
         )
 
     def forward(self, data: Data):
-        x_type = data.x_type
-        x_tok  = data.x_tok
-        x_small = data.x_small
-        edge_index = data.edge_index
-        edge_type  = data.edge_type
-        batch = data.batch
+        x_type = data.x_type           # [N, 1]
+        x_tok  = data.x_tok            # [N, 1]
+        x_small = data.x_small         # [N, 2]
+        edge_index = data.edge_index   # [2, E]
+        edge_type  = data.edge_type    # [E]
+        batch = data.batch             # [N]
 
-        type_emb = self.type_emb(x_type).squeeze(1)
-        tok_emb  = self.tok_emb(x_tok).squeeze(1)
+        # beágyazások
+        type_emb = self.type_emb(x_type).squeeze(1)   # [N, 32]
+        tok_emb  = self.tok_emb(x_tok).squeeze(1)     # [N, 32]
+
+        # node feature: [N, in_dim]
         x = torch.cat([type_emb, tok_emb, x_small], dim=-1)
 
+        # többszörös message passing
         for _ in range(self.blocks):
             for _ in range(self.steps):
                 msgs = []
+
+                # minden edge-típusra külön aggregáció
                 for et in range(self.num_edge_types):
                     mask = (edge_type == et)
                     if mask.sum() == 0:
+                        # nincs ilyen típusú él
                         msgs.append(torch.zeros_like(x))
                         continue
-                    e_idx = edge_index[:,mask]
+
+                    e_idx = edge_index[:, mask]
                     src, dst = e_idx[0], e_idx[1]
-                    m = self.msg_linears[et](x[src])
-                    agg = torch.zeros_like(x, dtype=x.dtype)
-                    m = m.to(x.dtype)
-                    agg.index_add_(0, dst, m)
+
+                    # üzenet a forrásnódusoktól
+                    m = self.msg_linears[et](x[src])       # [E_et, D]
+
+                    # aggregálás a célokra
+                    agg = torch.zeros_like(x)
+                    # AMP miatt: biztosítsuk az egyező dtype-ot
+                    m = m.to(agg.dtype)
+                    agg.index_add_(0, dst, m)              # [N, D]
+
                     msgs.append(agg)
 
-                h_in = x.unsqueeze(0)
-                m_all = sum(msgs).unsqueeze(0)
-                h_out, _ = self.gru(m_all, h_in)
-                x = h_out.squeeze(0)
+                # összes edge-típus üzenetének összege
+                m_all = sum(msgs)                          # [N, D]
 
-        out = torch_geometric.nn.global_mean_pool(x, batch)
-        logits = self.proj(out).view(-1)
+                # GGNN: GRUCell node-szinten
+                # hidden: x (régi állapot), input: m_all (új üzenet)
+                x = self.gru_cell(m_all, x)                # [N, D]
+
+        # gráf-szintű pooling
+        out = torch_geometric.nn.global_mean_pool(x, batch)  # [B, D]
+
+        logits = self.proj(out).view(-1)                    # [B]
         return logits
+
 
 MODEL = 'ggnn'
 num_edge_types = len(EDGE_TYPES)
