@@ -313,7 +313,7 @@ print('pos_weight (BCE):', float(pos_weight.item()))
 # =========================
 import torch.nn.functional as F
 from torch import nn
-import torch_scatter
+
 
 from torch_geometric.nn import (
     GatedGraphConv,
@@ -455,11 +455,19 @@ class MLPBaseline(nn.Module):
     def forward(self, data):
         x = self.build_features(data)
         batch = data.batch
-        mean = torch_scatter.scatter_mean(x, batch, dim=0)
-        max_ = torch_scatter.scatter_max(x, batch, dim=0)[0]
-        std = torch_scatter.scatter_std(x, batch, dim=0)
-        h = torch.cat([mean, max_, std], dim=1)
+
+        # mean és max PyG-ből:
+        mean = global_mean_pool(x, batch)      # [B, F]
+        max_ = global_max_pool(x, batch)       # [B, F]
+
+        # std-t kiszámoljuk: std = sqrt(E[x^2] - E[x]^2)
+        mean_sq = global_mean_pool(x * x, batch)   # E[x^2]
+        var = (mean_sq - mean * mean).clamp(min=0)
+        std = torch.sqrt(var + 1e-8)
+
+        h = torch.cat([mean, max_, std], dim=1)    # [B, 3F]
         return self.mlp(h).view(-1)
+
 
 
 class GCNClassifierFeatsNoEmb(nn.Module):
