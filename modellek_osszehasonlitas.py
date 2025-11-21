@@ -80,7 +80,6 @@ def load_any_dataset(select: str) -> pd.DataFrame:
         ds = load_dataset('claudios/Draper')
         split = 'train' if 'train' in ds else list(ds.keys())[0]
         df = pd.DataFrame({c: ds[split][c] for c in ds[split].column_names})
-        ccol, lcol = _auto_pick_columns(df)
         df = df[[ccol, lcol]].rename(columns={ccol:'code', lcol:'label'})
         df['label'] = df['label'].apply(_normalize_label)
         return df.dropna(subset=['code','label']).reset_index(drop=True)
