@@ -1,0 +1,4 @@
+void f(char s) {
+    char buf[8];
+    strcpy(buf, s);
+}

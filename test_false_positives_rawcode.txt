@@ -1,0 +1,6431 @@
+"main(int argc, char **argv)
+{
+    int optidx = 0;
+    pid_t pid;
+
+    setprogname(argv[0]);
+
+    if(getarg(args, sizeof(args) / sizeof(args[0]), argc, argv, &optidx))
+	usage(1);
+
+    if (help_flag)
+	usage (0);
+
+    if (version_flag) {
+	fprintf (stderr, ""%s from %s-%s\n"", getprogname(), PACKAGE, VERSION);
+	return 0;
+    }
+
+    argv += optidx;
+    argc -= optidx;
+
+    if (argc < 2)
+	usage(1);
+
+    parse_configuration(argv[0]);
+
+    argv += 1;
+
+    open_pty();
+
+    pid = fork();
+    switch (pid) {
+    case -1:
+	err(1, ""Failed to fork"");
+    case 0:
+
+	if(setsid()<0)
+	    err(1, ""setsid"");
+
+	dup2(slave, STDIN_FILENO);
+	dup2(slave, STDOUT_FILENO);
+	dup2(slave, STDERR_FILENO);
+	closefrom(STDERR_FILENO + 1);
+
+	execvp(argv[0], argv); /* add NULL to end of array ? */
+	err(1, ""Failed to exec: %s"", argv[0]);
+    default:
+	close(slave);
+	{
+	    struct sigaction sa;
+
+	    sa.sa_handler = caught_signal;
+	    sa.sa_flags = 0;
+	    sigemptyset (&sa.sa_mask);
+
+	    sigaction(SIGALRM, &sa, NULL);
+	}
+
+	return eval_parent(pid);
+    }
+}"
+"get_zipper(char *p) {
+	int i;
+	for (i = 0; i < sizeof(zippers)/sizeof(struct zipper); i++) {
+		if (memcmp(p, zippers[i].pattern, zippers[i].length) == 0)
+			return &zippers[i];
+	}
+	return NULL;
+}"
+"RemoveDates(char *s)
+
+{ int i,a = 0,b = 0,c = 0,d = 0;
+  char *dayp = NULL, *monthp = NULL, *sp;
+  char *days[7] = { ""Mon"", ""Tue"", ""Wed"", ""Thu"", ""Fri"", ""Sat"", ""Sun"" };
+  char *months[12] = { ""Jan"", ""Feb"", ""Mar"", ""Apr"", ""May"", ""Jun"", ""Jul"", ""Aug"", ""Sep"", ""Oct"", ""Nov"", ""Dec"" };
+
+// Canonifies or blanks our times/dates for locks where there would be an explosion of state
+  
+if (strlen(s) < strlen(""Fri Oct 1 15:15:23 EST 2010""))
+   {
+   // Probably not a full date
+   return;
+   }
+
+for (i = 0; i < 7; i++)
+   {
+   if ((dayp = strstr(s,days[i])))
+      {
+      *dayp = 'D';
+      *(dayp+1) = 'A';
+      *(dayp+2) = 'Y';
+      break;
+      }
+   }
+
+for (i = 0; i < 12; i++)
+   {
+   if ((monthp = strstr(s,months[i])))
+      {
+      *monthp = 'M';
+      *(monthp+1) = 'O';
+      *(monthp+2) = 'N';
+      break;
+      }
+   }
+
+if (dayp && monthp) // looks like a full date
+   {
+   sscanf(monthp+4,""%d %d:%d:%d"",&a,&b,&c,&d);
+
+   if (a*b*c*d == 0)
+      {
+      // Probably not a date
+      return;
+      }
+
+   for (sp = monthp+4; *sp != '\0'; sp++)
+      {
+      if (sp > monthp+15)
+         {
+         break;
+         }
+      
+      if (isdigit(*sp))
+         {
+         *sp = 't';
+         }
+      }
+   }
+}"
+"urldecode_inplace(unsigned char *input, apr_size_t input_len) {
+    unsigned char *d = (unsigned char *)input;
+    apr_size_t i;
+
+    if (input == NULL) return 0;
+
+    i = 0;
+    while (i < input_len) {
+        if (input[i] == '%') {
+            /* Character is a percent sign. */
+
+            /* Are there enough bytes available? */
+            if (i + 2 < input_len) {
+                char c1 = input[i + 1];
+                char c2 = input[i + 2];
+
+                if (ISHEXCHAR(c1) && ISHEXCHAR(c2)) {
+                    /* Valid encoding - decode it. */
+                    *d++ = x2c(&input[i + 1]);
+                    i += 3;
+                } else {
+                    /* Not a valid encoding, skip this % */
+                    *d++ = input[i++];
+                }
+            } else {
+                /* Not enough bytes available, copy the raw bytes. */
+                *d++ = input[i++];
+            }
+        } else {
+            /* Character is not a percent sign. */
+            if (input[i] == '+') {
+                *d++ = ' ';
+            } else {
+                *d++ = input[i];
+            }
+            i++;
+        }
+    }
+
+    *d = '\0';
+
+    return 1;
+}"
+"encrypt_reply (unsigned char *data, int cnt)
+{
+  Encryptions *ep;
+  int ret, type;
+
+  if (--cnt < 0)
+    return;
+  type = *data++;
+
+  ep = findencryption (type);
+  if (!ep)
+    {
+      if (encrypt_debug_mode)
+	printf ("">>>%s: Can't find type %s (%d) for initial negotiation\r\n"",
+		Name,
+		ENCTYPE_NAME_OK (type) && ENCTYPE_NAME (type)
+		? ENCTYPE_NAME (type) : ""(unknown)"", type);
+      return;
+    }
+  if (!ep->reply)
+    {
+      if (encrypt_debug_mode)
+	printf ("">>>%s: No initial negotiation needed for type %s (%d)\r\n"",
+		Name,
+		ENCTYPE_NAME_OK (type) && ENCTYPE_NAME (type)
+		? ENCTYPE_NAME (type) : ""(unknown)"", type);
+      ret = 0;
+    }
+  else
+    {
+      ret = (*ep->reply) (data, cnt);
+      if (encrypt_debug_mode)
+	printf (""(*ep->reply)(%p, %d) returned %s (%d).\r\n"",
+		data, cnt,
+		(ret < 0) ? ""FAIL ""
+			  : ((ret == 0) ? ""SUCCESS "" : ""MORE_TO_DO ""),
+		ret);
+    }
+  if (encrypt_debug_mode)
+    printf ("">>>%s: encrypt_reply returned %d\n"", Name, ret);
+  if (ret < 0)
+    autoencrypt = 0;
+  else
+    {
+      encrypt_mode = type;
+      if (ret == 0 && autoencrypt)
+	encrypt_start_output (type);
+    }
+}"
+"add_standard_conf(struct w *widgets)
+{
+    FILE *fp;
+    char *includes = NULL;
+    gchar *info, *config;
+
+    /* First backup/copy the old configuration */
+    backup_configuration(widgets);
+
+    /* Get ModulePath and LoadModule statements from included configurations. */
+    includes = get_dynamic_module_statements();
+
+    if((fp=fopen(PROFTPD_CONF, ""w+""))==NULL)
+    {
+	info = g_strdup_printf(_(""Cant write a new proftpd.conf here:\n%s\n""), PROFTPD_CONF);
+	show_info(info);
+	g_free(info);
+	if( includes!=NULL )
+	  free(includes);
+	return;
+    }
+
+    /* Add any Include lines we found at the top of the conf. */
+    if( includes!=NULL )
+    {
+	fputs(includes, fp);
+	free(includes);
+	fputs(""\n"", fp);
+    }
+
+    /* Note: inetd functions would limit the servers usability */
+    config = g_strconcat(
+    ""ServerType standalone\n"",
+    ""DefaultServer on\n"",
+    ""Umask 022\n"",
+    ""ServerName \""0.0.0.0\""\n"",
+    ""ServerIdent on \""My FTP Server\""\n"",
+    ""ServerAdmin email@example.org\n"",
+    ""IdentLookups off\n"",
+    ""UseReverseDNS off\n"",
+    ""Port 21\n"",
+    ""PassivePorts 49152 65534\n"",
+    ""#MasqueradeAddress None\n"",
+    ""TimesGMT off\n"",
+    ""MaxInstances 30\n"",
+    ""MaxLoginAttempts 3\n"",
+    ""TimeoutLogin 300\n"",
+    ""TimeoutNoTransfer 120\n"",
+    ""TimeoutIdle 120\n"",
+    ""DisplayLogin "", WELCOME_MESSAGE, ""\n"",
+    ""DisplayChdir .message\n""
+    ""User "", SERVER_USER, ""\n"",
+    ""Group "", SERVER_GROUP, ""\n"",
+    ""DirFakeUser off "", SERVER_USER, ""\n"",
+    ""DirFakeGroup off "", SERVER_GROUP, ""\n"",
+    ""DefaultTransferMode binary\n"",
+    ""AllowForeignAddress off\n"",
+    ""AllowRetrieveRestart on\n"",
+    ""AllowStoreRestart on\n"",
+    ""DeleteAbortedStores off\n"",
+    ""TransferRate RETR 220\n"",
+    ""TransferRate STOR 250\n"",
+    ""TransferRate STOU 250\n"",
+    ""TransferRate APPE 250\n"",
+    ""SystemLog "", GP_VARDIR, ""/log/secure\n"",
+    ""RequireValidShell off\n\n"",
+
+#ifdef CAN_BE_ANNOYING_FOR_USERS
+    ""<IfModule mod_delay.c>\n""
+    ""DelayEngine on\n""
+    ""</IfModule>\n\n""
+#endif
+
+    ""<IfModule mod_tls.c>\n"",
+    ""TLSEngine off\n"",
+    ""TLSRequired off\n"",
+    ""TLSVerifyClient off\n"",
+    ""TLSProtocol SSLv23\n"",
+    ""TLSLog "", GP_VARDIR, ""/log/proftpd_tls.log\n"",
+    ""TLSRSACertificateFile "", GP_APPCONFDIR, ""/certs/cert.pem\n"",
+    ""TLSRSACertificateKeyFile "", GP_APPCONFDIR, ""/certs/key.pem\n"",
+    ""TLSCACertificateFile "", GP_APPCONFDIR, ""/certs/cacert.pem\n"",
+    ""TLSRenegotiate required off\n"",
+    ""TLSOptions AllowClientRenegotiation\n"",
+    ""</IfModule>\n\n"",
+
+    ""<IfModule mod_ratio.c>\n"",
+    ""Ratios off\n"",
+    ""SaveRatios off\n"",
+    ""RatioFile \""/restricted/proftpd_ratios\""\n"",
+    ""RatioTempFile \""/restricted/proftpd_ratios_temp\""\n"",
+    ""CwdRatioMsg \""Please upload first!\""\n"",
+    ""FileRatioErrMsg \""FileRatio limit exceeded, upload something first...\""\n"",
+    ""ByteRatioErrMsg \""ByteRatio limit exceeded, upload something first...\""\n"",
+    ""LeechRatioMsg \""Your ratio is unlimited.\""\n"",
+    ""</IfModule>\n\n"",
+
+    ""<Limit LOGIN>\n"",
+    ""  DenyALL\n"",
+    ""</Limit>\n\n"",
+    NULL);
+
+    fputs(config, fp);
+    fclose(fp);
+    g_free(config);
+
+    if( GTK_IS_WINDOW(widgets->default_conf_question_window) )
+      gtk_widget_destroy(widgets->default_conf_question_window);
+
+    populate_gadmin_proftpd(widgets);
+}"
+"gx_image_data(gx_image_enum_common_t * info, const byte ** plane_data,
+              int data_x, uint raster, int height)
+{
+    int num_planes = info->num_planes;
+    gx_image_plane_t planes[GS_IMAGE_MAX_COMPONENTS];
+    int i;
+
+#ifdef DEBUG
+    if (num_planes > GS_IMAGE_MAX_COMPONENTS) {
+        lprintf2(""num_planes=%d > GS_IMAGE_MAX_COMPONENTS=%d!\n"",
+                 num_planes, GS_IMAGE_MAX_COMPONENTS);
+        return_error(gs_error_Fatal);
+    }
+#endif
+    for (i = 0; i < num_planes; ++i) {
+        planes[i].data = plane_data[i];
+        planes[i].data_x = data_x;
+        planes[i].raster = raster;
+    }
+    return gx_image_plane_data(info, planes, height);
+}"
+"vivid_vbi_gen_teletext(u8 *packet, unsigned line, unsigned frame)
+{
+	unsigned offset = 2;
+	unsigned i;
+
+	packet[0] = hamming[1 + ((line & 1) << 3)];
+	packet[1] = hamming[line >> 1];
+	memset(packet + 2, 0x20, 40);
+	if (line == 0) {
+		/* subcode */
+		packet[2] = hamming[frame % 10];
+		packet[3] = hamming[frame / 10];
+		packet[4] = hamming[0];
+		packet[5] = hamming[0];
+		packet[6] = hamming[0];
+		packet[7] = hamming[0];
+		packet[8] = hamming[0];
+		packet[9] = hamming[1];
+		offset = 10;
+	}
+	packet += offset;
+	memcpy(packet, ""Page: 100 Row: 10"", 17);
+	packet[7] = '0' + frame / 10;
+	packet[8] = '0' + frame % 10;
+	packet[15] = '0' + line / 10;
+	packet[16] = '0' + line % 10;
+	for (i = 0; i < 42 - offset; i++)
+		packet[i] = calc_parity(packet[i]);
+}"
+"mpd_startFieldSearch(mpd_Connection *connection, int type)
+{
+	const char *strtype;
+	int len;
+
+	if (connection->request) {
+		strcpy(connection->errorStr, ""search already in progress"");
+		connection->error = 1;
+		return;
+	}
+
+	if (type < 0 || type >= MPD_TAG_NUM_OF_ITEM_TYPES) {
+		strcpy(connection->errorStr, ""invalid type specified"");
+		connection->error = 1;
+		return;
+	}
+
+	strtype = mpdTagItemKeys[type];
+
+	len = 5 + strlen(strtype) + 1;
+	connection->request = malloc(len);
+
+	snprintf(connection->request, len, ""list %c%s"", tolower(strtype[0]),
+		strtype + 1);
+}"
+"ucs2stat_size(const ucs2_char_t *filename)
+{
+	int ret = 0;
+	struct stat st;
+	char *mbs_path = ucs2dupmbs(filename);
+
+	if (mbs_path) {
+		path_decode(mbs_path);
+		ret = stat(mbs_path, &st);
+		free(mbs_path);
+		if (ret == 0) {
+			return (uint32_t)st.st_size;
+		}
+	}
+	return 0;
+}"
+"_detailed_output_device_relative_entity_association_record (ipmi_sensors_state_data_t *state_data,
+                                                            const void *sdr_record,
+                                                            unsigned int sdr_record_len,
+                                                            uint8_t record_type,
+                                                            uint16_t record_id)
+{
+  uint8_t container_entity_id;
+  uint8_t container_entity_instance;
+
+  assert (state_data);
+  assert (sdr_record);
+  assert (sdr_record_len);
+  assert (state_data->prog_data->args->verbose_count >= 2);
+
+  if (ipmi_sdr_parse_container_entity (state_data->sdr_parse_ctx,
+                                       sdr_record,
+                                       sdr_record_len,
+                                       &container_entity_id,
+                                       &container_entity_instance) < 0)
+    {
+      pstdout_fprintf (state_data->pstate,
+                       stderr,
+                       ""ipmi_sdr_parse_container_entity: %s\n"",
+                       ipmi_sdr_parse_ctx_errormsg (state_data->sdr_parse_ctx));
+      return (-1);
+    }
+
+  if (_detailed_output_record_type_and_id (state_data,
+                                           record_type,
+                                           record_id) < 0)
+    return (-1);
+
+  if (_detailed_output_entity_id_and_instance (state_data,
+                                               ""Container"",
+                                               container_entity_id,
+                                               container_entity_instance) < 0)
+    return (-1);
+
+  pstdout_printf (state_data->pstate, ""\n"");
+
+  return (0);
+}"
+"update_window_title(win_struct *win)
+{
+
+  char *title = NULL;
+  Window child=None;
+
+  if (debug) printf (""update window title\n"");
+
+  if (win->xmms) {
+    child=win->xmms_main_window_xlib;
+ }  else {
+    child=win->child_xlib;
+ }
+
+  if (!assert_window(child)) {
+    return;
+  }
+
+  title= wnck_get_name (child);
+ 
+  if (title) {
+    char *title_string = NULL;
+    
+    if (debug) printf (""title: %s\n"", title);
+
+    if (!win->xmms && win->no_reparent && g_str_has_suffix (title,""(AllTray)"")) {
+      g_free (title);
+      return;
+    }
+
+    // Interact nicely with Compiz, which works slightly differently.
+    // We use get_window_manager() instead of win->window_manager because
+    // win->window_manager is not always populated when running under
+    // Compiz.
+    if ((!strcasecmp(get_window_manager(), ""compiz"")) && (win->no_title)
+        && (!win->xmms)) {
+      title_string = title;
+      if (win->no_reparent) {
+        gdk_window_set_title(win->child_gdk, title_string);
+      } else {
+        gdk_window_set_title(win->parent_gdk, title_string);
+      }
+    }
+
+    if (!win->xmms) {
+      title_string=g_strconcat (title, "" (AllTray)"", NULL);
+
+    if (!win->no_title) {
+      
+      if (win->no_reparent)
+        gdk_window_set_title (win->child_gdk, title_string);
+      else
+        gdk_window_set_title (win->parent_gdk, title_string);
+    }
+
+      g_free (title_string);
+    }
+
+    if (win->title)
+      g_free (win->title);
+
+    if (win->xmms) {
+
+      if (!strcmp (title, ""XMMS""))  {
+        win->title = g_strdup (""no title"");
+      }  else {
+        win->title = g_strdup (title+7*sizeof(char));
+      }
+
+    } else {
+        win->title=g_strdup (title);
+    }
+
+
+    if (debug) printf (""win->title: %s\n"", win->title);
+    gtk_widget_set_tooltip_text(win->plug, win->title);
+    g_free(title);
+
+    if (win->title_time) {
+      show_balloon (win, win->title, win->title_time);
+    }
+  }
+}"
+"arizona_hpdet_irq(int irq, void *data)
+{
+	struct arizona_extcon_info *info = data;
+	struct arizona *arizona = info->arizona;
+	int id_gpio = arizona->pdata.hpdet_id_gpio;
+	unsigned int report = EXTCON_JACK_HEADPHONE;
+	int ret, reading;
+	bool mic = false;
+
+	mutex_lock(&info->lock);
+
+	/* If we got a spurious IRQ for some reason then ignore it */
+	if (!info->hpdet_active) {
+		dev_warn(arizona->dev, ""Spurious HPDET IRQ\n"");
+		mutex_unlock(&info->lock);
+		return IRQ_NONE;
+	}
+
+	/* If the cable was removed while measuring ignore the result */
+	ret = extcon_get_cable_state_(info->edev, EXTCON_MECHANICAL);
+	if (ret < 0) {
+		dev_err(arizona->dev, ""Failed to check cable state: %d\n"",
+			ret);
+		goto out;
+	} else if (!ret) {
+		dev_dbg(arizona->dev, ""Ignoring HPDET for removed cable\n"");
+		goto done;
+	}
+
+	ret = arizona_hpdet_read(info);
+	if (ret == -EAGAIN)
+		goto out;
+	else if (ret < 0)
+		goto done;
+	reading = ret;
+
+	/* Reset back to starting range */
+	regmap_update_bits(arizona->regmap,
+			   ARIZONA_HEADPHONE_DETECT_1,
+			   ARIZONA_HP_IMPEDANCE_RANGE_MASK | ARIZONA_HP_POLL,
+			   0);
+
+	ret = arizona_hpdet_do_id(info, &reading, &mic);
+	if (ret == -EAGAIN)
+		goto out;
+	else if (ret < 0)
+		goto done;
+
+	/* Report high impedence cables as line outputs */
+	if (reading >= 5000)
+		report = EXTCON_JACK_LINE_OUT;
+	else
+		report = EXTCON_JACK_HEADPHONE;
+
+	ret = extcon_set_cable_state_(info->edev, report, true);
+	if (ret != 0)
+		dev_err(arizona->dev, ""Failed to report HP/line: %d\n"",
+			ret);
+
+done:
+	/* Reset back to starting range */
+	regmap_update_bits(arizona->regmap,
+			   ARIZONA_HEADPHONE_DETECT_1,
+			   ARIZONA_HP_IMPEDANCE_RANGE_MASK | ARIZONA_HP_POLL,
+			   0);
+
+	arizona_extcon_hp_clamp(info, false);
+
+	if (id_gpio)
+		gpio_set_value_cansleep(id_gpio, 0);
+
+	/* Revert back to MICDET mode */
+	regmap_update_bits(arizona->regmap,
+			   ARIZONA_ACCESSORY_DETECT_MODE_1,
+			   ARIZONA_ACCDET_MODE_MASK, ARIZONA_ACCDET_MODE_MIC);
+
+	/* If we have a mic then reenable MICDET */
+	if (mic || info->mic)
+		arizona_start_mic(info);
+
+	if (info->hpdet_active) {
+		pm_runtime_put_autosuspend(info->dev);
+		info->hpdet_active = false;
+	}
+
+	info->hpdet_done = true;
+
+out:
+	mutex_unlock(&info->lock);
+
+	return IRQ_HANDLED;
+}"
+"H5T_vlen_str_mem_write(H5F_t H5_ATTR_UNUSED *f, hid_t H5_ATTR_UNUSED dxpl_id, const H5T_vlen_alloc_info_t *vl_alloc_info, void *_vl, void *buf, void H5_ATTR_UNUSED *_bg, size_t seq_len, size_t base_size)
+{
+    char *t;                        /* Pointer to temporary buffer allocated */
+    size_t len;                     /* Maximum length of the string to copy */
+    herr_t      ret_value=SUCCEED;  /* Return value */
+
+    FUNC_ENTER_NOAPI_NOINIT
+
+    /* check parameters */
+    HDassert(buf);
+
+    /* Use the user's memory allocation routine if one is defined */
+    if(vl_alloc_info->alloc_func!=NULL) {
+        if(NULL==(t=(vl_alloc_info->alloc_func)((seq_len+1)*base_size,vl_alloc_info->alloc_info)))
+            HGOTO_ERROR(H5E_RESOURCE, H5E_NOSPACE, FAIL, ""memory allocation failed for VL data"")
+      } /* end if */
+    else {  /* Default to system malloc */
+        if(NULL==(t=H5MM_malloc((seq_len+1)*base_size)))
+            HGOTO_ERROR(H5E_RESOURCE, H5E_NOSPACE, FAIL, ""memory allocation failed for VL data"")
+      } /* end else */
+
+    len=(seq_len*base_size);
+    HDmemcpy(t,buf,len);
+    t[len]='\0';
+
+    /* Set pointer in user's buffer with memcpy, to avoid alignment issues */
+    HDmemcpy(_vl,&t,sizeof(char *));
+
+done:
+    FUNC_LEAVE_NOAPI(ret_value) /*lint !e429 The pointer in 't' has been copied */
+}"
+"add_par_string(GcxPar p, GcxPar parent, int format, char *name, char *comment,
+			   char *val)
+{
+	int point;
+
+//	d3_printf(""add_par_string %s %d [%d]\n"", name, p, parent);
+
+	if (p >= PAR_TABLE_SIZE || parent >= PAR_TABLE_SIZE) {
+		err_printf(""add_par: bad par index\n"");
+		return;
+	}
+	point = add_link(parent, p);
+	if (point <= 0) {
+		err_printf(""add_par: cannot find link point for [%d]\n"", p);
+		return;
+	}
+	PAR(p)->parent = (parent);
+	PAR(p)->child = PAR_NULL;
+	PAR(p)->next = PAR_NULL;
+	PAR(p)->flags = PAR_STRING | format;
+	PAR(p)->name = name;
+	PAR(p)->comment = comment;
+	if (P_STR(p) != NULL) {
+		free(P_STR(p));
+		P_STR(p) = NULL;
+	}
+	if (PAR(p)->defval.s != NULL) {
+		free(PAR(p)->defval.s);
+		PAR(p)->defval.s = NULL;
+	}
+	P_STR(p) = malloc(strlen(val)+1);
+	if (P_STR(p) != NULL)
+		strcpy(P_STR(p), val);
+	PAR(p)->defval.s = malloc(strlen(val)+1);
+	if (PAR(p)->defval.s != NULL)
+		strcpy(PAR(p)->defval.s, val);
+}"
+"newick_parse_quoted_label(FILE *fp, char *buf, int *pos, int *nc, char **ret_label)
+{
+  char *label  = NULL;
+  void *tmp;
+  int   n      = 0;
+  int   nalloc = 0;
+  int   status;
+  
+  nalloc = 32;  
+  ESL_ALLOC(label, sizeof(char) * nalloc);
+
+  /* advance past the opening ' */
+  if (buf[*pos] != '\'') { status = eslEFORMAT; goto ERROR; }
+  if ((status = newick_advance_buffer(fp, buf, pos, nc)) != eslOK) goto ERROR;
+
+  /* skip leading whitespace (\n and comments forbidden in quoted label) */
+  while (buf[*pos] == '\t' || buf[*pos] == ' ')   
+    if ((status = newick_advance_buffer(fp, buf, pos, nc)) != eslOK) goto ERROR;
+
+  /* Read the label */
+  while (1) {
+    if (buf[*pos] == '\'') {	/* watch out for escaped single quotes, '' */
+      if ((status = newick_advance_buffer(fp, buf, pos, nc)) != eslOK) goto ERROR;
+      if (buf[*pos] != '\'') break; /* we've just moved past the last ' */
+    }
+    label[n++] = buf[*pos]; 
+    if ((status = newick_advance_buffer(fp, buf, pos, nc)) != eslOK) goto ERROR;
+    if (n == (nalloc-1)) {  /* reallocate label if it fills, leave room for NUL */
+      ESL_RALLOC(label, tmp, sizeof(char) * (nalloc * 2));
+      nalloc *= 2;
+    }
+  }
+  
+  /* backtrack over any trailing whitespace and nul-terminate. */
+  while (isspace(label[n-1]) && n > 0) n--; 
+  label[n] = '\0';
+  *ret_label = label;
+  return eslOK;
+
+ ERROR:
+  if (label != NULL) { free(label); *ret_label = NULL; }
+  return status;
+
+}"
+"gnumeric_textbuffer_get_text (GtkTextBuffer *buf)
+{
+	GtkTextIter    start, end;
+
+	g_return_val_if_fail (buf != NULL, NULL);
+
+	gtk_text_buffer_get_start_iter (buf, &start);
+	gtk_text_buffer_get_end_iter (buf, &end);
+	/* We are using slice rather than text so that the tags still match */
+	return gtk_text_buffer_get_slice (buf, &start, &end, FALSE);
+}"
+"__ecereMethod___ecereNameSpace__ecere__gui__controls__ListBox_Sort(struct __ecereNameSpace__ecere__com__Instance * this, struct __ecereNameSpace__ecere__com__Instance * field, int order)
+{
+struct __ecereNameSpace__ecere__gui__controls__ListBox * __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox = (struct __ecereNameSpace__ecere__gui__controls__ListBox *)(this ? (((char *)this) + __ecereClass___ecereNameSpace__ecere__gui__controls__ListBox->offset) : 0);
+
+if(this)
+{
+struct __ecereNameSpace__ecere__sys__Point __simpleStruct5;
+struct __ecereNameSpace__ecere__sys__Point __simpleStruct4;
+struct __ecereNameSpace__ecere__sys__Point __simpleStruct3;
+struct __ecereNameSpace__ecere__sys__Point __simpleStruct2;
+struct __ecereNameSpace__ecere__sys__Point __simpleStruct1;
+struct __ecereNameSpace__ecere__sys__Size __simpleStruct0;
+struct __ecereNameSpace__ecere__com__Instance * search;
+int headerSize = (((unsigned int)((__ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->style & 0x1) >> 0)) ? __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->rowHeight : 0);
+int height = (int)((__ecereProp___ecereNameSpace__ecere__gui__Window_Get_clientSize(this, &__simpleStruct0), __simpleStruct0.h + 1) - headerSize);
+
+if(!field)
+field = __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->fields.first;
+__ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->sortField = field;
+((struct __ecereNameSpace__ecere__gui__controls__DataField *)(((char *)field + __ecereClass___ecereNameSpace__ecere__gui__controls__DataField->offset)))->sortOrder = order ? order : 1;
+__ecereMethod___ecereNameSpace__ecere__sys__OldList_Sort(&__ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->rows, __ecereMethod___ecereNameSpace__ecere__gui__controls__DataRow_Compare, field);
+for(search = __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->rows.first; search; search = __ecereProp___ecereNameSpace__ecere__gui__controls__DataRow_Get_next(search))
+__ecereMethod___ecereNameSpace__ecere__gui__controls__DataRow__SortSubRows(search, field, order);
+{
+int index = 0;
+
+for(search = __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->rows.first; search; search = __ecereMethod___ecereNameSpace__ecere__gui__controls__DataRow_GetNextRow(search))
+((struct __ecereNameSpace__ecere__gui__controls__DataRow *)(((char *)search + __ecereClass___ecereNameSpace__ecere__gui__controls__DataRow->offset)))->index = index++;
+}
+if(__ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->currentRow && __ecereProp___ecereNameSpace__ecere__gui__controls__DataRow_Get_index(__ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->currentRow) * __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->rowHeight > (__ecereProp___ecereNameSpace__ecere__gui__Window_Get_scroll(this, &__simpleStruct1), __simpleStruct1.y + height) - __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->rowHeight)
+__ecereMethod___ecereNameSpace__ecere__gui__Window_SetScrollPosition(this, (__ecereProp___ecereNameSpace__ecere__gui__Window_Get_scroll(this, &__simpleStruct2), __simpleStruct2).x, __ecereProp___ecereNameSpace__ecere__gui__controls__DataRow_Get_index(__ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->currentRow) * __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->rowHeight - height + __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->rowHeight);
+else if(!__ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->currentRow || (__ecereProp___ecereNameSpace__ecere__gui__Window_Get_scroll(this, &__simpleStruct3), __ecereProp___ecereNameSpace__ecere__gui__controls__DataRow_Get_index(__ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->currentRow) * __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->rowHeight < __simpleStruct3.y))
+__ecereMethod___ecereNameSpace__ecere__gui__Window_SetScrollPosition(this, (__ecereProp___ecereNameSpace__ecere__gui__Window_Get_scroll(this, &__simpleStruct4), __simpleStruct4).x, __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->currentRow ? __ecereProp___ecereNameSpace__ecere__gui__controls__DataRow_Get_index(__ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->currentRow) * __ecerePointer___ecereNameSpace__ecere__gui__controls__ListBox->rowHeight : 0);
+((void (*)(struct __ecereNameSpace__ecere__com__Instance *, int action, int position, unsigned int key))__extension__ ({
+struct __ecereNameSpace__ecere__com__Instance * __internal_ClassInst = this;
+
+__internal_ClassInst ? __internal_ClassInst->_vTbl : __ecereClass___ecereNameSpace__ecere__gui__controls__ListBox->_vTbl;
+})[__ecereVMethodID___ecereNameSpace__ecere__gui__Window_OnVScroll])(this, (int)0, (__ecereProp___ecereNameSpace__ecere__gui__Window_Get_scroll(this, &__simpleStruct5), __simpleStruct5).y, 0);
+}
+}"
+"readfile(int sockfd, char * filename, int size)
+{
+	int	outfd, bytesleft = size;
+	char	buf[XBUFSIZE];
+
+	if  ((outfd = open(filename, O_CREAT|O_EXCL|O_WRONLY, 0660)) < 0)  {
+		perror(filename);
+		recvabort(sockfd, ""Cannot create incoming file"");
+		return  0;
+	}
+
+	acknowledge(sockfd);
+
+	while  (bytesleft > 0)  {
+		int	amt = XBUFSIZE, amtleft, inb;
+		char	*bp = buf;
+		if  (amt > bytesleft)
+			amt = bytesleft;
+		amtleft = amt;
+		do  {
+			inb = read(sockfd, bp, amtleft);
+			if  (inb <= 0)
+				recvabort(sockfd, ""Connection abort in readfile"");
+			amtleft -= inb;
+			bp += inb;
+		}  while  (amtleft > 0);
+		if  (write(outfd, buf, amt) != amt)  {
+			close(outfd);
+			recvabort(sockfd, ""Write failure (disc full?) in readfile\n"");
+		}
+		bytesleft -= amt;
+	}
+	if  (close(outfd) < 0)  {
+		perror(""Close"");
+		recvabort(sockfd, ""Close failure (disc full?) in readfile\n"");
+		return  0;
+	}
+	if  (read(sockfd, buf, 1) <= 0)
+		recvabort(sockfd, ""Connection abort(2) in readfile"");
+	if  (buf[0])  {
+		tf_unlink(filename, 0);
+		return  0;
+	}
+	acknowledge(sockfd);
+	return  1;
+}"
+"set_value(ompi_attribute_type_t type, void *object, 
+                     opal_hash_table_t **attr_hash, int key, 
+                     attribute_value_t *new_attr,
+                     bool predefined)
+{
+    ompi_attribute_keyval_t *keyval;
+    int ret;
+    attribute_value_t *old_attr;
+    bool had_old = false;
+
+    /* Note that this function can be invoked by ompi_attr_copy_all()
+       to set attributes on the new object (in addition to the
+       top-level MPI_* functions that set attributes). */
+    ret = opal_hash_table_get_value_uint32(keyval_hash, key, 
+                                           (void **) &keyval);
+
+    /* If key not found */
+    if ((OMPI_SUCCESS != ret ) || (NULL == keyval) || 
+        (keyval->attr_type != type) ||
+        ((!predefined) && (keyval->attr_flag & OMPI_KEYVAL_PREDEFINED))) {
+        return OMPI_ERR_BAD_PARAM;
+    }
+
+    /* Do we need to make a new attr_hash? */
+    if (NULL == *attr_hash) {
+        ompi_attr_hash_init(attr_hash);
+    }
+
+    /* Now see if an attribute is already present in the object's hash
+       on the old keyval. If so, delete the old attribute value. */
+    ret = opal_hash_table_get_value_uint32(*attr_hash, key, (void**) &old_attr);
+    if (OMPI_SUCCESS == ret)  {
+        switch (type) {
+        case COMM_ATTR:
+            DELETE_ATTR_CALLBACKS(communicator, old_attr, keyval, object, ret);
+            break;
+
+        case WIN_ATTR:
+            DELETE_ATTR_CALLBACKS(win, old_attr, keyval, object, ret);
+            break;
+
+        case TYPE_ATTR:
+            DELETE_ATTR_CALLBACKS(datatype, old_attr, keyval, object, ret);
+            break;
+
+        default:
+            /* This should not happen */
+            assert(0);
+            break;
+        }
+        if (MPI_SUCCESS != ret) {
+            return ret;
+        }
+        had_old = true;
+    }
+
+    ret = opal_hash_table_get_value_uint32(keyval_hash, key,
+                                           (void **) &keyval);
+    if ((OMPI_SUCCESS != ret ) || (NULL == keyval)) {
+        /* Keyval has disappeared underneath us -- this shouldn't
+           happen! */
+        assert(0);
+        return OMPI_ERR_BAD_PARAM;
+    }
+
+    new_attr->av_key = key;
+    new_attr->av_sequence = attr_sequence++;
+
+    ret = opal_hash_table_set_value_uint32(*attr_hash, key, new_attr);
+
+    /* Increase the reference count of the object, only if there was no
+       old atribute/no old entry in the object's key hash */
+    if (OMPI_SUCCESS == ret && !had_old) {
+        OBJ_RETAIN(keyval);
+    }
+
+    return ret;
+}"
+"validate_cib_digest(xmlNode * local_cib, const char *sigfile)
+{
+    char *digest = NULL;
+    char *expected = NULL;
+    gboolean passed = FALSE;
+    FILE *expected_strm = NULL;
+    int start = 0, length = 0, read_len = 0;
+
+    CRM_ASSERT(sigfile != NULL);
+
+    expected_strm = fopen(sigfile, ""r"");
+    if (expected_strm == NULL && errno == ENOENT) {
+        crm_warn(""No on-disk digest present"");
+        return TRUE;
+
+    } else if (expected_strm == NULL) {
+        crm_perror(LOG_ERR, ""Could not open signature file %s for reading"", sigfile);
+        goto bail;
+    }
+
+    if (local_cib != NULL) {
+        digest = calculate_on_disk_digest(local_cib);
+    }
+
+    start = ftell(expected_strm);
+    fseek(expected_strm, 0L, SEEK_END);
+    length = ftell(expected_strm);
+    fseek(expected_strm, 0L, start);
+
+    CRM_ASSERT(length >= 0);
+    CRM_ASSERT(start == ftell(expected_strm));
+
+    if (length > 0) {
+        crm_trace(""Reading %d bytes from file"", length);
+        expected = calloc(1, (length + 1));
+        read_len = fread(expected, 1, length, expected_strm);   /* Coverity: False positive */
+        CRM_ASSERT(read_len == length);
+    }
+    fclose(expected_strm);
+
+  bail:
+    if (expected == NULL) {
+        crm_err(""On-disk digest is empty"");
+
+    } else if (safe_str_eq(expected, digest)) {
+        crm_trace(""Digest comparision passed: %s"", digest);
+        passed = TRUE;
+
+    } else {
+        crm_err(""Digest comparision failed: expected %s (%s), calculated %s"",
+                expected, sigfile, digest);
+    }
+
+    free(digest);
+    free(expected);
+    return passed;
+}"
+"gtab_parse()
+{
+  int i;
+  TSIN_PARSE out[MAX_PH_BF_EXT+1];
+  bzero(out, sizeof(out));
+
+  if (test_mode)
+    return;
+
+  if (ggg.gbufN <= 1)
+    return;
+
+  init_tsin_table();
+
+  init_cache(ggg.gbufN);
+
+  set_tsin_parse_len(ggg.gbufN);
+
+  short smatch_phr_N, sno_match_ch_N;
+  tsin_parse_recur(0, out, &smatch_phr_N, &sno_match_ch_N);
+#if 0
+  puts(""vvvvvvvvvvvvvvvv"");
+  for(i=0;  i < out[i].len; i++) {
+    printf(""%x %d:"", out[i].str, out[i].len);
+    utf8_putcharn(out[i].str, out[i].len);
+  }
+  dbg(""\n"");
+#endif
+
+  for(i=0; i < ggg.gbufN; i++)
+    gbuf[i].flag &= ~(FLAG_CHPHO_PHRASE_HEAD|FLAG_CHPHO_PHRASE_BODY);
+
+  int ofsi;
+  for(ofsi=i=0; out[i].len; i++) {
+    int j, ofsj;
+
+    if (out[i].flag & FLAG_TSIN_PARSE_PHRASE) {
+      gbuf[ofsi].flag |= FLAG_CHPHO_PHRASE_HEAD;
+      gbuf[ofsi].plen = out[i].len;
+    }
+
+    for(ofsj=j=0; j < out[i].len; j++) {
+      char *w = (char *)&out[i].str[ofsj];
+      int wsz = utf8_sz(w);
+      ofsj += wsz;
+
+      int k;
+      for(k=0;k<gbuf[ofsi].selN; k++) {
+        int sz = utf8_sz(gbuf[ofsi].sel[k]);
+        if (wsz == sz && !memcmp(gbuf[ofsi].sel[k], w, sz))
+          break;
+      }
+      if (k==gbuf[ofsi].selN) {
+#if 0
+        dbg(""qq "");
+        utf8_putchar(w);
+        p_err("" err 1 selN:%d ofsi:%d"", gbuf[ofsi].selN, ofsi);
+#endif
+        k=0;
+      }
+
+      if (!(gbuf[ofsi].flag & FLAG_CHPHO_FIXED)) {
+        gbuf[ofsi].ch = gbuf[ofsi].sel[k];
+        gbuf[ofsi].c_sel = k;
+      }
+      gbuf[ofsi].flag |= FLAG_CHPHO_PHRASE_BODY;
+
+      ofsi++;
+    }
+  }
+
+#if 0
+  puts(""-----------------------------"");
+  for(i=0;i<ggg.gbufN;i++)
+    puts(gbuf[i].ch);
+#endif
+  free_cache();
+}"
+"vPrintPDF(FILE *pFile, const char *szString, size_t tStringLength,
+	USHORT usFontstyle)
+{
+	const UCHAR	*aucBytes;
+	double	dMove;
+	size_t	tCount;
+
+	fail(szString == NULL);
+
+	if (szString == NULL || szString[0] == '\0' || tStringLength == 0) {
+		return;
+	}
+	DBG_DEC_C(usFontSizeCurr < MIN_FONT_SIZE, usFontSizeCurr);
+
+	dMove = 0.0;
+
+	/* Up for superscript */
+	if (bIsSuperscript(usFontstyle) && usFontSizeCurr != 0) {
+		dMove = (double)((usFontSizeCurr + 1) / 2) * 0.375;
+		vFPprintf(pFile, ""%.2f Ts\n"", dMove);
+	}
+
+	/* Down for subscript */
+	if (bIsSubscript(usFontstyle) && usFontSizeCurr != 0) {
+		dMove = (double)usFontSizeCurr * 0.125;
+		vFPprintf(pFile, ""%.2f Ts\n"", -dMove);
+	}
+
+	/* Generate and print the PDF output */
+	aucBytes = (UCHAR *)szString;
+	vFPprintf(pFile, ""("");
+	for (tCount = 0; tCount < tStringLength ; tCount++) {
+		switch (aucBytes[tCount]) {
+		case '(':
+		case ')':
+		case '\\':
+			vFPprintf(pFile, ""\\%c"", szString[tCount]);
+			break;
+		default:
+			if (aucBytes[tCount] < 0x20 ||
+			    aucBytes[tCount] == 0x7f ||
+			    (aucBytes[tCount] >= 0x81 &&
+			     aucBytes[tCount] < 0x8c)) {
+				DBG_HEX(aucBytes[tCount]);
+				vFPprintf(pFile, "" "");
+			} else if (aucBytes[tCount] >= 0x80) {
+				vFPprintf(pFile, ""\\%03o"",
+						(UINT)aucBytes[tCount]);
+			} else {
+				vFPprintf(pFile, ""%c"", szString[tCount]);
+			}
+			break;
+		}
+	}
+	vFPprintf(pFile, "") Tj\n"");
+
+	/* Undo the superscript/subscript move */
+	if (dMove != 0.0) {
+		vFPprintf(pFile, ""0 Ts\n"");
+	}
+}"
+"gretl_list_to_string (const int *list)
+{
+    char *buf;
+    int i, len = 1;
+
+    for (i=1; i<=list[0]; i++) {
+	if (list[i] == LISTSEP) {
+	    len += 2;
+	} else {
+	    len += integer_length(list[i]) + 1;
+	}
+    }
+
+    if (len > MAXLINE - 32) {
+	/* string would be too long for command line */
+	return NULL;
+    }
+
+    buf = malloc(len);
+
+    if (buf != NULL) {
+	char numstr[16];
+
+	*buf = '\0';
+	for (i=1; i<=list[0]; i++) {
+	    if (list[i] == LISTSEP) {
+		strcat(buf, "" ;"");
+	    } else {
+		sprintf(numstr, "" %d"", list[i]);
+		strcat(buf, numstr);
+	    }
+	}
+    }
+
+    return buf;
+}"
+"mailimap_body_fld_param_parse(mailstream * fd,
+			      MMAPString * buffer, size_t * indx,
+			      struct mailimap_body_fld_param ** result,
+			      size_t progr_rate,
+			      progress_function * progr_fun)
+{
+  size_t cur_token;
+  clist * param_list;
+  struct mailimap_body_fld_param * fld_param;
+  int r;
+  int res;
+
+  param_list = NULL;
+  cur_token = * indx;
+
+  r = mailimap_nil_parse(fd, buffer, &cur_token);
+  if (r == MAILIMAP_NO_ERROR) {
+    * result = NULL;
+    * indx = cur_token;
+    return MAILIMAP_NO_ERROR;
+  }
+
+  if (r != MAILIMAP_ERROR_PARSE) {
+    res = r;
+    goto err;
+  }
+
+  r = mailimap_oparenth_parse(fd, buffer, &cur_token);
+  if (r != MAILIMAP_NO_ERROR) {
+    res = r;
+    goto err;
+  }
+
+  r = mailimap_struct_spaced_list_parse(fd, buffer, &cur_token, &param_list,
+					(mailimap_struct_parser *)
+					mailimap_single_body_fld_param_parse,
+					(mailimap_struct_destructor *)
+					mailimap_single_body_fld_param_free,
+					progr_rate, progr_fun);
+  if (r == MAILIMAP_ERROR_PARSE) {
+    // case of empty ()
+    // do nothing, workaround for mbox mail parser
+  }
+  else if (r != MAILIMAP_NO_ERROR) {
+    res = r;
+    goto err;
+  }
+
+  r = mailimap_cparenth_parse(fd, buffer, &cur_token);
+  if (r == MAILIMAP_ERROR_PARSE) {
+    // workaround for broken param list
+    if (param_list != NULL) {
+      clist_foreach(param_list,
+                    (clist_func) mailimap_single_body_fld_param_free,
+                    NULL);
+      clist_free(param_list);
+      param_list = NULL;
+    }
+    r = mailimap_struct_spaced_list_parse(fd, buffer, &cur_token, &param_list,
+                                          (mailimap_struct_parser *)
+                                          mailimap_broken_single_body_fld_param_string_parse,
+                                          (mailimap_struct_destructor *)
+                                          mailimap_broken_single_body_fld_param_string_free,
+                                          progr_rate, progr_fun);
+    if (param_list != NULL) {
+      clist_free(param_list);
+      param_list = NULL;
+    }
+    if (r != MAILIMAP_NO_ERROR) {
+      res = r;
+      goto free;
+    }
+    
+    r = mailimap_cparenth_parse(fd, buffer, &cur_token);
+    if (r != MAILIMAP_NO_ERROR) {
+      res = r;
+      goto free;
+    }
+  }
+  else if (r != MAILIMAP_NO_ERROR) {
+    res = r;
+    goto free;
+  }
+  
+  if (param_list == NULL) {
+    * result = NULL;
+    * indx = cur_token;
+    
+    return MAILIMAP_NO_ERROR;
+  }
+  
+  fld_param = mailimap_body_fld_param_new(param_list);
+  if (fld_param == NULL) {
+    res = MAILIMAP_ERROR_MEMORY;
+    goto free;
+  }
+
+  * indx = cur_token;
+  * result = fld_param;
+
+  return MAILIMAP_NO_ERROR;
+
+ free:
+  if (param_list != NULL) {
+    clist_foreach(param_list,
+                  (clist_func) mailimap_single_body_fld_param_free,
+                  NULL);
+    clist_free(param_list);
+  }
+ err:
+  return res;
+}"
+"kmod_dump_index(struct kmod_ctx *ctx, enum kmod_index type,
+									int fd)
+{
+	if (ctx == NULL)
+		return -ENOSYS;
+
+	if (type < 0 || type >= _KMOD_INDEX_MODULES_SIZE)
+		return -ENOENT;
+
+	if (ctx->indexes[type] != NULL) {
+		DBG(ctx, ""use mmaped index '%s'\n"", index_files[type].fn);
+		index_mm_dump(ctx->indexes[type], fd,
+						index_files[type].prefix);
+	} else {
+		char fn[PATH_MAX];
+		struct index_file *idx;
+
+		snprintf(fn, sizeof(fn), ""%s/%s.bin"", ctx->dirname,
+						index_files[type].fn);
+
+		DBG(ctx, ""file=%s\n"", fn);
+
+		idx = index_file_open(fn);
+		if (idx == NULL)
+			return -ENOSYS;
+
+		index_dump(idx, fd, index_files[type].prefix);
+		index_file_close(idx);
+	}
+
+	return 0;
+}"
+"emit_mfence_after_loop (struct loop *loop)
+{
+  VEC (edge, heap) *exits = get_loop_exit_edges (loop);
+  edge exit;
+  gimple call;
+  gimple_stmt_iterator bsi;
+  unsigned i;
+
+  FOR_EACH_VEC_ELT (edge, exits, i, exit)
+    {
+      call = gimple_build_call (FENCE_FOLLOWING_MOVNT, 0);
+
+      if (!single_pred_p (exit->dest)
+	  /* If possible, we prefer not to insert the fence on other paths
+	     in cfg.  */
+	  && !(exit->flags & EDGE_ABNORMAL))
+	split_loop_exit_edge (exit);
+      bsi = gsi_after_labels (exit->dest);
+
+      gsi_insert_before (&bsi, call, GSI_NEW_STMT);
+      mark_virtual_ops_for_renaming (call);
+    }
+
+  VEC_free (edge, heap, exits);
+  update_ssa (TODO_update_ssa_only_virtuals);
+}"
+"attributes(struct attributes_options *opt, int argc, char **argv)
+{
+    gss_OID_set mech_attr = NULL, known_mech_attrs = NULL;
+    gss_OID mech = GSS_C_NO_OID;
+    OM_uint32 major, minor;
+
+    if (opt->mech_string) {
+	mech = gss_name_to_oid(opt->mech_string);
+	if (mech == NULL)
+	    errx(1, ""mech %s is unknown"", opt->mech_string);
+    }
+
+    major = gss_inquire_attrs_for_mech(&minor, mech, &mech_attr, &known_mech_attrs);
+    if (major)
+	errx(1, ""gss_inquire_attrs_for_mech"");
+
+    if (mech) {
+	print_mech_attr(opt->mech_string, mech, mech_attr);
+    }
+
+    if (opt->all_flag) {
+	print_mech_attr(""all mechs"", NULL, known_mech_attrs);
+    }
+
+    gss_release_oid_set(&minor, &mech_attr);
+    gss_release_oid_set(&minor, &known_mech_attrs);
+
+    return 0;
+}"
+"C_a_i_record(C_word **ptr, int n, ...)
+{
+  va_list v;
+  C_word *p = *ptr,
+         *p0 = p; 
+
+  *(p++) = C_STRUCTURE_TYPE | n;
+  va_start(v, n);
+
+  while(n--)
+    *(p++) = va_arg(v, C_word);
+
+  *ptr = p;
+  va_end(v);
+  return (C_word)p0;
+}"
+"_parse_mdpr_header(int fd, struct rm_info *info, bool *has_mdpr)
+{
+    uint16_t object_version;
+    uint8_t slen;
+    char buf[32];
+    long pos1;
+
+    pos1 = lseek(fd, 0, SEEK_CUR);
+
+    if (read(fd, &object_version, sizeof(object_version)) !=
+        sizeof(object_version))
+        return -1;
+
+    if (object_version != 0)
+        return sizeof(object_version);
+
+    lseek(fd, 7 * sizeof(uint32_t), SEEK_CUR);
+
+    /* stream description string: ignore */
+    if (read(fd, &slen, sizeof(slen)) != sizeof(slen))
+        return -1;
+    lseek(fd, slen, SEEK_CUR);
+
+    /* mime type string */
+    if (read(fd, &slen, sizeof(slen)) != sizeof(slen)
+        || slen > 32
+        || read(fd, buf, slen) != slen)
+        goto done;
+
+    buf[slen] = '\0';
+
+    if (strcmp(buf, ""audio/x-pn-realaudio"") != 0 &&
+        strcmp(buf, ""audio/x-pn-multirate-realaudio"") != 0)
+        goto done;
+
+    *has_mdpr = _parse_mdpr_codec_header(fd, info);
+    if (*has_mdpr)
+        info->stream_type = LMS_STREAM_TYPE_AUDIO;
+
+done:
+    return lseek(fd, 0, SEEK_CUR) - pos1;
+}"
+"get_cpu_time_linux(pid_t pid, uint64_t *accum)
+{
+	/* /dev/proc/[pid]/stat */
+
+	uint64_t kernel, user;
+
+	FILE *fstat = open_proc_file(pid, ""stat"");
+	if(!fstat)
+		return 1;
+
+	fscanf(fstat,
+	       ""%*s"" /* pid */ ""%*s"" /* cmd line */ ""%*s"" /* state */ ""%*s"" /* pid of parent */
+	       ""%*s"" /* group ID */ ""%*s"" /* session id */ ""%*s"" /* tty pid */ ""%*s"" /* tty group ID */
+	       ""%*s"" /* linux/sched.h flags */ ""%*s %*s %*s %*s"" /* faults */
+	       ""%"" SCNu64 /* user mode time (in clock ticks) */
+	       ""%"" SCNu64 /* kernel mode time (in clock ticks) */
+	       /* .... */,
+	       &kernel, &user);
+
+	*accum = clicks_to_usecs(kernel) + clicks_to_usecs(user); 
+
+	fclose(fstat);
+
+	return 0;
+}"
+"_global_auth_key(void)
+{
+	static bool loaded_storage_pass = false;
+	static char storage_pass[512] = ""\0"";
+	static char *storage_pass_ptr = NULL;
+	slurm_ctl_conf_t *conf;
+
+	if (loaded_storage_pass)
+		return storage_pass_ptr;
+
+	if (slurmdbd_conf) {
+		if (slurmdbd_conf->auth_info) {
+			if (strlen(slurmdbd_conf->auth_info) >
+			    sizeof(storage_pass))
+				fatal(""AuthInfo is too long"");
+			strncpy(storage_pass, slurmdbd_conf->auth_info,
+				sizeof(storage_pass));
+			storage_pass_ptr = storage_pass;
+		}
+	} else {
+		conf = slurm_conf_lock();
+		if (conf->accounting_storage_pass) {
+			if (strlen(conf->accounting_storage_pass) >
+			    sizeof(storage_pass))
+				fatal(""AccountingStoragePass is too long"");
+			strncpy(storage_pass, conf->accounting_storage_pass,
+				sizeof(storage_pass));
+			storage_pass_ptr = storage_pass;
+		}
+		slurm_conf_unlock();
+	}
+	loaded_storage_pass = true;
+	return storage_pass_ptr;
+}"
+"parse_params_obsolete_callback(CS& cmd)
+{
+  return ONE_OF
+    || Get(cmd, ""bandwidth"",&_bandwidth)
+    || Get(cmd, ""delay"",    &_delay)
+    || Get(cmd, ""phase"",    &_phase)
+    || Get(cmd, ""ioffset"",  &_ioffset)
+    || Get(cmd, ""ooffset"",  &_ooffset)
+    || Get(cmd, ""scale"",    &_scale)
+    || Get(cmd, ""tc1"",      &_tc1)
+    || Get(cmd, ""tc2"",      &_tc2)
+    || Get(cmd, ""ic"",       &_ic)
+    || COMMON_COMPONENT::parse_params_obsolete_callback(cmd);
+    ;
+}"
+"lib_get_npc_inroom_text (sc_gameref_t game, sc_int npc)
+{
+  const sc_prop_setref_t bundle = gs_get_bundle (game);
+  sc_vartype_t vt_key[5];
+  sc_int walk_count, walk;
+  const sc_char *inroomtext;
+
+  /* Get the count of NPC walks. */
+  vt_key[0].string = ""NPCs"";
+  vt_key[1].integer = npc;
+  vt_key[2].string = ""Walks"";
+  walk_count = prop_get_child_count (bundle, ""I<-sis"", vt_key);
+
+  /* Check for any active walk with a description, return if found. */
+  for (walk = walk_count - 1; walk >= 0; walk--)
+    {
+      if (gs_npc_walkstep (game, npc, walk) > 0)
+        {
+          const sc_char *changeddesc;
+
+          /* Get and check any walk active description. */
+          vt_key[3].integer = walk;
+          vt_key[4].string = ""ChangedDesc"";
+          changeddesc = prop_get_string (bundle, ""S<-sisis"", vt_key);
+          if (!sc_strempty (changeddesc))
+            return changeddesc;
+        }
+    }
+
+  /* Return the standard inroom text. */
+  vt_key[2].string = ""InRoomText"";
+  inroomtext = prop_get_string (bundle, ""S<-sis"", vt_key);
+  return inroomtext;
+}"
+"tdb_traverse_internal(struct tdb_context *tdb, 
+				 tdb_traverse_func fn, void *private_data,
+				 struct tdb_traverse_lock *tl)
+{
+	TDB_DATA key, dbuf;
+	struct tdb_record rec;
+	int ret = 0, count = 0;
+	tdb_off_t off;
+
+	/* This was in the initializaton, above, but the IRIX compiler
+	 * did not like it.  crh
+	 */
+	tl->next = tdb->travlocks.next;
+
+	/* fcntl locks don't stack: beware traverse inside traverse */
+	tdb->travlocks.next = tl;
+
+	/* tdb_next_lock places locks on the record returned, and its chain */
+	while ((off = tdb_next_lock(tdb, tl, &rec)) != 0) {
+		if (off == TDB_NEXT_LOCK_ERR) {
+			ret = -1;
+			goto out;
+		}
+		count++;
+		/* now read the full record */
+		key.dptr = tdb_alloc_read(tdb, tl->off + sizeof(rec), 
+					  rec.key_len + rec.data_len);
+		if (!key.dptr) {
+			ret = -1;
+			if (tdb_unlock(tdb, tl->hash, tl->lock_rw) != 0)
+				goto out;
+			if (tdb_unlock_record(tdb, tl->off) != 0)
+				TDB_LOG((tdb, TDB_DEBUG_FATAL, ""tdb_traverse: key.dptr == NULL and unlock_record failed!\n""));
+			goto out;
+		}
+		key.dsize = rec.key_len;
+		dbuf.dptr = key.dptr + rec.key_len;
+		dbuf.dsize = rec.data_len;
+
+		tdb_trace_1rec_retrec(tdb, ""traverse"", key, dbuf);
+
+		/* Drop chain lock, call out */
+		if (tdb_unlock(tdb, tl->hash, tl->lock_rw) != 0) {
+			ret = -1;
+			SAFE_FREE(key.dptr);
+			goto out;
+		}
+		if (fn && fn(tdb, key, dbuf, private_data)) {
+			/* They want us to terminate traversal */
+			tdb_trace_ret(tdb, ""tdb_traverse_end"", count);
+			if (tdb_unlock_record(tdb, tl->off) != 0) {
+				TDB_LOG((tdb, TDB_DEBUG_FATAL, ""tdb_traverse: unlock_record failed!\n""));;
+				ret = -1;
+			}
+			SAFE_FREE(key.dptr);
+			goto out;
+		}
+		SAFE_FREE(key.dptr);
+	}
+	tdb_trace(tdb, ""tdb_traverse_end"");
+out:
+	tdb->travlocks.next = tl->next;
+	if (ret < 0)
+		return -1;
+	else
+		return count;
+}"
+"request_list(struct ftp_r *ftp_r)
+{
+int			r, checked, r_code;
+int			server_so = ftp_r->control;
+char			answer[ANSW_SIZE+1];
+char			*rq_buff = NULL;
+time_t			started = time(NULL);
+struct	buff		*resp_buff=NULL;
+
+    resp_buff = alloc_buff(CHUNK_SIZE);
+    started = time(NULL);
+    checked = 0;
+
+    r = writet(server_so, ""LIST\r\n"", 6, READ_ANSW_TIMEOUT);
+    if ( r < 0 ) {
+	my_xlog(LOG_NOTICE|LOG_DBG|LOG_INFORM, ""request_list(): ftp_srv: error sending LIST: %m\n"");
+	goto error;
+    }
+    resp_buff->used = 0;
+    started = time(NULL);
+    checked = 0;
+w_list_ok:
+    r = readt(server_so, answer, ANSW_SIZE, READ_ANSW_TIMEOUT);
+    if ( r <= 0 ) {
+	my_xlog(LOG_NOTICE|LOG_DBG|LOG_INFORM, ""request_list(): No server answer after LIST in ftp_fill_mem.\n"");
+	goto error;
+    }
+    if ( attach_data(answer, r, resp_buff) ) {
+	my_xlog(LOG_SEVERE, ""request_list(): No space at ftp_fill_mem.\n"");
+	goto error;
+    }
+    while ( (r_code = parse_ftp_srv_answ(resp_buff, &checked, ftp_r)) != 0 ) {
+	if ( r_code < 100 ) {
+	    my_xlog(LOG_SEVERE, ""request_list(): Some fatal error at ftp_fill_mem.\n"");
+	    goto error;
+	}
+	r_code = r_code/100;
+	if ( r_code == 1 )
+	    goto receive_data;
+	if ( r_code == 2 )
+	    goto receive_data;
+	if ( r_code >= 3 )
+	    goto error;
+    }
+    goto w_list_ok;
+receive_data:
+    if ( resp_buff ) free_chain(resp_buff);
+    if ( rq_buff ) free(rq_buff);
+    return(0);
+error:
+    if ( resp_buff ) free_chain(resp_buff);
+    if ( rq_buff ) free(rq_buff);
+    return(-1);
+}"
+"tell_emacs_to_resume (int UNUSED (sig))
+{
+  char buffer[GSERV_BUFSZ+1];
+  int s;			/* socket / msqid to server */
+  int connect_type;		/* CONN_UNIX, CONN_INTERNET, or
+				   ONN_IPC */
+
+  /* Why is SYSV so retarded? */
+  /* We want emacs to realize that we are resuming */
+#ifdef SIGCONT
+  signal(SIGCONT, tell_emacs_to_resume);
+#endif
+
+  connect_type = make_connection (NULL, 0, &s);
+
+  sprintf(buffer,""(gnuserv-eval '(resume-pid-console %d))"", (int)getpid());
+  send_string(s, buffer);
+
+#ifdef SYSV_IPC
+  if (connect_type == (int) CONN_IPC)
+    disconnect_from_ipc_server (s, msgp, FALSE);
+#else /* !SYSV_IPC */
+  if (connect_type != (int) CONN_IPC)
+    disconnect_from_server (s, FALSE);
+#endif /* !SYSV_IPC */
+}"
+"dowrite(unsigned offset, unsigned size)
+{
+	ssize_t ret;
+	off_t newsize;
+
+	offset -= offset % writebdy;
+	if (o_direct)
+		size -= size % writebdy;
+	if (size == 0) {
+		if (!quiet && testcalls > simulatedopcount && !o_direct)
+			prt(""skipping zero size write\n"");
+		log4(OP_SKIPPED, OP_WRITE, offset, size);
+		return;
+	}
+
+	log4(OP_WRITE, offset, size, file_size);
+
+	gendata(original_buf, good_buf, offset, size);
+	if (file_size < offset + size) {
+		newsize = ceil(((double)offset + size) / truncbdy) * truncbdy;
+		if (file_size < newsize)
+			memset(good_buf + file_size, '\0', newsize - file_size);
+		file_size = newsize;
+		if (lite) {
+			warn(""Lite file size bug in fsx!"");
+			report_failure(149);
+		}
+		ret = rbd_resize(image, newsize);
+		if (ret < 0) {
+			prterrcode(""dowrite: resize"", ret);
+			report_failure(150);
+		}
+	}
+
+	if (testcalls <= simulatedopcount)
+		return;
+
+	if (!quiet &&
+		((progressinterval && testcalls % progressinterval == 0) ||
+		       (debug &&
+		       (monitorstart == -1 ||
+			(offset + size > monitorstart &&
+			(monitorend == -1 || offset <= monitorend))))))
+		prt(""%lu write\t0x%x thru\t0x%x\t(0x%x bytes)\n"", testcalls,
+		    offset, offset + size - 1, size);
+
+	ret = rbd_write(image, offset, size, good_buf + offset);
+	if (ret != size) {
+		if (ret < 0)
+			prterrcode(""dowrite: rbd_write"", ret);
+		else
+			prt(""short write: 0x%x bytes instead of 0x%x\n"",
+			    ret, size);
+		report_failure(151);
+	}
+	if (flush) {
+		doflush(offset, size);
+	}
+}"
+"get_s32(__s32 *val, const char *arg, int base)
+{
+	long res;
+	char *ptr;
+
+	errno = 0;
+
+	if (!arg || !*arg)
+		return -1;
+	res = strtol(arg, &ptr, base);
+	if (!ptr || ptr == arg || *ptr)
+		return -1;
+	if ((res == LONG_MIN || res == LONG_MAX) && errno == ERANGE)
+		return -1;
+	if (res > INT32_MAX || res < INT32_MIN)
+		return -1;
+
+	*val = res;
+	return 0;
+}"
+"mg_send_ex_cmd(struct rtsx_chip *chip, u8 cmd, u8 entry_num)
+{
+	int retval, i;
+	u8 data[8];
+
+	data[0] = cmd;
+	data[1] = 0;
+	data[2] = 0;
+	data[3] = 0;
+	data[4] = 0;
+	data[5] = 0;
+	data[6] = entry_num;
+	data[7] = 0;
+
+	for (i = 0; i < MS_MAX_RETRY_COUNT; i++) {
+		retval = ms_write_bytes(chip, PRO_EX_SET_CMD, 7, WAIT_INT,
+					data, 8);
+		if (retval == STATUS_SUCCESS)
+			break;
+	}
+	if (i == MS_MAX_RETRY_COUNT) {
+		rtsx_trace(chip);
+		return STATUS_FAIL;
+	}
+
+	if (check_ms_err(chip)) {
+		rtsx_clear_ms_error(chip);
+		rtsx_trace(chip);
+		return STATUS_FAIL;
+	}
+
+	return STATUS_SUCCESS;
+}"
+"main(int argc, char *argv[])
+{
+  off_t off;
+  int fd;
+  char buf[1024];
+  char buf2[1024];
+  ssize_t act;
+  char *p;
+
+  sprintf(buf, ""/proc/%d/mem"", getpid());
+  fd= open(buf, O_RDWR|O_LARGEFILE);
+  if (fd < 0)
+  {
+    perror(""open()"");
+    exit(1);
+  }
+  sprintf(buf, ""Hi, I am process %d"", getpid());
+  printf(""Original: %s\n"", buf);
+  act= pread(fd, buf2, strlen(buf)+1, (off_t)buf);
+  if (act == (ssize_t)-1)
+  {
+    perror(""read()"");
+    exit(1);
+  }
+  printf(""Read from /dev/%d/mem: %s\n"", getpid(), buf2);
+  for (p= buf2; *p; p++)
+    *p= toupper(*p);
+  act= pwrite(fd, buf2, strlen(buf2)+1, (off_t)buf);
+  if (act == (ssize_t)-1)
+  {
+    perror(""write()"");
+    exit(1);
+  }
+  printf(""Updated via /dev/%d/mem: %s\n"", getpid(), buf);
+
+  return 0;
+}"
+"dump_in6_addr_port(uint16_t *addr, uint16_t port, char *buf, int *len)
+{
+	sprintf(buf, ""%x:%x:%x:%x:%x:%x:%x:%x-%d"",
+                ntohs(addr[0]),
+                ntohs(addr[1]),
+                ntohs(addr[2]),
+                ntohs(addr[3]),
+                ntohs(addr[4]),
+                ntohs(addr[5]),
+                ntohs(addr[6]),
+                ntohs(addr[7]),
+                ntohs(port));
+
+	if (len)
+		*len = strlen(buf);
+
+	return buf;
+}"
+"g_mime_decode_domain (const char **in, GString *domain)
+{
+	const char *inptr, *save, *atom;
+	size_t initial = domain->len;
+	
+	inptr = *in;
+	while (inptr && *inptr) {
+		decode_lwsp (&inptr);
+		if (*inptr == '[') {
+			/* domain literal */
+			g_string_append_c (domain, '[');
+			inptr++;
+			
+			decode_domain_literal (&inptr, domain);
+			
+			if (*inptr == ']') {
+				g_string_append_c (domain, ']');
+				inptr++;
+			} else
+				w(g_warning (""Missing ']' in domain-literal: %s"", *in));
+		} else {
+			if (!(atom = decode_atom (&inptr))) {
+				w(g_warning (""Unexpected char '%c' in domain: %s"", *inptr, *in));
+				/* remove the last '.' */
+				if (domain->len && domain->str[domain->len - 1] == '.')
+					g_string_truncate (domain, domain->len - 1);
+				break;
+			}
+			
+			g_string_append_len (domain, atom, (size_t) (inptr - atom));
+		}
+		
+		save = inptr;
+		decode_lwsp (&inptr);
+		if (*inptr != '.') {
+			inptr = save;
+			break;
+		}
+		
+		g_string_append_c (domain, '.');
+		inptr++;
+	}
+	
+	*in = inptr;
+	
+	return domain->len > initial;
+}"
+"getForPos ( int xn, int yn )
+{
+   if ( xn >= numX || yn >= numY || xn < 0 || yn < 0 )
+      displaymessage( ""AI :: Sections :: getForPos - invalid parameters: %d %d"", 2, xn, yn );
+
+   return section[xn+yn*numX];
+}"
+"configure_response (GtkDialog *dialog, gint response, gpointer char_tree_view)
+{
+	GtkTreeIter char_iter;
+	GKeyFile *config;
+	gchar *config_data = NULL;
+	gchar key_name[] = ""Enclose_x"";
+	gint i;
+
+	if (response != GTK_RESPONSE_OK && response != GTK_RESPONSE_ACCEPT)
+		return;
+
+	gtk_tree_model_get_iter_first (GTK_TREE_MODEL(chars_list), &char_iter);
+
+	config = g_key_file_new();
+	g_key_file_load_from_file(config, config_file, G_KEY_FILE_NONE, NULL);
+
+	for (i = 0; i < 8; i++)
+	{
+		gchar *prior_char_str, *end_char_str;
+
+		key_name [8] = (gchar) (i + '0');
+
+		gtk_tree_model_get (GTK_TREE_MODEL(chars_list), &char_iter,
+			COLUMN_PRIOR_CHAR, &prior_char_str, COLUMN_END_CHAR, &end_char_str, -1);
+		*enclose_chars [i] = prior_char_str [0];
+		*(enclose_chars [i] + 1) = end_char_str [0];
+		gtk_tree_model_iter_next (GTK_TREE_MODEL(chars_list), &char_iter);
+
+		g_key_file_set_string (config, ""addons"", key_name, enclose_chars [i]);
+
+		g_free (prior_char_str);
+		g_free (end_char_str);
+	}
+
+	config_data = g_key_file_to_data (config, NULL, NULL);
+	utils_write_file (config_file, config_data);
+
+	g_free (config_data);
+	g_key_file_free(config);
+}"
+"gtp_mprintf(const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  
+  for (; *fmt; ++fmt) {
+    if (*fmt == '%') {
+      switch (*++fmt) {
+      case 'c':
+      {
+	/* rules of promotion => passed as int, not char */
+	int c = va_arg(ap, int);
+	putc(c, gtp_output_file);
+	break;
+      }
+      case 'd':
+      {
+	int d = va_arg(ap, int);
+	fprintf(gtp_output_file, ""%d"", d);
+	break;
+      }
+      case 'f':
+      {
+	double f = va_arg(ap, double); /* passed as double, not float */
+	fprintf(gtp_output_file, ""%f"", f);
+	break;
+      }
+      case 's':
+      {
+	char *s = va_arg(ap, char *);
+	fputs(s, gtp_output_file);
+	break;
+      }
+      case 'm':
+      {
+	int m = va_arg(ap, int);
+	int n = va_arg(ap, int);
+        gtp_print_vertex(m, n);
+	break;
+      }
+      case 'C':
+      {
+	int color = va_arg(ap, int);
+	if (color == WHITE)
+	  fputs(""white"", gtp_output_file);
+	else if (color == BLACK)
+	  fputs(""black"", gtp_output_file);
+	else
+	  fputs(""empty"", gtp_output_file);
+	break;
+      }
+      default:
+	/* FIXME: Should go to `stderr' instead? */
+	fprintf(gtp_output_file, ""\n\nUnknown format character '%c'\n"", *fmt);
+	break;
+      }
+    }
+    else
+      putc(*fmt, gtp_output_file);
+  }
+  va_end(ap);
+}"
+"varnish_new(const char *name)
+{
+	struct varnish *v;
+	struct vsb *vsb;
+	char buf[1024];
+
+	AN(name);
+	ALLOC_OBJ(v, VARNISH_MAGIC);
+	AN(v);
+	REPLACE(v->name, name);
+
+	v->vl = vtc_logopen(name);
+	AN(v->vl);
+
+	bprintf(buf, ""${tmpdir}/%s"", name);
+	vsb = macro_expand(v->vl, buf);
+	AN(vsb);
+	v->workdir = strdup(VSB_data(vsb));
+	AN(v->workdir);
+	VSB_delete(vsb);
+
+	bprintf(buf, ""rm -rf %s ; mkdir -p %s ; echo ' %ld' > %s/_S"",
+	    v->workdir, v->workdir, random(), v->workdir);
+	AZ(system(buf));
+
+	v->vl1 = vtc_logopen(name);
+	AN(v->vl1);
+
+	if (*v->name != 'v')
+		vtc_log(v->vl, 0, ""Varnish name must start with 'v'"");
+
+	v->args = VSB_new_auto();
+
+	v->storage = VSB_new_auto();
+	VSB_printf(v->storage, ""-sfile,%s,10M"", v->workdir);
+	AZ(VSB_finish(v->storage));
+
+	v->cli_fd = -1;
+	VTAILQ_INSERT_TAIL(&varnishes, v, list);
+
+
+	return (v);
+}"
+"setlgt_position(Nv_data * data, Tcl_Interp * interp,	/* Current interpreter. */
+			   int argc,	/* Number of arguments. */
+			   char **argv	/* Argument strings. */
+    )
+{
+    int num, w;
+    float x, y, z;
+    double atof();
+
+    if (argc != 6)
+	return (TCL_ERROR);
+
+    num = get_light_num(argv[0]);
+
+    data->light[num].x = x = (float)atof(argv[2]);
+    data->light[num].y = y = (float)atof(argv[3]);
+    data->light[num].z = z = (float)atof(argv[4]);
+    data->light[num].w = w = (float)atoi(argv[5]);
+    GS_setlight_position(num, x, y, z, w);
+    return (TCL_OK);
+}"
+"patch_gles_shader(const char *source, int length, int *patched_len)
+{
+   char *saveptr = NULL;
+   char *sp;
+   char *p = NULL;
+
+   if (!length) length = strlen(source);
+
+   *patched_len = 0;
+   int patched_size = length;
+   char *patched = malloc(patched_size + 1);
+
+   if (!patched) return NULL;
+
+   p = (char *)opengl_strtok(source, &length, &saveptr, NULL);
+   for (; p; p = (char *)opengl_strtok(0, &length, &saveptr, p)) 
+     {
+        if (!strncmp(p, ""lowp"", 4) || !strncmp(p, ""mediump"", 7) || !strncmp(p, ""highp"", 5)) 
+          {
+             continue;
+          } 
+        else if (!strncmp(p, ""precision"", 9)) 
+          {
+             while ((p = (char *)opengl_strtok(0, &length, &saveptr, p)) && !strchr(p, ';'));
+          } 
+        else 
+          {
+             if (!strncmp(p, ""gl_MaxVertexUniformVectors"", 26)) 
+               {
+                  p = ""(gl_MaxVertexUniformComponents / 4)"";
+               } 
+             else if (!strncmp(p, ""gl_MaxFragmentUniformVectors"", 28)) 
+               {
+                  p = ""(gl_MaxFragmentUniformComponents / 4)"";
+               } 
+             else if (!strncmp(p, ""gl_MaxVaryingVectors"", 20)) 
+               {
+                  p = ""(gl_MaxVaryingFloats / 4)"";
+               }
+
+             int new_len = strlen(p);
+             if (*patched_len + new_len > patched_size) 
+               {
+                  patched_size *= 2;
+                  patched = realloc(patched, patched_size + 1);
+
+                  if (!patched) 
+                     return NULL;
+               }
+
+             memcpy(patched + *patched_len, p, new_len);
+             *patched_len += new_len;
+          }     
+     }
+
+   patched[*patched_len] = 0;
+   /* check that we don't leave dummy preprocessor lines */
+   for (sp = patched; *sp;) 
+     {
+        for (; *sp == ' ' || *sp == '\t'; sp++);
+        if (!strncmp(sp, ""#define"", 7)) 
+          {
+             for (p = sp + 7; *p == ' ' || *p == '\t'; p++);
+             if (*p == '\n' || *p == '\r' || *p == '/') 
+               {
+                  memset(sp, 0x20, 7);
+               }
+          }
+        for (; *sp && *sp != '\n' && *sp != '\r'; sp++);
+        for (; *sp == '\n' || *sp == '\r'; sp++);
+     }
+   return patched;
+}"
+"__reverse_ulong(unsigned char *str)
+{
+	unsigned long tmp = 0;
+	int shift = 24, idx = 0;
+
+#if BITS_PER_LONG == 64
+	shift = 56;
+#endif
+	while (shift >= 0) {
+		tmp |= (unsigned long)str[idx++] << shift;
+		shift -= BITS_PER_BYTE;
+	}
+	return tmp;
+}"
+"_shutdown_backup_controller(int wait_time)
+{
+	int rc;
+	slurm_msg_t req;
+
+	slurm_msg_t_init(&req);
+	if ((slurmctld_conf.backup_addr == NULL) ||
+	    (slurmctld_conf.backup_addr[0] == '\0')) {
+		debug(""No backup controller to shutdown"");
+		return SLURM_SUCCESS;
+	}
+
+	slurm_set_addr(&req.address, slurmctld_conf.slurmctld_port,
+		       slurmctld_conf.backup_addr);
+
+	/* send request message */
+	req.msg_type = REQUEST_CONTROL;
+
+	if (slurm_send_recv_rc_msg_only_one(&req, &rc,
+				(CONTROL_TIMEOUT * 1000)) < 0) {
+		error(""_shutdown_backup_controller:send/recv: %m"");
+		return SLURM_ERROR;
+	}
+	if (rc == ESLURM_DISABLED)
+		debug(""backup controller responding"");
+	else if (rc == 0) {
+		debug(""backup controller has relinquished control"");
+		if (wait_time == 0) {
+			/* In case primary controller really did not terminate,
+			 * but just temporarily became non-responsive */
+			clusteracct_storage_g_register_ctld(
+				acct_db_conn,
+				slurmctld_conf.slurmctld_port);
+		}
+	} else {
+		error(""_shutdown_backup_controller: %s"", slurm_strerror(rc));
+		return SLURM_ERROR;
+	}
+
+	/* FIXME: Ideally the REQUEST_CONTROL RPC does not return until all
+	 * other activity has ceased and the state has been saved. That is
+	 * not presently the case (it returns when no other work is pending,
+	 * so the state save should occur right away). We sleep for a while
+	 * here and give the backup controller time to shutdown */
+	if (wait_time)
+		sleep(wait_time);
+
+	return SLURM_SUCCESS;
+}"
+"parse_clipped(struct finfo *f)
+{ 
+    Object o = NULL;
+    Object clipper = NULL;
+    Object clippie = NULL;
+    int which;
+    Error rc = ERROR;
+ 
+#if DEBUG_MSG
+    DXDebug(""E"", ""in parse_clipped"");
+#endif
+
+    /* skip these 
+     */
+    match_keyword(f, KW_CLIPPED);
+    match_keyword(f, KW_BY);
+
+    /* clipper
+     */
+    rc = object_or_id(f, &clipper, ""clipped by"", &which);
+    if (!rc)
+	return ERROR;
+ 
+    /* skip this
+     */
+    match_keyword(f, KW_OF);
+
+    /* clippie
+     */
+    rc = object_or_id(f, &clippie, ""clipped of"", &which);
+    if (!rc)
+	return ERROR;
+ 
+    
+    if (which == IDENTIFY_OBJS)
+	return rc;
+
+    /* libdx call to create clipped object
+     */
+    o = (Object)DXNewClipped(clippie, clipper);
+    if (!o)
+        return ERROR;
+    
+    if (!_dxfsetobjptr(f, f->curid, o)) {
+	DXDelete(o);
+	return ERROR;
+    }
+    
+    f->curobj = o;
+ 
+    return OK; 
+}"
+"gfire_sq_gamespy2_query(gfire_game_server *p_server, gboolean p_full, int p_socket)
+{
+	static guint8 query[] = { 0xfe, 0xfd, 0x00, 'G', 'F', 'S', 'Q', 0xff, 0x00, 0x00 };
+	if(p_full)
+	{
+		query[8] = 0xff;
+		query[9] = 0xff;
+	}
+	else
+	{
+		query[8] = 0x00;
+		query[9] = 0x00;
+	}
+
+	struct sockaddr_in addr;
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = g_htonl(p_server->ip);
+	addr.sin_port = g_htons(p_server->query_port);
+
+	sendto(p_socket, query, 10, 0, (struct sockaddr*)&addr, sizeof(addr));
+}"
+"gm_iuserlist_base_init(gpointer object_class) {
+	static gboolean initialized = FALSE;
+	
+	if (!initialized) {
+		g_signal_new(""player_added"",
+			G_OBJECT_CLASS_TYPE(object_class),
+			G_SIGNAL_RUN_LAST,
+			G_STRUCT_OFFSET(GmIUserlistInterface, player_added),
+			NULL, NULL,
+			g_cclosure_marshal_VOID__INT,
+			G_TYPE_NONE,
+			1,
+			G_TYPE_INT);
+		g_signal_new(""player_removed"",
+			G_OBJECT_CLASS_TYPE(object_class),
+			G_SIGNAL_RUN_LAST,
+			G_STRUCT_OFFSET(GmIUserlistInterface, player_removed),
+			NULL, NULL,
+			g_cclosure_marshal_VOID__INT,
+			G_TYPE_NONE,
+			1,
+			G_TYPE_INT);	
+		g_signal_new(""name_changed"",
+			G_OBJECT_CLASS_TYPE(object_class),
+			G_SIGNAL_RUN_LAST,
+			G_STRUCT_OFFSET(GmIUserlistInterface, name_changed),
+			NULL, NULL,
+			g_cclosure_marshal_VOID__INT,
+			G_TYPE_NONE,
+			1,
+			G_TYPE_INT);
+		g_signal_new(""state_changed"",
+			G_OBJECT_CLASS_TYPE(object_class),
+			G_SIGNAL_RUN_LAST,
+			G_STRUCT_OFFSET(GmIUserlistInterface, state_changed),
+			NULL, NULL,
+			g_cclosure_marshal_VOID__INT,
+			G_TYPE_NONE,
+			1,
+			G_TYPE_INT);
+		g_signal_new(""rank_changed"",
+			G_OBJECT_CLASS_TYPE(object_class),
+			G_SIGNAL_RUN_LAST,
+			G_STRUCT_OFFSET(GmIUserlistInterface, rank_changed),
+			NULL, NULL,
+			g_cclosure_marshal_VOID__INT,
+			G_TYPE_NONE,
+			1,
+			G_TYPE_INT);
+		
+		initialized = TRUE;
+	}
+}"
+"implementationString (const impType imp)
+{
+	static const char *const names [] = {
+		""?"", ""abstract"", ""virtual"", ""pure virtual""
+	};
+	Assert (sizeof (names) / sizeof (names [0]) == IMP_COUNT);
+	Assert ((int) imp < IMP_COUNT);
+	return names [(int) imp];
+}"
+"php_mail_log_crlf_to_spaces(char *message) {
+	/* Find all instances of carriage returns or line feeds and
+	 * replace them with spaces. Thus, a log line is always one line
+	 * long
+	 */
+	char *p = message;
+	while ((p = strpbrk(p, ""\r\n""))) {
+		*p = ' ';
+	}
+}"
+"_print_job_num_cpus(job_info_t * job, int width, bool right, char* suffix)
+{
+	char tmp_char[18];
+	if (job == NULL)	/* Print the Header instead */
+		_print_str(""CPUS"", width, right, true);
+	else {
+		if(params.cluster_flags & CLUSTER_FLAG_BG)
+			convert_num_unit((float)job->num_cpus, tmp_char,
+					 sizeof(tmp_char), UNIT_NONE);
+		else
+			snprintf(tmp_char, sizeof(tmp_char),
+				 ""%u"", job->num_cpus);
+       		_print_str(tmp_char, width, right, true);
+	}
+	if (suffix)
+		printf(""%s"", suffix);
+	return SLURM_SUCCESS;
+}"
+"findAnswer(const char* s)
+{
+    static const AnswerMsg answer[2] = {
+    { ""CONNECT "", 8,
+      FaxModem::AT_NOTHING, FaxModem::OK, FaxModem::CALLTYPE_DATA },
+    { ""CONNECT"",  7,
+      FaxModem::AT_NOTHING, FaxModem::OK, FaxModem::CALLTYPE_UNKNOWN },
+    };
+    return strneq(s, answer[0].msg, answer[0].len) ? &answer[0] :
+	   strneq(s, answer[1].msg, answer[1].len) ? &answer[1] :
+	      FaxModem::findAnswer(s);
+}"
+"ff_flac_compute_autocorr_sse2(const int32_t *data, int len, int lag,
+                                   double *autoc)
+{
+    double tmp[len + lag + 2];
+    double *data1 = tmp + lag;
+    int j;
+
+    if((x86_reg)data1 & 15)
+        data1++;
+
+    apply_welch_window_sse2(data, len, data1);
+
+    for(j=0; j<lag; j++)
+        data1[j-lag]= 0.0;
+    data1[len] = 0.0;
+
+    for(j=0; j<lag; j+=2){
+        x86_reg i = -len*sizeof(double);
+        if(j == lag-2) {
+            __asm__ volatile(
+                ""movsd    ""MANGLE(ff_pd_1)"", %%xmm0 \n\t""
+                ""movsd    ""MANGLE(ff_pd_1)"", %%xmm1 \n\t""
+                ""movsd    ""MANGLE(ff_pd_1)"", %%xmm2 \n\t""
+                ""1:                                 \n\t""
+                ""movapd   (%4,%0), %%xmm3           \n\t""
+                ""movupd -8(%5,%0), %%xmm4           \n\t""
+                ""movapd   (%5,%0), %%xmm5           \n\t""
+                ""mulpd     %%xmm3, %%xmm4           \n\t""
+                ""mulpd     %%xmm3, %%xmm5           \n\t""
+                ""mulpd -16(%5,%0), %%xmm3           \n\t""
+                ""addpd     %%xmm4, %%xmm1           \n\t""
+                ""addpd     %%xmm5, %%xmm0           \n\t""
+                ""addpd     %%xmm3, %%xmm2           \n\t""
+                ""add       $16,    %0               \n\t""
+                ""jl 1b                              \n\t""
+                ""movhlps   %%xmm0, %%xmm3           \n\t""
+                ""movhlps   %%xmm1, %%xmm4           \n\t""
+                ""movhlps   %%xmm2, %%xmm5           \n\t""
+                ""addsd     %%xmm3, %%xmm0           \n\t""
+                ""addsd     %%xmm4, %%xmm1           \n\t""
+                ""addsd     %%xmm5, %%xmm2           \n\t""
+                ""movsd     %%xmm0, %1               \n\t""
+                ""movsd     %%xmm1, %2               \n\t""
+                ""movsd     %%xmm2, %3               \n\t""
+                :""+&r""(i), ""=m""(autoc[j]), ""=m""(autoc[j+1]), ""=m""(autoc[j+2])
+                :""r""(data1+len), ""r""(data1+len-j)
+            );
+        } else {
+            __asm__ volatile(
+                ""movsd    ""MANGLE(ff_pd_1)"", %%xmm0 \n\t""
+                ""movsd    ""MANGLE(ff_pd_1)"", %%xmm1 \n\t""
+                ""1:                                 \n\t""
+                ""movapd   (%3,%0), %%xmm3           \n\t""
+                ""movupd -8(%4,%0), %%xmm4           \n\t""
+                ""mulpd     %%xmm3, %%xmm4           \n\t""
+                ""mulpd    (%4,%0), %%xmm3           \n\t""
+                ""addpd     %%xmm4, %%xmm1           \n\t""
+                ""addpd     %%xmm3, %%xmm0           \n\t""
+                ""add       $16,    %0               \n\t""
+                ""jl 1b                              \n\t""
+                ""movhlps   %%xmm0, %%xmm3           \n\t""
+                ""movhlps   %%xmm1, %%xmm4           \n\t""
+                ""addsd     %%xmm3, %%xmm0           \n\t""
+                ""addsd     %%xmm4, %%xmm1           \n\t""
+                ""movsd     %%xmm0, %1               \n\t""
+                ""movsd     %%xmm1, %2               \n\t""
+                :""+&r""(i), ""=m""(autoc[j]), ""=m""(autoc[j+1])
+                :""r""(data1+len), ""r""(data1+len-j)
+            );
+        }
+    }
+}"
+"get_encodings_for_lang (const char *lang,
+                        char **encoding1,
+                        char **encoding2,
+                        char **encoding3)
+{
+	struct EncodingTriplet *	encodings;
+	gboolean				success = FALSE;
+	char *				tmp_lang;
+
+	g_return_val_if_fail (lang != NULL, FALSE);
+	g_return_val_if_fail (encoding1 != NULL, FALSE);
+	g_return_val_if_fail (encoding2 != NULL, FALSE);
+	g_return_val_if_fail (encoding3 != NULL, FALSE);
+
+	*encoding1 = ""iso-8859-1"";
+	*encoding2 = ""windows-1251"";
+	*encoding3 = NULL;
+
+	init_lang_to_encodings_hash ();
+
+	tmp_lang = g_strdup (lang);
+	if ((encodings = g_hash_table_lookup (langToEncodings5, tmp_lang)))
+	{
+		*encoding1 = (char *) encodings->encoding1;
+		*encoding2 = (char *) encodings->encoding2;
+		*encoding3 = (char *) encodings->encoding3;
+		success = TRUE;
+	}
+
+	/* Truncate tmp_lang to length of 2 */
+	if (strlen (tmp_lang) > 2)
+		tmp_lang[2] = '\0';
+	if (!success && (encodings = g_hash_table_lookup (langToEncodings2, tmp_lang)))
+	{
+		*encoding1 = (char *) encodings->encoding1;
+		*encoding2 = (char *) encodings->encoding2;
+		*encoding3 = (char *) encodings->encoding3;
+		success = TRUE;
+	}
+
+	g_free (tmp_lang);
+	return success;
+}"
+"pdf_prepare_text_color(gx_device_pdf *const pdev, gs_imager_state *pis, const gs_text_params_t *text, gs_font *font)
+{
+    int code=0;
+    if (text->operation & TEXT_DO_DRAW) {
+        gs_state *pgs = (gs_state *)pis;
+        if (!pdev->ForOPDFRead) {
+            if (pis->text_rendering_mode != 3 && pis->text_rendering_mode != 7) {
+                if (font->PaintType == 2) {
+                    /* Bit awkward, if the PaintType is 2 then we want to set the
+                     * current ie 'fill' colour, but as a stroke colour because we
+                     * will later change the text rendering mode to 1 (stroke).
+                     */
+                    code = gx_set_dev_color(pgs);
+                    if (code != 0)
+                        return code;
+                    code = pdf_set_drawing_color(pdev, pis, pgs->color[0].dev_color, &pdev->saved_stroke_color,
+                                 &pdev->stroke_used_process_color,
+                                 &psdf_set_stroke_color_commands);
+                    if (code < 0)
+                        return code;
+                } else {
+                    if ((pis->text_rendering_mode == 0 || pis->text_rendering_mode == 2 ||
+                        pis->text_rendering_mode == 4 || pis->text_rendering_mode == 6) &&
+                        !pdev->remap_stroke_color) {
+                        code = gx_set_dev_color(pgs);
+                        if (code != 0)
+                            return code;
+                    }
+                    if (pis->text_rendering_mode == 1 || pis->text_rendering_mode == 2 ||
+                        pis->text_rendering_mode == 5 || pis->text_rendering_mode == 6) {
+                        if (!pdev->remap_fill_color) {
+                            if (pdev->remap_stroke_color) {
+                                pdev->remap_stroke_color = false;
+                            } else {
+                                gs_swapcolors_quick(pgs);
+                                code = gx_set_dev_color(pgs);
+                                if (code == gs_error_Remap_Color)
+                                    pdev->remap_stroke_color = true;
+                                if (code != 0)
+                                    return code;
+                            }
+                        } else
+                            pdev->remap_fill_color = false;
+                        gs_swapcolors_quick(pgs);
+                        code = gx_set_dev_color(pgs);
+                        if (code == gs_error_Remap_Color)
+                            pdev->remap_fill_color = true;
+                        if (code != 0)
+                            return code;
+                    }
+                }
+            }
+        }
+    }
+    return code;
+}"
+"b64_encode(struct archive_string *as, const unsigned char *p, size_t len)
+{
+	int c;
+
+	for (; len >= 3; p += 3, len -= 3) {
+		c = p[0] >> 2;
+		archive_strappend_char(as, base64[c]);
+		c = ((p[0] & 0x03) << 4) | ((p[1] & 0xf0) >> 4);
+		archive_strappend_char(as, base64[c]);
+		c = ((p[1] & 0x0f) << 2) | ((p[2] & 0xc0) >> 6);
+		archive_strappend_char(as, base64[c]);
+		c = p[2] & 0x3f;
+		archive_strappend_char(as, base64[c]);
+	}
+	if (len > 0) {
+		c = p[0] >> 2;
+		archive_strappend_char(as, base64[c]);
+		c = (p[0] & 0x03) << 4;
+		if (len == 1) {
+			archive_strappend_char(as, base64[c]);
+			archive_strappend_char(as, '=');
+			archive_strappend_char(as, '=');
+		} else {
+			c |= (p[1] & 0xf0) >> 4;
+			archive_strappend_char(as, base64[c]);
+			c = (p[1] & 0x0f) << 2;
+			archive_strappend_char(as, base64[c]);
+			archive_strappend_char(as, '=');
+		}
+	}
+	archive_strappend_char(as, '\n');
+}"
+"dico_base64_encode(const unsigned char *input, size_t input_len,
+		   unsigned char **output, size_t *output_len)
+{
+    size_t olen = 4 * (input_len + 2) / 3 + 1;
+    unsigned char *out = malloc(olen);
+
+    if (!out)
+	return 1;
+    *output = out;
+    while (input_len >= 3) {
+	*out++ = b64tab[input[0] >> 2];
+	*out++ = b64tab[((input[0] << 4) & 0x30) | (input[1] >> 4)];
+	*out++ = b64tab[((input[1] << 2) & 0x3c) | (input[2] >> 6)];
+	*out++ = b64tab[input[2] & 0x3f];
+	input_len -= 3;
+	input += 3;
+    }
+
+    if (input_len > 0) {
+	unsigned char c = (input[0] << 4) & 0x30;
+	*out++ = b64tab[input[0] >> 2];
+	if (input_len > 1)
+	    c |= input[1] >> 4;
+	*out++ = b64tab[c];
+	*out++ = (input_len < 2) ? '=' : b64tab[(input[1] << 2) & 0x3c];
+	*out++ = '=';
+    }
+    *output_len = out - *output;
+    *out = 0;
+    return 0;
+}"
+"z_verify( void )
+{
+   unsigned long file_size;
+   unsigned int pages, offset;
+   unsigned int start, end, i, j;
+   zword_t checksum = 0;
+   zbyte_t buffer[PAGE_SIZE] = { 0 };
+   char szBuffer[6] = { 0 };
+
+   /* Print version banner */
+
+   z_new_line(  );
+   write_string( ""Running on "" );
+   write_string( JZIPVER );
+   write_string( "" ("" );
+   switch ( JTERP )
+   {
+      case INTERP_GENERIC:
+         write_string( ""Generic"" );
+         break;
+      case INTERP_AMIGA:
+         write_string( ""Amiga"" );
+         break;
+      case INTERP_ATARI_ST:
+         write_string( ""Atari ST"" );
+         break;
+      case INTERP_MSDOS:
+         write_string( ""DOS"" );
+         break;
+      case INTERP_UNIX:
+         write_string( ""UNIX"" );
+         break;
+      case INTERP_VMS:
+         write_string( ""VMS"" );
+         break;
+   }
+   write_string( ""). Reporting Spec "" );
+   sprintf( szBuffer, ""%d.%d"", get_byte( H_STANDARD_HIGH ), get_byte( H_STANDARD_LOW ) );
+   write_string( szBuffer );
+   write_string( "" Compliance."" );
+   z_new_line(  );
+
+   write_string( ""Compile options: "" );
+#ifdef USE_QUETZAL
+   write_string( ""USE_QUETZAL "" );
+#endif
+#ifdef STRICTZ
+   write_string( ""STRICTZ "" );
+#endif
+#ifdef USE_ZLIB
+   write_string( ""USE_ZLIB "" );
+#endif
+#ifdef LOUSY_RANDOM
+   write_string( ""LOUSY_RANDOM "" );
+#endif
+#ifdef HARD_COLORS
+   write_string( ""HARD_COLORS "" );
+#endif
+   z_new_line(  );
+
+   write_string( ""Release "" );
+   write_string( JZIPRELDATE );
+   write_string( ""."" );
+   z_new_line(  );
+
+   write_string( ""Playing a Version "" );
+   z_print_num( (zword_t) GLOBALVER );
+   write_string( "" Story."" );
+   z_new_line(  );
+
+   z_new_line(  );
+
+   /* Calculate game file dimensions */
+
+   file_size = ( unsigned long ) h_file_size *story_scaler;
+
+   pages = ( unsigned int ) ( ( unsigned long ) file_size / PAGE_SIZE );
+   offset = ( unsigned int ) file_size & PAGE_MASK;
+
+   /* Sum all bytes in game file, except header bytes */
+
+   for ( i = 0; i <= pages; i++ )
+   {
+      read_page( i, buffer );
+      start = ( i == 0 ) ? 64 : 0;
+      end = ( i == pages ) ? offset : PAGE_SIZE;
+      for ( j = start; j < end; j++ )
+      {
+         checksum += buffer[j];
+      }
+   }
+
+   /* Make a conditional jump based on whether the checksum is equal */
+
+   conditional_jump( checksum == h_checksum );
+
+}"
+"get_ether_addr(const char *address_string, unsigned char *ether_addr) {
+   unsigned mac_b0, mac_b1, mac_b2, mac_b3, mac_b4, mac_b5;
+   int result;
+
+   result = sscanf(address_string, ""%x:%x:%x:%x:%x:%x"",
+                   &mac_b0, &mac_b1, &mac_b2, &mac_b3, &mac_b4, &mac_b5);
+   if (result !=6 ) {
+      result = sscanf(address_string, ""%x-%x-%x-%x-%x-%x"",
+                      &mac_b0, &mac_b1, &mac_b2, &mac_b3, &mac_b4, &mac_b5);
+   }
+   if (result !=6 ) {
+      return -1;
+   }
+   ether_addr[0] = mac_b0;
+   ether_addr[1] = mac_b1;
+   ether_addr[2] = mac_b2;
+   ether_addr[3] = mac_b3;
+   ether_addr[4] = mac_b4;
+   ether_addr[5] = mac_b5;
+
+   return 0;
+}"
+"nestloop_inner_path_rows(Path *path)
+{
+	double		result;
+
+	if (IsA(path, IndexPath))
+		result = ((IndexPath *) path)->rows;
+	else if (IsA(path, BitmapHeapPath))
+		result = ((BitmapHeapPath *) path)->rows;
+	else if (IsA(path, AppendPath))
+	{
+		ListCell   *l;
+
+		result = 0;
+		foreach(l, ((AppendPath *) path)->subpaths)
+		{
+			result += nestloop_inner_path_rows((Path *) lfirst(l));
+		}
+	}
+	else if (IsA(path, MergeAppendPath))
+	{
+		ListCell   *l;
+
+		result = 0;
+		foreach(l, ((MergeAppendPath *) path)->subpaths)
+		{
+			result += nestloop_inner_path_rows((Path *) lfirst(l));
+		}
+	}
+	else
+		result = PATH_ROWS(path);
+
+	return result;
+}"
+"write_cert(X509 *x509)
+{
+	char buf[200];
+
+	if (!wb) {
+		wb = BIO_new_file(cert_dst, ""wb"");
+		ERR(!wb, ""%s"", cert_dst);
+	}
+	X509_NAME_oneline(X509_get_subject_name(x509), buf, sizeof(buf));
+	ERR(!i2d_X509_bio(wb, x509), ""%s"", cert_dst);
+	if (kbuild_verbose)
+		fprintf(stderr, ""Extracted cert: %s\n"", buf);
+}"
+"des3_set3key( uint32_t esk[96],
+                          uint32_t dsk[96],
+                          const unsigned char key[24] )
+{
+    int i;
+
+    des_setkey( esk, key );
+    des_setkey( dsk + 32, key +  8 );
+    des_setkey( esk + 64, key + 16 );
+
+    for( i = 0; i < 32; i += 2 )
+    {
+        dsk[i     ] = esk[94 - i];
+        dsk[i +  1] = esk[95 - i];
+
+        esk[i + 32] = dsk[62 - i];
+        esk[i + 33] = dsk[63 - i];
+
+        dsk[i + 64] = esk[30 - i];
+        dsk[i + 65] = esk[31 - i];
+    }
+}"
+"lock_mbox(char *lockfile)
+{
+	int fd;
+	int retry = 5;
+
+	while (TRUE) {
+	  if ((fd = open(lockfile, O_WRONLY | O_CREAT | O_EXCL, 0666)) < 0) {
+			if (errno == EACCES || errno == EROFS)
+				return 1; /* doesn't need a lockfile, maybe. */
+			else if (errno != EEXIST)
+				error(""open(%s)"", lockfile);
+			if (retry-- <= 0)
+				error(""can't get lock(%s)"", lockfile);
+		}
+		else {
+			/* lock succeeded. */
+			write(fd, ""0"", 1);
+			close(fd);
+			return 0;
+		}
+		sleep(2);
+	}
+}"
+"expand_vec_perm_1 (enum insn_code icode, rtx target,
+		   rtx v0, rtx v1, rtx sel)
+{
+  enum machine_mode tmode = GET_MODE (target);
+  enum machine_mode smode = GET_MODE (sel);
+  struct expand_operand ops[4];
+
+  create_output_operand (&ops[0], target, tmode);
+  create_input_operand (&ops[3], sel, smode);
+
+  /* Make an effort to preserve v0 == v1.  The target expander is able to
+     rely on this to determine if we're permuting a single input operand.  */
+  if (rtx_equal_p (v0, v1))
+    {
+      if (!insn_operand_matches (icode, 1, v0))
+        v0 = force_reg (tmode, v0);
+      gcc_checking_assert (insn_operand_matches (icode, 1, v0));
+      gcc_checking_assert (insn_operand_matches (icode, 2, v0));
+
+      create_fixed_operand (&ops[1], v0);
+      create_fixed_operand (&ops[2], v0);
+    }
+  else
+    {
+      create_input_operand (&ops[1], v0, tmode);
+      create_input_operand (&ops[2], v1, tmode);
+    }
+
+  if (maybe_expand_insn (icode, 4, ops))
+    return ops[0].value;
+  return NULL_RTX;
+}"
+"rpcsvc_create_listeners (rpcsvc_t *svc, dict_t *options, char *name)
+{
+        int32_t  ret            = -1, count = 0;
+        data_t  *data           = NULL;
+        char    *str            = NULL, *ptr = NULL, *transport_name = NULL;
+        char    *transport_type = NULL, *saveptr = NULL, *tmp = NULL;
+
+        if ((svc == NULL) || (options == NULL) || (name == NULL)) {
+                goto out;
+        }
+
+        data = dict_get (options, ""transport-type"");
+        if (data == NULL) {
+                gf_log (GF_RPCSVC, GF_LOG_ERROR,
+                        ""option transport-type not set"");
+                goto out;
+        }
+
+        transport_type = data_to_str (data);
+        if (transport_type == NULL) {
+                gf_log (GF_RPCSVC, GF_LOG_ERROR,
+                        ""option transport-type not set"");
+                goto out;
+        }
+
+        /* duplicate transport_type, since following dict_set will free it */
+        transport_type = gf_strdup (transport_type);
+        if (transport_type == NULL) {
+                goto out;
+        }
+
+        str = gf_strdup (transport_type);
+        if (str == NULL) {
+                goto out;
+        }
+
+        ptr = strtok_r (str, "","", &saveptr);
+
+        while (ptr != NULL) {
+                tmp = gf_strdup (ptr);
+                if (tmp == NULL) {
+                        goto out;
+                }
+
+                ret = gf_asprintf (&transport_name, ""%s.%s"", tmp, name);
+                if (ret == -1) {
+                        goto out;
+                }
+
+                ret = dict_set_dynstr (options, ""transport-type"", tmp);
+                if (ret == -1) {
+                        goto out;
+                }
+
+                tmp = NULL;
+                ptr = strtok_r (NULL, "","", &saveptr);
+
+                ret = rpcsvc_create_listener (svc, options, transport_name);
+                if (ret != 0) {
+                        goto out;
+                }
+
+                GF_FREE (transport_name);
+                count++;
+        }
+
+        ret = dict_set_dynstr (options, ""transport-type"", transport_type);
+        if (ret == -1) {
+                goto out;
+        }
+
+        transport_type = NULL;
+
+out:
+        if (str != NULL) {
+                GF_FREE (str);
+        }
+
+        if (transport_type != NULL) {
+                GF_FREE (transport_type);
+        }
+
+        if (tmp != NULL) {
+                GF_FREE (tmp);
+        }
+
+        return count;
+}"
+"setSourceModel( QAbstractItemModel *_sourceModel )
+{
+  if ( _sourceModel == sourceModel() ) {
+    return;
+  }
+
+  beginResetModel();
+
+  disconnect( this, SIGNAL(rowsInserted(QModelIndex,int,int)),
+              this, SLOT(sourceRowsInserted(QModelIndex,int,int)) );
+  disconnect( this, SIGNAL(rowsRemoved(QModelIndex,int,int)),
+              this, SLOT(sourceRowsRemoved(QModelIndex,int,int)) );
+
+  QSortFilterProxyModel::setSourceModel( _sourceModel );
+
+  connect( this, SIGNAL(rowsInserted(QModelIndex,int,int)),
+           this, SLOT(sourceRowsInserted(QModelIndex,int,int)) );
+  connect( this, SIGNAL(rowsRemoved(QModelIndex,int,int)),
+           this, SLOT(sourceRowsRemoved(QModelIndex,int,int)) );
+
+  endResetModel();
+}"
+"warnifallksk(dns_db_t *db) {
+	dns_dbversion_t *currentversion = NULL;
+	dns_dbnode_t *node = NULL;
+	dns_rdataset_t rdataset;
+	dns_rdata_t rdata = DNS_RDATA_INIT;
+	isc_result_t result;
+	dns_rdata_dnskey_t dnskey;
+	isc_boolean_t have_non_ksk = ISC_FALSE;
+
+	dns_db_currentversion(db, &currentversion);
+
+	result = dns_db_findnode(db, gorigin, ISC_FALSE, &node);
+	if (result != ISC_R_SUCCESS)
+		fatal(""failed to find the zone's origin: %s"",
+		      isc_result_totext(result));
+
+	dns_rdataset_init(&rdataset);
+	result = dns_db_findrdataset(db, node, currentversion,
+				     dns_rdatatype_dnskey, 0, 0, &rdataset,
+				     NULL);
+	if (result != ISC_R_SUCCESS)
+		fatal(""failed to find keys at the zone apex: %s"",
+		      isc_result_totext(result));
+	result = dns_rdataset_first(&rdataset);
+	check_result(result, ""dns_rdataset_first"");
+	while (result == ISC_R_SUCCESS) {
+		dns_rdata_reset(&rdata);
+		dns_rdataset_current(&rdataset, &rdata);
+		result = dns_rdata_tostruct(&rdata, &dnskey, NULL);
+		check_result(result, ""dns_rdata_tostruct"");
+		if ((dnskey.flags & DNS_KEYFLAG_KSK) == 0) {
+			have_non_ksk = ISC_TRUE;
+			result = ISC_R_NOMORE;
+		} else
+			result = dns_rdataset_next(&rdataset);
+		dns_rdata_freestruct(&dnskey);
+	}
+	dns_rdataset_disassociate(&rdataset);
+	dns_db_detachnode(db, &node);
+	dns_db_closeversion(db, &currentversion, ISC_FALSE);
+	if (!have_non_ksk && !ignore_kskflag) {
+		if (disable_zone_check)
+			fprintf(stderr, ""%s: warning: No non-KSK DNSKEY found; ""
+				""supply a ZSK or use '-z'.\n"",
+				program);
+		else
+			fatal(""No non-KSK DNSKEY found; ""
+			      ""supply a ZSK or use '-z'."");
+	}
+}"
+"get_max_partno(const char *disk, dev_t devno)
+{
+	char path[PATH_MAX], *parent, *dirname = NULL;
+	struct stat st;
+	DIR *dir;
+	struct dirent *d;
+	int partno = 0;
+
+	if (!devno && !stat(disk, &st))
+		devno = st.st_rdev;
+	if (!devno)
+		goto dflt;
+	parent = strrchr(disk, '/');
+	if (!parent)
+		goto dflt;
+	parent++;
+
+	snprintf(path, sizeof(path), _PATH_SYS_DEVBLOCK ""/%d:%d/"",
+			major(devno), minor(devno));
+
+	dir = opendir(path);
+	if (!dir)
+		goto dflt;
+
+	dirname = xstrdup(path);
+
+	while ((d = readdir(dir))) {
+		int fd;
+
+		if (!strcmp(d->d_name, ""."") ||
+		    !strcmp(d->d_name, ""..""))
+			continue;
+#ifdef _DIRENT_HAVE_D_TYPE
+		if (d->d_type != DT_DIR)
+			continue;
+#endif
+		if (strncmp(parent, d->d_name, strlen(parent)))
+			continue;
+		snprintf(path, sizeof(path), ""%s/partition"", d->d_name);
+
+		fd = open_at(dirfd(dir), dirname, path, O_RDONLY);
+		if (fd) {
+			int x = 0;
+			FILE *f = fdopen(fd, ""r"");
+			if (f) {
+				if (fscanf(f, ""%d"", &x) == 1 && x > partno)
+					partno = x;
+				fclose(f);
+			}
+		}
+	}
+
+	free(dirname);
+	closedir(dir);
+	return partno;
+dflt:
+	return SLICES_MAX;
+}"
+"append_spell(player *pl, SockList *sl, object *spell) {
+    client_spell *spell_info;
+    int len, i, skill = 0;
+
+    if (!spell->name) {
+        LOG(llevError, ""item number %d is a spell with no name.\n"", spell->count);
+        return;
+    }
+
+    if (spell->face && !(pl->socket.faces_sent[spell->face->number]&NS_FACESENT_FACE))
+        esrv_send_face(&pl->socket, spell->face->number, 0);
+
+    spell_info = get_client_spell_state(pl, spell);
+    SockList_AddInt(sl, spell->count);
+    SockList_AddShort(sl, spell->level);
+    SockList_AddShort(sl, spell->casting_time);
+    /* store costs and damage in the object struct, to compare to later */
+    spell_info->last_sp = SP_level_spellpoint_cost(pl->ob, spell, SPELL_MANA);
+    spell_info->last_grace = SP_level_spellpoint_cost(pl->ob, spell, SPELL_GRACE);
+    spell_info->last_dam = spell->stats.dam+SP_level_dam_adjust(pl->ob, spell);
+    /* send the current values */
+    SockList_AddShort(sl, spell_info->last_sp);
+    SockList_AddShort(sl, spell_info->last_grace);
+    SockList_AddShort(sl, spell_info->last_dam);
+
+    /* figure out which skill it uses, if it uses one */
+    if (spell->skill) {
+        for (i = 1; i < NUM_SKILLS; i++)
+            if (!strcmp(spell->skill, skill_names[i])) {
+                skill = i+CS_STAT_SKILLINFO;
+                break;
+            }
+    }
+    SockList_AddChar(sl, skill);
+
+    SockList_AddInt(sl, spell->path_attuned);
+    SockList_AddInt(sl, spell->face ? spell->face->number : 0);
+    SockList_AddLen8Data(sl, spell->name, strlen(spell->name));
+
+    if (!spell->msg) {
+        SockList_AddShort(sl, 0);
+    } else {
+        len = strlen(spell->msg);
+        SockList_AddShort(sl, len);
+        SockList_AddData(sl, spell->msg, len);
+    }
+
+    /* Extended spell information available if the client wants it.
+     */
+    if (pl->socket.monitor_spells >= 2) {
+        /* spellmon 2
+         */
+        sstring req = object_get_value(spell, ""casting_requirements"");
+
+        SockList_AddChar(sl, spell_client_use(spell));  /* Usage code */
+
+        if (req) {                                      /* Requirements */
+            SockList_AddLen8Data(sl, req, strlen(req));
+        } else {
+            SockList_AddChar(sl, 0);
+        }
+        /* end spellmon 2
+         */
+    }
+}"
+"get(char *buffer, int buf_size)
+{
+  if(buffer) {
+
+    double d;;
+    get(d);
+
+    snprintf(buffer,buf_size,""%g"",d);
+  }
+
+}"
+"dev_set_geometry(struct dm_ioctl *param, size_t param_size)
+{
+	int r = -EINVAL, x;
+	struct mapped_device *md;
+	struct hd_geometry geometry;
+	unsigned long indata[4];
+	char *geostr = (char *) param + param->data_start;
+	char dummy;
+
+	md = find_device(param);
+	if (!md)
+		return -ENXIO;
+
+	if (geostr < param->data ||
+	    invalid_str(geostr, (void *) param + param_size)) {
+		DMWARN(""Invalid geometry supplied."");
+		goto out;
+	}
+
+	x = sscanf(geostr, ""%lu %lu %lu %lu%c"", indata,
+		   indata + 1, indata + 2, indata + 3, &dummy);
+
+	if (x != 4) {
+		DMWARN(""Unable to interpret geometry settings."");
+		goto out;
+	}
+
+	if (indata[0] > 65535 || indata[1] > 255 ||
+	    indata[2] > 255 || indata[3] > ULONG_MAX) {
+		DMWARN(""Geometry exceeds range limits."");
+		goto out;
+	}
+
+	geometry.cylinders = indata[0];
+	geometry.heads = indata[1];
+	geometry.sectors = indata[2];
+	geometry.start = indata[3];
+
+	r = dm_set_geometry(md, &geometry);
+
+	param->data_size = 0;
+
+out:
+	dm_put(md);
+	return r;
+}"
+"_ctl_btdh_mapping(struct MPT3SAS_ADAPTER *ioc, void __user *arg)
+{
+	struct mpt3_ioctl_btdh_mapping karg;
+	int rc;
+
+	if (copy_from_user(&karg, arg, sizeof(karg))) {
+		pr_err(""failure at %s:%d/%s()!\n"",
+		    __FILE__, __LINE__, __func__);
+		return -EFAULT;
+	}
+
+	dctlprintk(ioc, pr_info(MPT3SAS_FMT ""%s\n"", ioc->name,
+	    __func__));
+
+	rc = _ctl_btdh_search_sas_device(ioc, &karg);
+	if (!rc)
+		_ctl_btdh_search_raid_device(ioc, &karg);
+
+	if (copy_to_user(arg, &karg, sizeof(karg))) {
+		pr_err(""failure at %s:%d/%s()!\n"",
+		    __FILE__, __LINE__, __func__);
+		return -EFAULT;
+	}
+	return 0;
+}"
+"AddNodeWithReference(NODE  graph[maxnode], NODE  ReferenceGraph[maxnode], int NodeIndex)
+{
+int             NeighIndex; /* index of neighbor */
+
+   graph[NodeIndex].fSelected = TRUE;
+   for (NeighIndex = 1; NeighIndex < NumOfNodesInGraph; NeighIndex++)
+	 /* neighbor in the ReferenceGraph graph*/
+	 if (ReferenceGraph[NodeIndex].D[NeighIndex]) { 
+       graph[NeighIndex].fSelected = TRUE;
+       graph[NodeIndex].degree++;  
+       graph[NeighIndex].degree++; 
+       graph[NeighIndex].D[NodeIndex] = graph[NodeIndex].D[NeighIndex] = TRUE;
+    }
+}"
+"load_contraints (EggBuffer *buffer,
+                 gsize offset,
+                 gsize *next_offset,
+                 GckBuilder *priv,
+                 GckBuilder *pub)
+{
+	guchar constraint;
+	guint32 lifetime;
+
+	/*
+	 * Constraints are a byte flag, and optional data depending
+	 * on the constraint.
+	 */
+
+	while (offset < egg_buffer_length (buffer)) {
+		if (!egg_buffer_get_byte (buffer, offset, &offset, &constraint))
+			return FALSE;
+
+		switch (constraint) {
+		case GKD_SSH_FLAG_CONSTRAIN_LIFETIME:
+			if (!egg_buffer_get_uint32 (buffer, offset, &offset, &lifetime))
+				return FALSE;
+
+			gck_builder_add_ulong (pub, CKA_G_DESTRUCT_AFTER, lifetime);
+			gck_builder_add_ulong (priv, CKA_G_DESTRUCT_AFTER, lifetime);
+			break;
+
+		case GKD_SSH_FLAG_CONSTRAIN_CONFIRM:
+			/* We can't use prompting as access control on an insecure X desktop */
+			g_message (""prompt constraints are not supported."");
+			return FALSE;
+
+		default:
+			g_message (""unsupported constraint or other unsupported data"");
+			return FALSE;
+		}
+	}
+
+	*next_offset = offset;
+	return TRUE;
+}"
+"VuotaCLista(void)
+{
+    while (totale_lista_c--) {
+        if (c_list[totale_lista_c]) {
+            free(c_list[totale_lista_c]);
+            c_list[totale_lista_c] = NULL;
+        }
+    }
+}"
+"dump_methods (void)
+{
+	int i, c;
+	uint64_t calls = 0;
+	int header_done = 0;
+	MethodDesc **methods = malloc (num_methods * sizeof (void*));
+	MethodDesc *cd;
+	c = 0;
+	for (i = 0; i < HASH_SIZE; ++i) {
+		cd = method_hash [i];
+		while (cd) {
+			cd->total_time = cd->self_time + cd->callee_time;
+			methods [c++] = cd;
+			cd = cd->next;
+		}
+	}
+	qsort (methods, num_methods, sizeof (void*), compare_method);
+	for (i = 0; i < num_methods; ++i) {
+		uint64_t msecs;
+		uint64_t smsecs;
+		cd = methods [i];
+		if (!cd->calls)
+			continue;
+		calls += cd->calls;
+		msecs = cd->total_time / 1000000;
+		smsecs = (cd->total_time - cd->callee_time) / 1000000;
+		if (!msecs && !verbose)
+			continue;
+		if (!header_done++) {
+			fprintf (outfile, ""\nMethod call summary\n"");
+			fprintf (outfile, ""%8s %8s %10s Method name\n"", ""Total(ms)"", ""Self(ms)"", ""Calls"");
+		}
+		fprintf (outfile, ""%8llu %8llu %10llu %s\n"", msecs, smsecs, cd->calls, cd->name);
+		dump_traces (&cd->traces, ""calls"");
+	}
+	if (calls)
+		fprintf (outfile, ""Total calls: %llu\n"", calls);
+}"
+"playback_exec(struct ast_channel *chan, const char *data)
+{
+	int res = 0;
+	int mres = 0;
+	char *tmp;
+	int option_skip=0;
+	int option_say=0;
+	int option_noanswer = 0;
+
+	AST_DECLARE_APP_ARGS(args,
+		AST_APP_ARG(filenames);
+		AST_APP_ARG(options);
+	);
+	
+	if (ast_strlen_zero(data)) {
+		ast_log(LOG_WARNING, ""Playback requires an argument (filename)\n"");
+		return -1;
+	}
+
+	tmp = ast_strdupa(data);
+	AST_STANDARD_APP_ARGS(args, tmp);
+
+	if (args.options) {
+		if (strcasestr(args.options, ""skip""))
+			option_skip = 1;
+		if (strcasestr(args.options, ""say""))
+			option_say = 1;
+		if (strcasestr(args.options, ""noanswer""))
+			option_noanswer = 1;
+	} 
+	if (ast_channel_state(chan) != AST_STATE_UP) {
+		if (option_skip) {
+			/* At the user's option, skip if the line is not up */
+			goto done;
+		} else if (!option_noanswer) {
+			/* Otherwise answer unless we're supposed to send this while on-hook */
+			res = ast_answer(chan);
+		}
+	}
+	if (!res) {
+		char *back = args.filenames;
+		char *front;
+
+		ast_stopstream(chan);
+		while (!res && (front = strsep(&back, ""&""))) {
+			if (option_say)
+				res = say_full(chan, front, """", ast_channel_language(chan), NULL, -1, -1);
+			else
+				res = ast_streamfile(chan, front, ast_channel_language(chan));
+			if (!res) { 
+				res = ast_waitstream(chan, """");	
+				ast_stopstream(chan);
+			} else {
+				ast_log(LOG_WARNING, ""ast_streamfile failed on %s for %s\n"", ast_channel_name(chan), (char *)data);
+				res = 0;
+				mres = 1;
+			}
+		}
+	}
+done:
+	pbx_builtin_setvar_helper(chan, ""PLAYBACKSTATUS"", mres ? ""FAILED"" : ""SUCCESS"");
+	return res;
+}"
+"build_address_handlers (nsf_t * nsf)
+{
+  int count, num_handlers;
+
+  memset (nsf_readhandler, 0, sizeof (nsf_readhandler));
+  memset (nsf_writehandler, 0, sizeof (nsf_writehandler));
+
+  num_handlers = 0;
+  for (count = 0; num_handlers < MAX_ADDRESS_HANDLERS; count++, num_handlers++) {
+    if (NULL == default_readhandler[count].read_func)
+      break;
+
+    memcpy (&nsf_readhandler[num_handlers], &default_readhandler[count],
+        sizeof (nes6502_memread));
+  }
+
+  if (nsf->apu->ext) {
+    if (NULL != nsf->apu->ext->mem_read) {
+      for (count = 0; num_handlers < MAX_ADDRESS_HANDLERS;
+          count++, num_handlers++) {
+        if (NULL == nsf->apu->ext->mem_read[count].read_func)
+          break;
+
+        memcpy (&nsf_readhandler[num_handlers], &nsf->apu->ext->mem_read[count],
+            sizeof (nes6502_memread));
+      }
+    }
+  }
+
+  /* catch-all for bad reads */
+  nsf_readhandler[num_handlers].min_range = 0x2000;     /* min address */
+  nsf_readhandler[num_handlers].max_range = 0x5BFF;     /* max address */
+  nsf_readhandler[num_handlers].read_func = invalid_read;       /* handler */
+  num_handlers++;
+  nsf_readhandler[num_handlers].min_range = -1;
+  nsf_readhandler[num_handlers].max_range = -1;
+  nsf_readhandler[num_handlers].read_func = NULL;
+  num_handlers++;
+  ASSERT (num_handlers <= MAX_ADDRESS_HANDLERS);
+
+  num_handlers = 0;
+  for (count = 0; num_handlers < MAX_ADDRESS_HANDLERS; count++, num_handlers++) {
+    if (NULL == default_writehandler[count].write_func)
+      break;
+
+    memcpy (&nsf_writehandler[num_handlers], &default_writehandler[count],
+        sizeof (nes6502_memwrite));
+  }
+
+  if (nsf->apu->ext) {
+    if (NULL != nsf->apu->ext->mem_write) {
+      for (count = 0; num_handlers < MAX_ADDRESS_HANDLERS;
+          count++, num_handlers++) {
+        if (NULL == nsf->apu->ext->mem_write[count].write_func)
+          break;
+
+        memcpy (&nsf_writehandler[num_handlers],
+            &nsf->apu->ext->mem_write[count], sizeof (nes6502_memwrite));
+      }
+    }
+  }
+
+  /* catch-all for bad writes */
+  nsf_writehandler[num_handlers].min_range = 0x2000;    /* min address */
+  nsf_writehandler[num_handlers].max_range = 0x5BFF;    /* max address */
+  nsf_writehandler[num_handlers].write_func = invalid_write;    /* handler */
+  num_handlers++;
+  /* protect region at $8000-$FFFF */
+  nsf_writehandler[num_handlers].min_range = 0x8000;    /* min address */
+  nsf_writehandler[num_handlers].max_range = 0xFFFF;    /* max address */
+  nsf_writehandler[num_handlers].write_func = invalid_write;    /* handler */
+  num_handlers++;
+  nsf_writehandler[num_handlers].min_range = -1;
+  nsf_writehandler[num_handlers].max_range = -1;
+  nsf_writehandler[num_handlers].write_func = NULL;
+  num_handlers++;
+  ASSERT (num_handlers <= MAX_ADDRESS_HANDLERS);
+}"
+"hfield_mult(char *field, struct message *mp, int mult)
+{
+	FILE *ibuf;
+	char *linebuf = NULL;
+	size_t linesize = 0;
+	int lc;
+	char *hfield;
+	char *colon, *oldhfield = NULL;
+
+	if ((ibuf = setinput(&mb, mp, NEED_HEADER)) == NULL)
+		return NULL;
+	if ((lc = mp->m_lines - 1) < 0)
+		return NULL;
+	if ((mp->m_flag & MNOFROM) == 0) {
+		if (readline(ibuf, &linebuf, &linesize) < 0) {
+			if (linebuf)
+				free(linebuf);
+			return NULL;
+		}
+	}
+	while (lc > 0) {
+		if ((lc = gethfield(ibuf, &linebuf, &linesize, lc, &colon))
+				< 0) {
+			if (linebuf)
+				free(linebuf);
+			return oldhfield;
+		}
+		if ((hfield = thisfield(linebuf, field)) != NULL) {
+			oldhfield = save2str(hfield, oldhfield);
+			if (mult == 0)
+				break;
+		}
+	}
+	if (linebuf)
+		free(linebuf);
+	return oldhfield;
+}"
+"as_run_keyword_action(struct keyword_action ka[])
+{
+	int i = 0;
+	char *word = as_argv[as_current];
+	
+	for (; ka[i].caption != NULL; i++)
+		if (strcmp(word, ka[i].caption) == 0 || 
+		   (strlen(word) == 1 && ka[i].caption[0] == word[0])) {
+			as_current++;
+			ka[i].action();
+			return 1;
+		}
+
+	return 0;
+}"
+"area_histogram()
+{
+  facet_id f_id;  /* facet being worked on */
+  int bincount[HISTO_BINS];
+  int n;
+  REAL ref_area = web.total_area/1000;
+
+  for ( n = 0 ; n < HISTO_BINS ; n++ ) bincount[n] = 0;
+
+  /* main loop sweeping over all triangles */
+  FOR_ALL_FACETS(f_id)
+     {
+        REAL area;      /* area of triangle */
+
+        area = get_facet_area(f_id);
+        if ( area == 0.0 ) n = 0;
+        else
+          n = HISTO_BINS/2 + 1 + (int)floor(log(area/ref_area)*HISTO_BINSIZE);
+        if ( n < 0 ) n = 0;
+        if ( n >= HISTO_BINS ) n = HISTO_BINS - 1;
+        bincount[n]++;
+     }
+  outstring(""         area                 number\n"");
+  if ( bincount[0] )
+     {
+        sprintf(msg,""%f - %g      %6d \n"",0.0,
+             (DOUBLE)(ref_area*exp((-HISTO_BINS/2)/HISTO_BINSIZE)), bincount[0]);
+        outstring(msg);
+     }
+  for ( n = 1 ; n < HISTO_BINS ; n++ )
+    if ( bincount[n] )
+     {
+        sprintf(msg,""%g - %g      %6d\n"",
+                (DOUBLE)(ref_area*exp((n-HISTO_BINS/2-1)/HISTO_BINSIZE)),
+                  (DOUBLE)(exp((n-HISTO_BINS/2)/HISTO_BINSIZE)*ref_area),bincount[n]);
+        outstring(msg);
+     }
+}"
+"compute_v4_addr(interface_defn * ifd UNUSED, char **pparam, int argc UNUSED, char **argv UNUSED)
+{
+    char s[INET_ADDRSTRLEN * 2 + 2];    /* 2 is for slash and \0 */
+    strncpy(s, *pparam, sizeof(s));
+    s[sizeof(s) - 1] = 0;
+
+    char *token = strtok(s, ""/"");
+    if (!token)
+        return;
+
+    *pparam = realloc(*pparam, strlen(token) + 1);
+    if (*pparam == NULL)
+        return;
+    strcpy(*pparam, token);
+}"
+"onLogMsg(const char **log_msg,
+             const char **tmp_file,
+             apr_array_header_t *, //UNUSED commit_items
+             void *baton,
+             apr_pool_t * pool)
+    {
+      Data * data = NULL;
+      SVN_ERR(getData(baton, &data));
+
+      std::string msg;
+      if (data->logIsSet)
+        msg = data->getLogMessage();
+      else
+      {
+        if (!data->retrieveLogMessage(msg))
+          return svn_error_create(SVN_ERR_CANCELLED, NULL, """");
+      }
+
+      *log_msg = apr_pstrdup(pool, msg.c_str());
+
+      *tmp_file = NULL;
+
+      return SVN_NO_ERROR;
+    }"
+"chkGraphName (Agraph_t* g)
+{
+    static char* buf = NULL;
+    static int buflen = 0;
+    char* s = agnameof(g);
+    int len;
+
+    if (*s != '%') return s;
+    len = strlen(s) + 2;   /* plus '\0' and '_' */
+    if (len > buflen) {
+	buf = realloc (buf, len);
+	buflen = len;
+    }
+    buf[0] = '_';
+    strcpy (buf+1, s);
+
+    return buf;
+}"
+"PyVTKTemplate_GetAttr(PyObject *self, PyObject *attr)
+{
+  char text[256];
+  char *name = PyString_AsString(attr);
+  PyVTKTemplate *op = (PyVTKTemplate *)self;
+  PyMethodDef *meth;
+
+  if (name[0] == '_')
+    {
+    if (strcmp(name, ""__name__"") == 0)
+      {
+      return PyString_FromString(op->name);
+      }
+    if (strcmp(name, ""__module__"") == 0)
+      {
+      return PyString_FromString(op->module);
+      }
+    if (strcmp(name, ""__doc__"") == 0)
+      {
+      Py_INCREF(op->doc);
+      return op->doc;
+      }
+    if (strcmp(name, ""__bases__"") == 0)
+      {
+      return Py_BuildValue((char *)""()"");
+      }
+    }
+
+  for (meth = PyVTKTemplate_Methods; meth && meth->ml_name; meth++)
+    {
+    if (strcmp(name, meth->ml_name) == 0)
+      {
+      return PyCFunction_New(meth, self);
+      }
+    }
+
+  sprintf(text, ""'%.80s' object has no attribute '%.80s'"",
+          self->ob_type->tp_name, name);
+  PyErr_SetString(PyExc_AttributeError, text);
+  return NULL;
+}"
+"time_t_to_date(time_t t, char *buffer)
+{
+    struct tm	*tm;
+
+    tm = gmtime(&t);
+    if (!tm) {
+	*buffer = '\0';
+	return buffer;
+    }
+
+    sprintf(buffer, ""%d %3.3s %4d %02d:%02d:%02d GMT"",
+	    tm->tm_mday, month_names + 3 * tm->tm_mon, 1900 + tm->tm_year,
+	    tm->tm_hour, tm->tm_min, tm->tm_sec);
+
+    return buffer;
+}"
+"reposition_prologue_and_epilogue_notes (rtx f ATTRIBUTE_UNUSED)
+{
+#if defined (HAVE_prologue) || defined (HAVE_epilogue)
+  rtx insn, last, note;
+  int len;
+
+  if ((len = VARRAY_SIZE (prologue)) > 0)
+    {
+      last = 0, note = 0;
+
+      /* Scan from the beginning until we reach the last prologue insn.
+	 We apparently can't depend on basic_block_{head,end} after
+	 reorg has run.  */
+      for (insn = f; insn; insn = NEXT_INSN (insn))
+	{
+	  if (GET_CODE (insn) == NOTE)
+	    {
+	      if (NOTE_LINE_NUMBER (insn) == NOTE_INSN_PROLOGUE_END)
+		note = insn;
+	    }
+	  else if (contains (insn, prologue))
+	    {
+	      last = insn;
+	      if (--len == 0)
+		break;
+	    }
+	}
+
+      if (last)
+	{
+	  /* Find the prologue-end note if we haven't already, and
+	     move it to just after the last prologue insn.  */
+	  if (note == 0)
+	    {
+	      for (note = last; (note = NEXT_INSN (note));)
+		if (GET_CODE (note) == NOTE
+		    && NOTE_LINE_NUMBER (note) == NOTE_INSN_PROLOGUE_END)
+		  break;
+	    }
+
+	  /* Avoid placing note between CODE_LABEL and BASIC_BLOCK note.  */
+	  if (GET_CODE (last) == CODE_LABEL)
+	    last = NEXT_INSN (last);
+	  reorder_insns (note, note, last);
+	}
+    }
+
+  if ((len = VARRAY_SIZE (epilogue)) > 0)
+    {
+      last = 0, note = 0;
+
+      /* Scan from the end until we reach the first epilogue insn.
+	 We apparently can't depend on basic_block_{head,end} after
+	 reorg has run.  */
+      for (insn = get_last_insn (); insn; insn = PREV_INSN (insn))
+	{
+	  if (GET_CODE (insn) == NOTE)
+	    {
+	      if (NOTE_LINE_NUMBER (insn) == NOTE_INSN_EPILOGUE_BEG)
+		note = insn;
+	    }
+	  else if (contains (insn, epilogue))
+	    {
+	      last = insn;
+	      if (--len == 0)
+		break;
+	    }
+	}
+
+      if (last)
+	{
+	  /* Find the epilogue-begin note if we haven't already, and
+	     move it to just before the first epilogue insn.  */
+	  if (note == 0)
+	    {
+	      for (note = insn; (note = PREV_INSN (note));)
+		if (GET_CODE (note) == NOTE
+		    && NOTE_LINE_NUMBER (note) == NOTE_INSN_EPILOGUE_BEG)
+		  break;
+	    }
+
+	  if (PREV_INSN (last) != note)
+	    reorder_insns (note, note, PREV_INSN (last));
+	}
+    }
+#endif /* HAVE_prologue or HAVE_epilogue */
+}"
+"imap_pipe_oneline(char *buf, int len, void *rock) {
+    struct imap_context_t *text = (struct imap_context_t *)rock;
+    int add_crlf = 0; /* hack for terminals */
+
+    if(text->inLiteral) {
+	if(len <= text->inLiteral) {
+	    text->inLiteral -= len;
+	} else {
+	    prot_write(pout, buf, text->inLiteral);
+	    buf += text->inLiteral;
+	    len -= text->inLiteral;
+	    text->inLiteral = 0;
+	}
+    }
+
+    if(!text->inLiteral) {
+	char c, *tag, *cmd, *tmp, *sparebuf = (char *)xstrdup(buf);
+	int i;
+	tmp = sparebuf;
+
+	if(len > 4 &&
+	   buf[len-1] == '\n' && buf[len-1] == '\r' && buf[len-2] == '}') {
+	    /* possible literal, with \r */
+	    i = len-4;
+	    while(i > 0 && buf[i] != '{' && Uisdigit(buf[i])) i--;
+	    if(buf[i] == '{') text->inLiteral = atoi(buf + i + 1);
+	} else if(len > 3 && buf[len-1] == '\n' && buf[len-2] == '}') {
+	    /* possible literal, no \r -- hack for terminals*/
+	    i = len-3;
+	    while(i > 0 && buf[i] != '{' && Uisdigit(buf[i])) i--;
+	    if(buf[i] == '{') text->inLiteral = atoi(buf + i + 1);
+	}
+
+	/* We could still have another special case! */
+	c = imparse_word(&tmp, &tag);
+	if(c == ' ') {
+	    c = imparse_word(&tmp, &cmd);
+	    if(c == '\n' || (c == '\r' && *tmp == '\n')){
+		/* Are we logging out? */
+		if(!strncasecmp(cmd, ""LOGOUT"", 6)) {
+		    free(sparebuf);
+		    return IMTEST_CLOSEME;
+		}
+	    }
+	}
+
+	free(sparebuf);
+
+	/* If the remote is sending only \n, clean it up for them */
+	if((len == 1 && buf[0] == '\n') ||
+	   (len >= 2 && buf[len-2] != '\r')) {
+	    len -= 1; /* truncate \n */
+	    add_crlf = 1;
+	}
+    }
+
+    prot_write(pout, buf, len);
+    if(add_crlf) prot_write(pout, ""\r\n"", 2);
+    prot_flush(pout);
+
+    return IMTEST_OK;
+}"
+"ocsp_CreateOrUpdateCacheEntry(OCSPCacheData *cache, 
+                              CERTOCSPCertID *certID,
+                              CERTOCSPSingleResponse *single,
+                              PRBool *certIDWasConsumed)
+{
+    SECStatus rv;
+    OCSPCacheItem *cacheItem;
+    OCSP_TRACE((""OCSP ocsp_CreateOrUpdateCacheEntry\n""));
+  
+    if (certIDWasConsumed)
+        *certIDWasConsumed = PR_FALSE;
+  
+    PR_EnterMonitor(OCSP_Global.monitor);
+    PORT_Assert(OCSP_Global.maxCacheEntries >= 0);
+  
+    cacheItem = ocsp_FindCacheEntry(cache, certID);
+
+    /* Don't replace an unknown or revoked entry with an error entry, even if
+     * the existing entry is expired. Instead, we'll continue to use the
+     * existing (possibly expired) cache entry until we receive a valid signed
+     * response to replace it.
+     */
+    if (!single && cacheItem && cacheItem->certStatusArena &&
+        (cacheItem->certStatus.certStatusType == ocspCertStatus_revoked ||
+         cacheItem->certStatus.certStatusType == ocspCertStatus_unknown)) {
+        PR_ExitMonitor(OCSP_Global.monitor);
+        return SECSuccess;
+    }
+
+    if (!cacheItem) {
+        CERTOCSPCertID *myCertID;
+        if (certIDWasConsumed) {
+            myCertID = certID;
+            *certIDWasConsumed = PR_TRUE;
+        } else {
+            myCertID = cert_DupOCSPCertID(certID);
+            if (!myCertID) {
+                PR_ExitMonitor(OCSP_Global.monitor);
+                PORT_SetError(PR_OUT_OF_MEMORY_ERROR);
+                return SECFailure;
+            }
+        }
+
+        rv = ocsp_CreateCacheItemAndConsumeCertID(cache, myCertID,
+                                                  &cacheItem);
+        if (rv != SECSuccess) {
+            PR_ExitMonitor(OCSP_Global.monitor);
+            return rv;
+        }
+    }
+    if (single) {
+        PRTime thisUpdate;
+        rv = DER_GeneralizedTimeToTime(&thisUpdate, &single->thisUpdate);
+
+        if (!cacheItem->haveThisUpdate ||
+            (rv == SECSuccess && cacheItem->thisUpdate < thisUpdate)) {
+            rv = ocsp_SetCacheItemResponse(cacheItem, single);
+            if (rv != SECSuccess) {
+                ocsp_RemoveCacheItem(cache, cacheItem);
+                PR_ExitMonitor(OCSP_Global.monitor);
+                return rv;
+            }
+        } else {
+            OCSP_TRACE((""Not caching response because the response is not ""
+                        ""newer than the cache""));
+        }
+    } else {
+        cacheItem->missingResponseError = PORT_GetError();
+        if (cacheItem->certStatusArena) {
+            PORT_FreeArena(cacheItem->certStatusArena, PR_FALSE);
+            cacheItem->certStatusArena = NULL;
+        }
+    }
+    ocsp_FreshenCacheItemNextFetchAttemptTime(cacheItem);
+    ocsp_CheckCacheSize(cache);
+
+    PR_ExitMonitor(OCSP_Global.monitor);
+    return SECSuccess;
+}"
+"mission_event_shutdown()
+{
+	int i;
+
+	for (i=0; i<Num_mission_events; i++) {
+		if (Mission_events[i].objective_text) {
+			vm_free(Mission_events[i].objective_text);
+			Mission_events[i].objective_text = NULL;
+		}
+		if (Mission_events[i].objective_key_text) {
+			vm_free(Mission_events[i].objective_key_text);
+			Mission_events[i].objective_key_text = NULL;
+		}
+	}
+}"
+"getstr (const char *err)
+{
+  size_t buf_len = 100;
+  char *buf = malloc (buf_len), *end = buf;
+
+  if (!buf)
+    die (EXIT_FAILURE, ""Out of space reading %s"", err);
+
+  do
+    {
+      /* Oh this is efficient, oh yes.  [But what can be done?] */
+      int rd = read (STDIN_FILENO, end, 1);
+      if (rd <= 0)
+	{
+	  if (rd == 0)
+	    die (EXIT_FAILURE, ""EOF reading %s"", err);
+	  else
+	    error (EXIT_FAILURE, 0, ""%s"", err);
+	}
+
+      end += rd;
+      if ((buf + buf_len - end) < (ssize_t) (buf_len >> 3))
+	{
+	  /* Not very much room left in our buffer, grow it. */
+	  size_t end_offs = end - buf;
+	  buf_len += buf_len;
+	  buf = realloc (buf, buf_len);
+	  if (!buf)
+	    die (EXIT_FAILURE, ""Out of space reading %s"", err);
+	  end = buf + end_offs;
+	}
+    }
+  while (*(end - 1));
+
+  return buf;
+}"
+"ppt_read_header (GsfInput               *stream,
+                 PowerPointRecordHeader *header)
+{
+	guint8 buffer[8] = {0};
+
+	g_return_val_if_fail (stream, FALSE);
+	g_return_val_if_fail (header, FALSE);
+	g_return_val_if_fail (!gsf_input_eof (stream), FALSE);
+
+
+	/* Header is always 8 bytes, read it */
+	g_return_val_if_fail (gsf_input_read (stream, 8, buffer), FALSE);
+
+	/* Then parse individual details
+	 *
+	 * Record header is 8 bytes long. Data is split as follows:
+	 * recVer (4 bits)
+	 * recInstance (12 bits)
+	 * recType (2 bytes)
+	 * recLen (4 bytes)
+	 *
+	 * See RecordHeader for more detailed explanation of each field.
+	 *
+	 * Here we parse each of those fields.
+	 */
+
+	header->recType = read_16bit (&buffer[2]);
+	header->recLen = read_32bit (&buffer[4]);
+	header->recVer = (read_16bit (buffer) & 0xF000) >> 12;
+	header->recInstance = read_16bit (buffer) & 0x0FFF;
+
+	return TRUE;
+}"
+"nexus_head_new(void)
+{
+  tenm_primitive **p = NULL;
+  tenm_object *new = NULL;
+  int *count = NULL;
+  double *count_d = NULL;
+  double x = (double) (WINDOW_WIDTH / 2);
+  double y = -28.0 - 120.0 - 360.0 * 4.0;
+
+  p = (tenm_primitive **) malloc(sizeof(tenm_primitive *) * 1);
+  if (p == NULL)
+  {
+    fprintf(stderr, ""nexus_head_new: malloc(p) failed\n"");
+    return NULL;
+  }
+
+  p[0] = (tenm_primitive *) tenm_polygon_new(4,
+                                             x + 90.0, y - 90.0,
+                                             x + 90.0, y + 90.0,
+                                             x - 90.0, y + 90.0,
+                                             x - 90.0, y - 90.0);
+  if (p[0] == NULL)
+  {
+    fprintf(stderr, ""nexus_head_new: cannot set p[0]\n"");
+    free(p);
+    return NULL;
+  }
+
+  count = (int *) malloc(sizeof(int) * 6);
+  if (count == NULL)
+  {
+    fprintf(stderr, ""nexus_head_new: malloc(count) failed\n"");
+    (p[0])->delete(p[0]);
+    free(p);
+    return NULL;
+  }
+  count_d = (double *) malloc(sizeof(double) * 3);
+  if (count_d == NULL)
+  {
+    fprintf(stderr, ""nexus_head_new: malloc(count_d) failed\n"");
+    free(count);
+    (p[0])->delete(p[0]);
+    free(p);
+    return NULL;
+  }
+
+  /* list of count
+   * [0] life timer
+   */
+  /* list of count_d
+   * [0] speed x
+   * [1] speed y
+   */
+
+  count[0] = 1;
+
+  count_d[0] = 0.0;
+  count_d[1] = 1.0;
+
+  new = tenm_object_new(""Nexus head"", ATTR_ENEMY, 0,
+                        1, x, y,
+                        6, count, 3, count_d, 1, p,
+                        (int (*)(tenm_object *, double))
+                        (&nexus_head_move),
+                        (int (*)(tenm_object *, tenm_object *))
+                        NULL,
+                        (int (*)(tenm_object *, const tenm_object *))
+                        (&nexus_head_act),
+                        (int (*)(tenm_object *, int))
+                        (&nexus_head_draw));
+  if (new == NULL)
+  {
+    fprintf(stderr, ""nexus_head_new: tenm_object_new failed\n"");
+    if (count_d != NULL)
+      free(count_d);
+    if (count != NULL)
+      free(count);
+    (p[0])->delete(p[0]);
+    free(p);
+    return NULL;
+  }
+
+  return new;
+}"
+"ahc_build_free_scb_list(struct ahc_softc *ahc)
+{
+	int scbsize;
+	int i;
+
+	scbsize = 32;
+	if ((ahc->flags & AHC_LSCBS_ENABLED) != 0)
+		scbsize = 64;
+
+	for (i = 0; i < ahc->scb_data->maxhscbs; i++) {
+		int j;
+
+		ahc_outb(ahc, SCBPTR, i);
+
+		/*
+		 * Touch all SCB bytes to avoid parity errors
+		 * should one of our debugging routines read
+		 * an otherwise uninitiatlized byte.
+		 */
+		for (j = 0; j < scbsize; j++)
+			ahc_outb(ahc, SCB_BASE+j, 0xFF);
+
+		/* Clear the control byte. */
+		ahc_outb(ahc, SCB_CONTROL, 0);
+
+		/* Set the next pointer */
+		if ((ahc->flags & AHC_PAGESCBS) != 0)
+			ahc_outb(ahc, SCB_NEXT, i+1);
+		else 
+			ahc_outb(ahc, SCB_NEXT, SCB_LIST_NULL);
+
+		/* Make the tag number, SCSIID, and lun invalid */
+		ahc_outb(ahc, SCB_TAG, SCB_LIST_NULL);
+		ahc_outb(ahc, SCB_SCSIID, 0xFF);
+		ahc_outb(ahc, SCB_LUN, 0xFF);
+	}
+
+	if ((ahc->flags & AHC_PAGESCBS) != 0) {
+		/* SCB 0 heads the free list. */
+		ahc_outb(ahc, FREE_SCBH, 0);
+	} else {
+		/* No free list. */
+		ahc_outb(ahc, FREE_SCBH, SCB_LIST_NULL);
+	}
+
+	/* Make sure that the last SCB terminates the free list */
+	ahc_outb(ahc, SCBPTR, i-1);
+	ahc_outb(ahc, SCB_NEXT, SCB_LIST_NULL);
+}"
+"SafeFNMatch_(const char* pattern,
+                                       size_t patt_len,
+                                       const char* str,
+                                       size_t str_len) {
+  int p = 0;
+  int s = 0;
+  while (1) {
+    if (p == patt_len  &&  s == str_len) return true;
+    if (p == patt_len) return false;
+    if (s == str_len) return p+1 == patt_len  &&  pattern[p] == '*';
+    if (pattern[p] == str[s]  ||  pattern[p] == '?') {
+      p += 1;
+      s += 1;
+      continue;
+    }
+    if (pattern[p] == '*') {
+      if (p+1 == patt_len) return true;
+      do {
+        if (SafeFNMatch_(pattern+(p+1), patt_len-(p+1), str+s, str_len-s)) {
+          return true;
+        }
+        s += 1;
+      } while (s != str_len);
+      return false;
+    }
+    return false;
+  }
+}"
+"pix_abs16_x2_c(void *v, uint8_t *pix1, uint8_t *pix2, int line_size, int h)
+{
+    int s, i;
+
+    s = 0;
+    for(i=0;i<h;i++) {
+        s += abs(pix1[0] - avg2(pix2[0], pix2[1]));
+        s += abs(pix1[1] - avg2(pix2[1], pix2[2]));
+        s += abs(pix1[2] - avg2(pix2[2], pix2[3]));
+        s += abs(pix1[3] - avg2(pix2[3], pix2[4]));
+        s += abs(pix1[4] - avg2(pix2[4], pix2[5]));
+        s += abs(pix1[5] - avg2(pix2[5], pix2[6]));
+        s += abs(pix1[6] - avg2(pix2[6], pix2[7]));
+        s += abs(pix1[7] - avg2(pix2[7], pix2[8]));
+        s += abs(pix1[8] - avg2(pix2[8], pix2[9]));
+        s += abs(pix1[9] - avg2(pix2[9], pix2[10]));
+        s += abs(pix1[10] - avg2(pix2[10], pix2[11]));
+        s += abs(pix1[11] - avg2(pix2[11], pix2[12]));
+        s += abs(pix1[12] - avg2(pix2[12], pix2[13]));
+        s += abs(pix1[13] - avg2(pix2[13], pix2[14]));
+        s += abs(pix1[14] - avg2(pix2[14], pix2[15]));
+        s += abs(pix1[15] - avg2(pix2[15], pix2[16]));
+        pix1 += line_size;
+        pix2 += line_size;
+    }
+    return s;
+}"
+"VariableAnalysis(
+  void *theEnv,
+  struct lhsParseNode *patternPtr)
+  {
+   struct lhsParseNode *rv, *theList, *tempList;
+   int errorFlag = FALSE;
+
+   /*======================================================*/
+   /* Loop through all of the CEs in the rule to determine */
+   /* which variables refer to other variables and whether */
+   /* any semantic errors exist when refering to variables */
+   /* (such as referring to a variable that was not        */
+   /* previously bound).                                   */
+   /*======================================================*/
+
+   while (patternPtr != NULL)
+     {
+      /*=========================================================*/
+      /* If a pattern CE is encountered, propagate any variables */
+      /* found in the pattern and note any illegal references to */
+      /* other variables.                                        */
+      /*=========================================================*/
+
+      if (patternPtr->type == PATTERN_CE)
+        {
+         /*====================================================*/
+         /* Determine if the fact address associated with this */
+         /* pattern illegally refers to other variables.       */
+         /*====================================================*/
+
+         if ((patternPtr->value != NULL) &&
+             (patternPtr->referringNode != NULL))
+           {
+            errorFlag = TRUE;
+            if (patternPtr->referringNode->index == -1)
+              {
+               PrintErrorID(theEnv,""ANALYSIS"",1,TRUE);
+               EnvPrintRouter(theEnv,WERROR,""Duplicate pattern-address ?"");
+               EnvPrintRouter(theEnv,WERROR,ValueToString(patternPtr->value));
+               EnvPrintRouter(theEnv,WERROR,"" found in CE #"");
+               PrintLongInteger(theEnv,WERROR,(long) patternPtr->whichCE);
+               EnvPrintRouter(theEnv,WERROR,"".\n"");
+              }
+            else
+              {
+               PrintErrorID(theEnv,""ANALYSIS"",2,TRUE);
+               EnvPrintRouter(theEnv,WERROR,""Pattern-address ?"");
+               EnvPrintRouter(theEnv,WERROR,ValueToString(patternPtr->value));
+               EnvPrintRouter(theEnv,WERROR,"" used in CE #"");
+               PrintLongInteger(theEnv,WERROR,(long) patternPtr->whichCE);
+               EnvPrintRouter(theEnv,WERROR,"" was previously bound within a pattern CE.\n"");
+              }
+           }
+
+         /*====================================================*/
+         /* Propagate the pattern and field location of bound  */
+         /* variables found in this pattern to other variables */
+         /* in the same semantic scope as the bound variable.  */
+         /*====================================================*/
+
+         if (GetVariables(theEnv,patternPtr)) return(TRUE);
+        }
+
+      /*==============================================================*/
+      /* If a test CE is encountered, make sure that all references   */
+      /* to variables have been previously bound. If they are bound   */
+      /* then replace the references to variables with function calls */
+      /* to retrieve the variables.                                   */
+      /*==============================================================*/
+
+      else if (patternPtr->type == TEST_CE)
+        {
+         /*=====================================================*/
+         /* Verify that all variables were referenced properly. */
+         /*=====================================================*/
+
+         rv = CheckExpression(theEnv,patternPtr->expression,NULL,(int) patternPtr->whichCE,NULL,0);
+
+         /*=========================================================*/
+         /* Determine the type and value constraints implied by the */
+         /* expression and propagate these constraints to other     */
+         /* variables in the LHS. For example, the expression       */
+         /* (+ ?x 1) implies that ?x is a number.                   */
+         /*=========================================================*/
+
+         theList = GetExpressionVarConstraints(theEnv,patternPtr->expression);
+         for (tempList = theList; tempList != NULL; tempList = tempList->right)
+            {
+             if (PropagateVariableDriver(theEnv,patternPtr,patternPtr,NULL,SF_VARIABLE,
+                                         (SYMBOL_HN *) tempList->value,tempList,FALSE))
+               {
+                ReturnLHSParseNodes(theEnv,theList);
+                return(TRUE);
+               }
+            }
+         ReturnLHSParseNodes(theEnv,theList);
+
+         /*========================================================*/
+         /* If the variables in the expression were all referenced */
+         /* properly, then create the expression to use in the     */
+         /* join network.                                          */
+         /*========================================================*/
+
+         if (rv != NULL)
+           { errorFlag = TRUE; }
+         else
+           { patternPtr->networkTest = GetvarReplace(theEnv,patternPtr->expression); }
+        }
+
+      /*=====================================================*/
+      /* Move on to the next pattern in the LHS of the rule. */
+      /*=====================================================*/
+
+      patternPtr = patternPtr->bottom;
+     }
+
+   /*==========================================*/
+   /* Return the error status of the analysis. */
+   /*==========================================*/
+
+   return(errorFlag);
+  }"
+"rb_ary_aset(int argc, VALUE *argv, VALUE ary)
+{
+    long offset, beg, len;
+
+    if (argc == 3) {
+	rb_ary_modify_check(ary);
+	beg = NUM2LONG(argv[0]);
+	len = NUM2LONG(argv[1]);
+	rb_ary_splice(ary, beg, len, argv[2]);
+	return argv[2];
+    }
+    if (argc != 2) {
+	rb_raise(rb_eArgError, ""wrong number of arguments (%d for 2)"", argc);
+    }
+    rb_ary_modify_check(ary);
+    if (FIXNUM_P(argv[0])) {
+	offset = FIX2LONG(argv[0]);
+	goto fixnum;
+    }
+    if (rb_range_beg_len(argv[0], &beg, &len, RARRAY_LEN(ary), 1)) {
+	/* check if idx is Range */
+	rb_ary_splice(ary, beg, len, argv[1]);
+	return argv[1];
+    }
+
+    offset = NUM2LONG(argv[0]);
+fixnum:
+    rb_ary_store(ary, offset, argv[1]);
+    return argv[1];
+}"
+"as_pg_add_wckeys(pgsql_conn_t *pg_conn, uint32_t uid, List wckey_list)
+{
+	ListIterator itr = NULL;
+	int rc = SLURM_SUCCESS, added=0;
+	slurmdb_wckey_rec_t *object = NULL;
+	char *rec = NULL, *info = NULL, *query = NULL, *user_name = NULL;
+	char *id_str = NULL;
+	time_t now = time(NULL);
+
+	if (check_db_connection(pg_conn) != SLURM_SUCCESS)
+		return ESLURM_DB_CONNECTION;
+
+	user_name = uid_to_string((uid_t) uid);
+	itr = list_iterator_create(wckey_list);
+	while((object = list_next(itr))) {
+		if(!object->cluster || !object->cluster[0] ||
+		   !object->user || !object->user[0]) {
+			error(""as/pg: add_wckeys: we need a wckey name, ""
+			      ""cluster, and user to add."");
+			rc = SLURM_ERROR;
+			continue;
+		}
+		rec = xstrdup_printf(""(%ld, %ld, 0, 0, '%s', '%s')"",
+				     now, now, object->name, object->user);
+		query = xstrdup_printf(""SELECT %s.add_wckey(%s);"",
+				       object->cluster, rec);
+		xfree(rec);
+		DEBUG_QUERY;
+		object->id = pgsql_query_ret_id(pg_conn->db_conn, query);
+		xfree(query);
+		if(!object->id) {
+			error(""Couldn't add wckey %s"", object->name);
+			added=0;
+			break;
+		}
+		info = xstrdup_printf(""name='%s', user_name='%s'"",
+				      object->name, object->user);
+		id_str = xstrdup_printf(""%d"", object->id);
+		rc = add_txn(pg_conn, now, object->cluster, DBD_ADD_WCKEYS,
+			     id_str, user_name, info);
+		xfree(id_str);
+		xfree(info);
+		if(rc != SLURM_SUCCESS) {
+			error(""Couldn't add txn"");
+		} else {
+			if(addto_update_list(pg_conn->update_list,
+					     SLURMDB_ADD_WCKEY,
+					     object) == SLURM_SUCCESS)
+				list_remove(itr);
+			added++;
+		}
+	}
+	list_iterator_destroy(itr);
+	xfree(user_name);
+
+	if(!added) {
+		if(pg_conn->rollback) {
+			pgsql_db_rollback(pg_conn->db_conn);
+		}
+		list_flush(pg_conn->update_list);
+	}
+	return rc;
+}"
+"ael2_semantic_check(pval *item, int *arg_errs, int *arg_warns, int *arg_notes)
+{
+	
+#ifdef AAL_ARGCHECK
+	int argapp_errs =0;
+	char *rfilename;
+#endif
+	struct argapp *apps=0;
+
+	if (!item)
+		return; /* don't check an empty tree */
+#ifdef AAL_ARGCHECK
+	rfilename = ast_alloca(10 + strlen(ast_config_AST_VAR_DIR));
+	sprintf(rfilename, ""%s/applist"", ast_config_AST_VAR_DIR);
+	
+	apps = argdesc_parse(rfilename, &argapp_errs); /* giveth */
+#endif
+	current_db = item;
+	errs = warns = notes = 0;
+
+	check_context_names();
+	check_pval(item, apps, 0);
+
+#ifdef AAL_ARGCHECK
+	argdesc_destroy(apps);  /* taketh away */
+#endif
+	current_db = 0;
+
+	*arg_errs = errs;
+	*arg_warns = warns;
+	*arg_notes = notes;
+}"
+"test_odb_loose__exists(void)
+{
+	git_oid id, id2;
+	git_odb *odb;
+
+	write_object_files(&one);
+	cl_git_pass(git_odb_open(&odb, ""test-objects""));
+
+	cl_git_pass(git_oid_fromstr(&id, one.id));
+	cl_assert(git_odb_exists(odb, &id));
+
+	cl_git_pass(git_oid_fromstrp(&id, ""8b137891""));
+	cl_git_pass(git_odb_exists_prefix(&id2, odb, &id, 8));
+	cl_assert_equal_i(0, git_oid_streq(&id2, one.id));
+
+	/* Test for a missing object */
+	cl_git_pass(git_oid_fromstr(&id, ""8b137891791fe96927ad78e64b0aad7bded08baa""));
+	cl_assert(!git_odb_exists(odb, &id));
+
+	cl_git_pass(git_oid_fromstrp(&id, ""8b13789a""));
+	cl_assert_equal_i(GIT_ENOTFOUND, git_odb_exists_prefix(&id2, odb, &id, 8));
+
+	git_odb_free(odb);
+}"
+"xmlParseNameComplex(xmlParserCtxtPtr ctxt) {
+    int len = 0, l;
+    int c;
+    int count = 0;
+
+    /*
+     * Handler for more complex cases
+     */
+    GROW;
+    c = CUR_CHAR(l);
+    if ((c == ' ') || (c == '>') || (c == '/') || /* accelerators */
+        (!IS_LETTER(c) && (c != '_') &&
+         (c != ':'))) {
+        return(NULL);
+    }
+
+    while ((c != ' ') && (c != '>') && (c != '/') && /* test bigname.xml */
+           ((IS_LETTER(c)) || (IS_DIGIT(c)) ||
+            (c == '.') || (c == '-') ||
+            (c == '_') || (c == ':') || 
+            (IS_COMBINING(c)) ||
+            (IS_EXTENDER(c)))) {
+        if (count++ > 100) {
+            count = 0;
+            GROW;
+        }
+        len += l;
+        NEXTL(l);
+        c = CUR_CHAR(l);
+    }
+    if ((*ctxt->input->cur == '\n') && (ctxt->input->cur[-1] == '\r'))
+        return(xmlDictLookup(ctxt->dict, ctxt->input->cur - (len + 1), len));
+    return(xmlDictLookup(ctxt->dict, ctxt->input->cur - len, len));
+}"
+"gdm_session_record_login (GPid                  session_pid,
+                          const char           *user_name,
+                          const char           *host_name,
+                          const char           *x11_display_name,
+                          const char           *display_device)
+{
+        UTMP        session_record = { 0 };
+        UTMP       *u;
+
+        record_set_username (&session_record, user_name);
+
+        g_debug (""Writing login record"");
+
+#if defined(HAVE_UT_UT_TYPE)
+        session_record.ut_type = USER_PROCESS;
+        g_debug (""using ut_type USER_PROCESS"");
+#endif
+
+        record_set_timestamp (&session_record);
+        record_set_pid (&session_record, session_pid);
+
+        /* Set ut_id to the $DISPLAY value */
+        record_set_id (&session_record, x11_display_name);
+        record_set_host (&session_record, x11_display_name, host_name);
+        record_set_line (&session_record, display_device, x11_display_name);
+
+        /* Handle wtmp */
+        g_debug (""Writing wtmp session record to "" GDM_NEW_SESSION_RECORDS_FILE);
+#if defined(HAVE_UPDWTMPX)
+        updwtmpx (GDM_NEW_SESSION_RECORDS_FILE, &session_record);
+#elif defined(HAVE_UPDWTMP)
+        updwtmp (GDM_NEW_SESSION_RECORDS_FILE, &session_record);
+#elif defined(HAVE_LOGWTMP) && defined(HAVE_UT_UT_HOST)
+#if defined(HAVE_UT_UT_USER)
+        logwtmp (session_record.ut_line, session_record.ut_user, session_record.ut_host);
+#elif defined(HAVE_UT_UT_NAME)
+        logwtmp (session_record.ut_line, session_record.ut_name, session_record.ut_host);
+#endif
+#endif
+
+        /*
+         * Handle utmp
+         * Update if entry already exists
+         */
+#if defined(HAVE_GETUTXENT)
+        setutxent ();
+
+        while ((u = getutxent ()) != NULL) {
+                if (u->ut_type == USER_PROCESS &&
+                    (session_record.ut_line != NULL &&
+                     (strncmp (u->ut_line, session_record.ut_line,
+                               sizeof (u->ut_line)) == 0 ||
+                      u->ut_pid == session_record.ut_pid))) {
+                        g_debug (""Updating existing utmp record"");
+                        pututxline (&session_record);
+                        break;
+                }
+        }
+        endutxent ();
+
+        /* Add new entry if update did not work */
+        if (u == NULL) {
+                g_debug (""Adding new utmp record"");
+                pututxline (&session_record);
+        }
+#elif defined(HAVE_LOGIN)
+	login (&session_record);
+#endif
+}"
+"match_pathspec(const char **pathspec, const char *name, int namelen,
+		int prefix, char *seen)
+{
+	int i, retval = 0;
+
+	if (!pathspec)
+		return 1;
+
+	name += prefix;
+	namelen -= prefix;
+
+	for (i = 0; pathspec[i] != NULL; i++) {
+		int how;
+		const char *match = pathspec[i] + prefix;
+		if (seen && seen[i] == MATCHED_EXACTLY)
+			continue;
+		how = match_one(match, name, namelen);
+		if (how) {
+			if (retval < how)
+				retval = how;
+			if (seen && seen[i] < how)
+				seen[i] = how;
+		}
+	}
+	return retval;
+}"
+"mbe_eccImbe7200x4400C0 (char imbe_fr[8][23])
+{
+
+  int j, errs;
+  char in[23], out[23];
+
+  for (j = 0; j < 23; j++)
+    {
+      in[j] = imbe_fr[0][j];
+    }
+  errs = mbe_golay2312 (in, out);
+  for (j = 0; j < 23; j++)
+    {
+      imbe_fr[0][j] = out[j];
+    }
+
+  return (errs);
+
+}"
+"count (char *text)
+{
+  char *p = NULL;
+  int pos = -1;
+  int i = 0;
+  /* Calculate the space occupied by the text without spaces */
+  while ((p = strchr (&text[pos + 1], ' ')) != NULL)
+    {
+      i++;
+      pos = p - text;
+    }
+  return i;
+}"
+"field_index(DB_RESULT result, char *name, DB_DATABASE *db)
+{
+#ifdef ODBC_DEBUG_HEADER
+fprintf(stderr,""[ODBC][%s][%d]\n"",__FILE__,__LINE__);
+fprintf(stderr,""\tfield_index\n"");
+fflush(stderr);
+#endif
+	SQLCHAR colname[32];
+	SQLSMALLINT coltype;
+	SQLSMALLINT colnamelen;
+	SQLULEN precision;
+	SQLSMALLINT scale;
+	SQLSMALLINT colsNum;
+	int field;
+	ODBC_RESULT *res = (ODBC_RESULT *) result;
+	
+	colnamelen = 32;
+	colsNum = get_num_columns(res);
+
+	for (field = 0; field < colsNum; field++)
+	{
+		SQLDescribeCol(res->odbcStatHandle, field + 1, colname, sizeof(colname),
+									 &colnamelen, &coltype, &precision, &scale, NULL);
+
+		if (strcmp(name, (char *)colname) == 0)
+		{
+			return (int) (field);
+		}
+
+	}
+
+
+	return (0);
+}"
+"Gs_loadmap_as_int(struct Cell_head *wind, const char *map_name, int *buff,
+		      struct BM *nullmap, int *has_null)
+{
+    FILEDESC cellfile;
+    const char *map_set;
+    char *nullflags;
+    int offset, row, col;
+
+    G_debug(3, ""Gs_loadmap_as_int"");
+
+    map_set = G_find_cell2(map_name, """");
+    if (!map_set) {
+	G_warning(_(""Raster map <%s> not found""), map_name);
+	return 0;
+    }
+    *has_null = 0;
+
+    nullflags = G_allocate_null_buf();	/* G_fatal_error */
+    if (!nullflags) {
+	G_fatal_error(_(""Unable to allocate memory for a null buffer""));
+    }
+
+    if ((cellfile = G_open_cell_old(map_name, map_set)) == -1) {
+	G_fatal_error(_(""Unable to open raster map <%s>""), map_name);
+    }
+
+    G_message(_(""Loading raster map <%s>...""),
+	      G_fully_qualified_name(map_name, map_set));
+
+    for (row = 0; row < wind->rows; row++) {
+	offset = row * wind->cols;
+	G_get_c_raster_row(cellfile, &(buff[offset]), row);
+	G_get_null_value_row(cellfile, nullflags, row);
+
+	G_percent(row, wind->rows, 2);
+
+	for (col = 0; col < wind->cols; col++) {
+	    if (nullflags[col]) {
+		*has_null = 1;
+		BM_set(nullmap, col, row, 1);
+	    }
+
+	    /* set nm */
+	}
+    }
+    G_percent(1, 1, 1);
+    
+    G_close_cell(cellfile);
+
+    G_free(nullflags);
+
+    return (1);
+}"
+"beoboot_probe(const char *buf, off_t len)
+{
+	struct beoboot_header bb_header;
+	const char *cmdline, *kernel;
+	int result;
+	if ((uintmax_t)len < (uintmax_t)sizeof(bb_header)) {
+		return -1;
+	}
+	memcpy(&bb_header, buf, sizeof(bb_header));
+	if (memcmp(bb_header.magic, BEOBOOT_MAGIC, 4) != 0) {
+		return -1;
+	}
+	if (bb_header.arch != BEOBOOT_ARCH) {
+		return -1;
+	}
+	/* Make certain a bzImage is packed into there.
+	 */
+	cmdline = buf + sizeof(bb_header);
+	kernel  = cmdline + bb_header.cmdline_size;
+	result = bzImage_probe(kernel, bb_header.kernel_size);
+	
+	return result;
+}"
+"SparseMatrix_exclude_submatrix(SparseMatrix A, int nrow, int ncol, int *rindices, int *cindices){
+  /* get a submatrix by excluding rows and columns */
+  int *r, *c, nr, nc, i;
+  SparseMatrix B;
+
+  if (nrow <= 0 && ncol <= 0) return A;
+
+  r = MALLOC(sizeof(int)*((size_t)A->m));
+  c = MALLOC(sizeof(int)*((size_t)A->n));
+
+  for (i = 0; i < A->m; i++) r[i] = i;
+  for (i = 0; i < A->n; i++) c[i] = i;
+  for (i = 0; i < nrow; i++) {
+    if (rindices[i] >= 0 && rindices[i] < A->m){
+      r[rindices[i]] = -1;
+    }
+  }
+  for (i = 0; i < ncol; i++) {
+    if (cindices[i] >= 0 && cindices[i] < A->n){
+      c[cindices[i]] = -1;
+    }
+  }
+
+  nr = nc = 0;
+  for (i = 0; i < A->m; i++) {
+    if (r[i] > 0) r[nr++] = r[i];
+  }
+  for (i = 0; i < A->n; i++) {
+    if (c[i] > 0) c[nc++] = c[i];
+  }
+
+  B = SparseMatrix_get_submatrix(A, nr, nc, r, c);
+
+  FREE(r);
+  FREE(c);
+  return B;
+
+}"
+"other_select_init(void)
+{
+	int retval = SLURM_SUCCESS;
+	char *plugin_type = ""select"";
+	char *type = NULL;
+
+	if (init_run && g_context)
+		return retval;
+
+	slurm_mutex_lock(&g_context_lock);
+
+	if (g_context)
+		goto done;
+
+	/*
+	 * FIXME: At the moment the smallest Cray allocation unit are still
+	 * full nodes. Node sharing (even across NUMA sockets of the same
+	 * node) is, as of CLE 3.1 (summer 2010) still not supported, i.e.
+	 * as per the LIMITATIONS section of the aprun(1) manpage of the
+	 * 3.1.27A release).
+	 * Hence for the moment we can only use select/linear.  If some
+	 * time in the future this is allowable use code such as this
+	 * to make things switch to the cons_res plugin.
+	 * if (slurmctld_conf.select_type_param & CR_CONS_RES)
+	 *	type = ""select/cons_res"";
+	 * else
+	 *	type = ""select/linear"";
+	 */
+	type = ""select/linear"";
+	if (!(g_context = plugin_context_create(
+		     plugin_type, type, (void **)&ops,
+		     node_select_syms, sizeof(node_select_syms)))) {
+		error(""cannot create %s context for %s"", plugin_type, type);
+		retval = SLURM_ERROR;
+		goto done;
+	}
+	init_run = true;
+
+done:
+	slurm_mutex_unlock(&g_context_lock);
+	return retval;
+}"
+"_consume(PRFileDesc *sock, char *buf, int bufsize, int *curpos, int *inbuf)
+{
+    int retcode;
+    int numread = 0;
+    char ans;
+ 
+    while (*inbuf == 0)  {
+      
+        numread = PR_Read(sock, buf, bufsize);
+        if(numread < 0)  {
+	   retcode = PR_GetOSError();
+	   if ((retcode == PR_WOULD_BLOCK_ERROR) || (retcode == EAGAIN) || (retcode == 0)) {
+	      continue;
+	   } else {
+	      return '\0';
+	      /*
+              report_error(SYSTEM_ERROR, ""Read failed"", ""Network read failed."");
+	       */
+	   }
+        }  else
+        if(numread == 0)  {
+            return '\0';
+        }  else
+        if(numread < bufsize)  {
+            buf[numread] = '\0';
+        }
+        *inbuf = numread;
+        *curpos = 0;
+    }
+ 
+    ans = buf[*curpos];
+    (*curpos)++;
+    (*inbuf)--;
+ 
+    return ans;
+}"
+"authident(hbaPort *port)
+{
+	char		ident_user[IDENT_USERNAME_MAX + 1];
+
+	if (get_role_line(port->user_name) == NULL)
+		return STATUS_ERROR;
+
+	switch (port->raddr.addr.ss_family)
+	{
+		case AF_INET:
+#ifdef	HAVE_IPV6
+		case AF_INET6:
+#endif
+			if (!ident_inet(port->raddr, port->laddr, ident_user))
+				return STATUS_ERROR;
+			break;
+
+#ifdef HAVE_UNIX_SOCKETS
+		case AF_UNIX:
+			if (!ident_unix(port->sock, ident_user))
+				return STATUS_ERROR;
+			break;
+#endif
+
+		default:
+			return STATUS_ERROR;
+	}
+
+	return check_usermap(port->hba->usermap, port->user_name, ident_user, false);
+}"
+"do_rev_list(int in, int out, void *create_full_pack)
+{
+	int i;
+	struct rev_info revs;
+
+	pack_pipe = xfdopen(out, ""w"");
+	init_revisions(&revs, NULL);
+	revs.tag_objects = 1;
+	revs.tree_objects = 1;
+	revs.blob_objects = 1;
+	if (use_thin_pack)
+		revs.edge_hint = 1;
+
+	if (create_full_pack) {
+		const char *args[] = {""rev-list"", ""--all"", NULL};
+		setup_revisions(2, args, &revs, NULL);
+	} else {
+		for (i = 0; i < want_obj.nr; i++) {
+			struct object *o = want_obj.objects[i].item;
+			/* why??? */
+			o->flags &= ~UNINTERESTING;
+			add_pending_object(&revs, o, NULL);
+		}
+		for (i = 0; i < have_obj.nr; i++) {
+			struct object *o = have_obj.objects[i].item;
+			o->flags |= UNINTERESTING;
+			add_pending_object(&revs, o, NULL);
+		}
+		setup_revisions(0, NULL, &revs, NULL);
+	}
+	if (prepare_revision_walk(&revs))
+		die(""revision walk setup failed"");
+	mark_edges_uninteresting(revs.commits, &revs, show_edge);
+	if (use_thin_pack)
+		for (i = 0; i < extra_edge_obj.nr; i++)
+			fprintf(pack_pipe, ""-%s\n"", sha1_to_hex(
+					extra_edge_obj.objects[i].item->sha1));
+	traverse_commit_list(&revs, show_commit, show_object, NULL);
+	fflush(pack_pipe);
+	fclose(pack_pipe);
+	return 0;
+}"
+"mg_get_rsp_chg(struct scsi_cmnd *srb, struct rtsx_chip *chip)
+{
+	struct ms_info *ms_card = &(chip->ms_card);
+	int retval;
+	int bufflen;
+	unsigned int lun = SCSI_LUN(srb);
+	u8 buf1[32], buf2[36];
+
+	ms_cleanup_work(chip);
+
+	retval = ms_switch_clock(chip);
+	if (retval != STATUS_SUCCESS) {
+		rtsx_trace(chip);
+		return STATUS_FAIL;
+	}
+
+	retval = mg_send_ex_cmd(chip, MG_MAKE_RMS, 0);
+	if (retval != STATUS_SUCCESS) {
+		set_sense_type(chip, lun, SENSE_TYPE_MG_KEY_FAIL_NOT_AUTHEN);
+		rtsx_trace(chip);
+		return STATUS_FAIL;
+	}
+
+	retval = ms_read_bytes(chip, PRO_READ_SHORT_DATA, 32, WAIT_INT,
+			buf1, 32);
+	if (retval != STATUS_SUCCESS) {
+		set_sense_type(chip, lun, SENSE_TYPE_MG_KEY_FAIL_NOT_AUTHEN);
+		rtsx_trace(chip);
+		return STATUS_FAIL;
+	}
+	if (check_ms_err(chip)) {
+		set_sense_type(chip, lun, SENSE_TYPE_MG_KEY_FAIL_NOT_AUTHEN);
+		rtsx_clear_ms_error(chip);
+		rtsx_trace(chip);
+		return STATUS_FAIL;
+	}
+
+	buf2[0] = 0x00;
+	buf2[1] = 0x22;
+	buf2[2] = 0x00;
+	buf2[3] = 0x00;
+
+	memcpy(buf2 + 4, ms_card->magic_gate_id, 16);
+	memcpy(buf2 + 20, buf1, 16);
+
+	bufflen = min_t(int, 36, scsi_bufflen(srb));
+	rtsx_stor_set_xfer_buf(buf2, bufflen, srb);
+
+#ifdef READ_BYTES_WAIT_INT
+	retval = ms_poll_int(chip);
+	if (retval != STATUS_SUCCESS) {
+		set_sense_type(chip, lun, SENSE_TYPE_MG_KEY_FAIL_NOT_AUTHEN);
+		rtsx_trace(chip);
+		return STATUS_FAIL;
+	}
+#endif
+
+	return STATUS_SUCCESS;
+}"
+"deserialize_geo_direction (GstExifReader * exif_reader,
+    GstByteReader * reader, const GstExifTagMatch * exiftag,
+    GstExifTagData * tagdata)
+{
+  GstExifTagData next_tagdata = { 0, };
+  gint ret = 0;
+
+  GST_LOG (""Starting to parse %s tag in exif 0x%x"", exiftag->gst_tag,
+      exiftag->exif_tag);
+
+  if (exiftag->complementary_tag == tagdata->tag) {
+    /* First should come the 'Ref' tags */
+    if (tagdata->offset_as_data[0] == 'M') {
+      GST_WARNING (""Magnetic direction is not supported"");
+      return ret;
+    } else if (tagdata->offset_as_data[0] == 'T') {
+      /* nop */
+    } else {
+      GST_WARNING (""Invalid Ref for direction or track %c"",
+          tagdata->offset_as_data[0]);
+      return ret;
+    }
+  } else {
+    GST_DEBUG (""No Direction Ref, using default=T"");
+    if (tagdata->tag == exiftag->exif_tag) {
+      /* this is the main tag */
+      tagdata_copy (&next_tagdata, tagdata);
+    }
+  }
+
+  if (next_tagdata.tag == 0) {
+    /* now read the following tag that must be the exif_tag */
+    if (exif_reader->byte_order == G_LITTLE_ENDIAN) {
+      if (!gst_byte_reader_peek_uint16_le (reader, &next_tagdata.tag))
+        goto reader_fail;
+    } else {
+      if (!gst_byte_reader_peek_uint16_be (reader, &next_tagdata.tag))
+        goto reader_fail;
+    }
+
+    if (exiftag->exif_tag != next_tagdata.tag) {
+      GST_WARNING (""Unexpected tag"");
+      return ret;
+    }
+
+    /* read the remaining tag entry data */
+    if (!parse_exif_tag_header (reader, exif_reader->byte_order, &next_tagdata)) {
+      ret = -1;
+      goto reader_fail;
+    }
+    ret = 1;
+  }
+
+  /* some checking */
+  if (next_tagdata.tag_type != EXIF_TYPE_RATIONAL) {
+    GST_WARNING (""Invalid type %d for 0x%x"", next_tagdata.tag_type,
+        next_tagdata.tag);
+    return ret;
+  }
+  if (next_tagdata.count != 1) {
+    GST_WARNING (""0x%x tag must have a single fraction, we have %u"",
+        next_tagdata.tag_type, next_tagdata.count);
+    return ret;
+  }
+
+  parse_exif_rational_tag (exif_reader,
+      exiftag->gst_tag, next_tagdata.count, next_tagdata.offset, 1, FALSE);
+
+  return ret;
+
+reader_fail:
+  GST_WARNING (""Failed to read fields from buffer (too short?)"");
+  return ret;
+}"
+"lib_cmd_lock_object_with (sc_gameref_t game)
+{
+  const sc_filterref_t filter = gs_get_filter (game);
+  const sc_var_setref_t vars = gs_get_vars (game);
+  const sc_prop_setref_t bundle = gs_get_bundle (game);
+  sc_int object, key, openness;
+  sc_bool is_ambiguous;
+
+  /* Get the referenced object, and if none, consider complete. */
+  object = lib_disambiguate_object (game, ""lock"", &is_ambiguous);
+  if (object == -1)
+    return is_ambiguous;
+
+  /*
+   * Now try to get the key from referenced text, and disambiguate as usual.
+   */
+  if (!uip_match (""%object%"", var_get_ref_text (vars), game))
+    {
+      pf_buffer_string (filter, ""What do you want to lock that with?\n"");
+      return TRUE;
+    }
+  key = lib_disambiguate_object (game, ""lock that with"", NULL);
+  if (key == -1)
+    return TRUE;
+
+  /* React to the request based on openness state. */
+  openness = gs_object_openness (game, object);
+  switch (openness)
+    {
+    case OBJ_OPEN:
+      pf_buffer_string (filter,
+                        lib_select_response (game,
+                                             ""You can't lock "",
+                                             ""I can't lock "",
+                                             ""%player% can't lock ""));
+      lib_print_object_np (game, object);
+      pf_buffer_string (filter, "" as it is open.\n"");
+      return TRUE;
+
+    case OBJ_CLOSED:
+      {
+        sc_vartype_t vt_key[3];
+        sc_int key_index, the_key;
+
+        vt_key[0].string = ""Objects"";
+        vt_key[1].integer = object;
+        vt_key[2].string = ""Key"";
+        key_index = prop_get_integer (bundle, ""I<-sis"", vt_key);
+        if (key_index == -1)
+          break;
+
+        the_key = obj_dynamic_object (game, key_index);
+        if (the_key != key)
+          {
+            pf_buffer_string (filter,
+                              lib_select_response (game,
+                                                   ""You can't lock "",
+                                                   ""I can't lock "",
+                                                   ""%player% can't lock ""));
+            lib_print_object_np (game, object);
+            pf_buffer_string (filter, "" with "");
+            lib_print_object_np (game, key);
+            pf_buffer_string (filter, "".\n"");
+            return TRUE;
+          }
+
+        if (gs_object_position (game, key) != OBJ_HELD_PLAYER)
+          {
+            pf_buffer_string (filter,
+                              lib_select_response (game,
+                                                   ""You are not holding "",
+                                                   ""I am not holding "",
+                                                   ""%player% is not holding ""));
+            lib_print_object_np (game, key);
+            pf_buffer_string (filter, "".\n"");
+            return TRUE;
+          }
+
+        gs_set_object_openness (game, object, OBJ_LOCKED);
+        pf_buffer_string (filter, lib_select_response (game,
+                                                       ""You lock "",
+                                                       ""I lock "",
+                                                       ""%player% locks ""));
+        lib_print_object_np (game, object);
+        pf_buffer_string (filter, "" with "");
+        lib_print_object_np (game, key);
+        pf_buffer_string (filter, "".\n"");
+        return TRUE;
+      }
+
+    case OBJ_LOCKED:
+      pf_new_sentence (filter);
+      lib_print_object_np (game, object);
+      pf_buffer_string (filter,
+                        lib_select_plurality (game, object,
+                                              "" is already locked!\n"",
+                                              "" are already locked!\n""));
+      return TRUE;
+
+    default:
+      break;
+    }
+
+  /* The object isn't lockable. */
+  pf_buffer_string (filter,
+                    lib_select_response (game,
+                                         ""You can't lock "",
+                                         ""I can't lock "",
+                                         ""%player% can't lock ""));
+  lib_print_object_np (game, object);
+  pf_buffer_string (filter, "".\n"");
+  return TRUE;
+}"
+"nvme_trans_unit_serial_page(struct nvme_ns *ns,
+					struct sg_io_hdr *hdr, u8 *inq_response,
+					int alloc_len)
+{
+	int xfer_len;
+
+	memset(inq_response, 0, STANDARD_INQUIRY_LENGTH);
+	inq_response[1] = INQ_UNIT_SERIAL_NUMBER_PAGE; /* Page Code */
+	inq_response[3] = INQ_SERIAL_NUMBER_LENGTH;    /* Page Length */
+	strncpy(&inq_response[4], ns->ctrl->serial, INQ_SERIAL_NUMBER_LENGTH);
+
+	xfer_len = min(alloc_len, STANDARD_INQUIRY_LENGTH);
+	return nvme_trans_copy_to_user(hdr, inq_response, xfer_len);
+}"
+"daemonize(void)
+{
+	pid_t pid;
+	int fd;
+	int null;
+
+	if(getppid() == 1)
+		return; /* Already a daemon */
+	if ((pid=fork()) == -1) {
+		fprintf(stderr, ""Failed to create daemon process: %m\n"");
+		exit(1);
+	}
+	if (pid != 0)
+		exit(0);
+	setsid();
+	umask(027);
+	if (chdir(""/"") == -1 ) {
+		syslog(LOG_ERR, ""Failed to change directory: %m"");
+		exit(1);
+	}
+	if ((pid=fork()) == -1) { /* Fork in new session */
+		syslog(LOG_ERR, ""Failed to create daemon process: %m\n"");
+		exit(1);
+	}
+	if (pid != 0)
+		exit(0);
+	/* Make std handles write to null; close all others. */
+	if ((null = open(""/dev/null"", O_RDWR)) == -1) {
+		syslog(LOG_ERR, ""Cannot open /dev/null"");
+		exit(1);
+	}
+	for (fd=0; fd < 3; fd++) {
+		if (dup2(null, fd) == -1) {
+			syslog(LOG_ERR, ""Failed to dup null: %m\n"");
+			exit(1);
+		}
+	}
+	for (fd = (getdtablesize() - 1); fd > 2; fd--)
+		close(fd);
+	/* Ignore major signals */
+ 	if (signal(SIGHUP, SIG_IGN) == SIG_ERR
+	    || signal(SIGTERM, SIG_IGN) == SIG_ERR
+	    || signal(SIGINT, SIG_IGN) == SIG_ERR) {
+ 		syslog(LOG_ERR, ""Failed to setup initial signals"");
+ 		exit(1);
+ 	}
+}"
+"lexname(int op, int subop)
+{
+	register char*	b;
+
+	static int	n;
+	static char	buf[TOTNAME][MAXNAME];
+
+	if (op > MINTOKEN && op < MAXTOKEN)
+		return (char*)exop[op - MINTOKEN];
+	if (++n >= TOTNAME)
+		n = 0;
+	b = buf[n];
+	if (op == '=')
+	{
+		if (subop > MINTOKEN && subop < MAXTOKEN)
+			sfsprintf(b, MAXNAME, ""%s="", exop[subop - MINTOKEN]);
+		else if (subop > ' ' && subop <= '~')
+			sfsprintf(b, MAXNAME, ""%c="", subop);
+		else
+			sfsprintf(b, MAXNAME, ""(%d)="", subop);
+	}
+	else if (subop < 0)
+		sfsprintf(b, MAXNAME, ""(EXTERNAL:%d)"", op);
+	else if (op > ' ' && op <= '~')
+		sfsprintf(b, MAXNAME, ""%c"", op);
+	else
+		sfsprintf(b, MAXNAME, ""(%d)"", op);
+	return b;
+}"
+"timeval_unparse(coord c)
+{
+  char *cp;
+  char *r;
+  char buf[50];
+  struct tm *tmp;
+  
+  tmp = localtime((time_t *) &(c.t.tv_sec));
+  (void) sprintf(buf,""%s"",asctime(tmp));
+
+  if (c.t.tv_usec == 0 && tmp->tm_sec == 0 && tmp->tm_min == 0 && tmp->tm_hour == 0) {
+    cp = buf+4;
+    sprintf(cp+7,""midn"");
+  } else if (c.t.tv_usec == 0 && tmp->tm_sec == 0 && tmp->tm_min == 0 && tmp->tm_hour == 12) {
+    cp = buf+4;
+    sprintf(cp+7,""noon"");
+  } else {
+    cp = buf+10;
+    cp[10] = '\0';
+    if (c.t.tv_usec != 0) {
+      if (c.t.tv_usec % 100 == 0) {
+	(void) sprintf(cp+9,"".%04u"",(unsigned) c.t.tv_usec/100);
+	cp += 7;
+      } else {
+	(void) sprintf(cp+9,"".%06u"",(unsigned) c.t.tv_usec);
+	cp += 9;
+      }
+    }
+  }
+  r = malloc((unsigned) strlen(cp)+1);
+  if (r == 0)
+    fatalerror(""malloc returned 0"");
+  (void) strcpy(r, cp);
+  return r;
+}"
+"KillGhostLink(char *name,struct Attributes attr,struct Promise *pp)
+
+#ifdef MINGW
+{
+CfOut(cf_verbose, """", ""Windows does not support symbolic links (at KillGhostLink())"");
+cfPS(cf_error,CF_FAIL,"""",pp,attr,"" !! Windows does not support killing link \""%s\"""", name);
+return false;
+}
+#else  /* NOT MINGW */
+{ char linkbuf[CF_BUFSIZE],tmp[CF_BUFSIZE];
+  char linkpath[CF_BUFSIZE],*sp;
+  struct stat statbuf;
+
+Debug(""KillGhostLink(%s)\n"",name);
+
+memset(linkbuf,0,CF_BUFSIZE);
+memset(linkpath,0,CF_BUFSIZE); 
+
+if (readlink(name,linkbuf,CF_BUFSIZE-1) == -1)
+   {
+   CfOut(cf_verbose,"""","" !! (Can't read link %s while checking for deadlinks)\n"",name);
+   return true; /* ignore */
+   }
+
+if (!IsAbsoluteFileName(linkbuf))
+   {
+   strcpy(linkpath,name);    /* Get path to link */
+
+   for (sp = linkpath+strlen(linkpath); (*sp != FILE_SEPARATOR) && (sp >= linkpath); sp-- )
+     {
+     *sp = '\0';
+     }
+   }
+
+strcat(linkpath,linkbuf);
+CompressPath(tmp,linkpath); 
+ 
+if (cfstat(tmp,&statbuf) == -1)               /* link points nowhere */
+   {
+   if (attr.link.when_no_file == cfa_delete || attr.recursion.rmdeadlinks)
+      {
+      CfOut(cf_verbose,"""","" !! %s is a link which points to %s, but that file doesn't seem to exist\n"",name,linkbuf);
+
+      if (!DONTDO)
+         {
+         unlink(name);  /* May not work on a client-mounted system ! */
+         cfPS(cf_inform,CF_CHG,"""",pp,attr,"" -> Removing ghost %s - reference to something that is not there\n"",name);
+         return true;
+         }
+      }
+   }
+
+return false;
+}"
+"ws_utf8_to_latin1(const WsUtf8String *string,
+                                 unsigned char unknown_char,
+                                 size_t *len_return)
+{
+    unsigned char *cstr;
+    size_t i;
+    size_t pos = 0;
+
+    if (string == NULL)
+        return NULL;
+
+    cstr = ws_malloc(string->num_chars + 1);
+    if (cstr == NULL)
+        return NULL;
+
+    for (i = 0; i < string->num_chars; i++) {
+        unsigned long ch;
+
+        if (!ws_utf8_get_char(string, &ch, &pos))
+            ws_fatal(""ws_utf8_to_latin1_cstr(): internal inconsistency"");
+
+        if (ch > 0xff)
+            cstr[i] = unknown_char;
+        else
+            cstr[i] = (unsigned char) ch;
+    }
+
+    cstr[i] = '\0';
+
+    if (len_return)
+        *len_return = string->num_chars;
+
+    return cstr;
+}"
+"encode_json_string(json_value *json) { 
+	char *p = json->value.string;
+	printf(""\"""");
+	while(*p !='\0') { 
+		switch(*p) { 
+			case '\n': printf(""\\n""); break;
+			case '\r': printf(""\\r""); break;
+			case '\t': printf(""\\t""); break;
+			case '\b': printf(""\\b""); break;
+			case '\f': printf(""\\f""); break;
+			case '\\': printf(""\\\\""); break;
+			case '/': printf(""\\/""); break;
+			case '""': printf(""\""""); break;
+			default:
+					printf(""%c"",*p);
+		}
+		p++;
+	}
+	printf(""\"""");
+}"
+"belkin_nut_write_int(int reg, int val) {
+	unsigned char buf[MAXMSGSIZE];
+	int r;
+
+	/* send the request */
+	buf[0] = 0x7e;
+	buf[1] = 0x04;
+	buf[2] = 0x03;
+	buf[3] = reg;
+	buf[4] = val & 0xff;
+	buf[5] = (val>>8) & 0xff;
+	buf[6] = belkin_checksum(buf, 6);
+  
+	r = ser_send_buf(upsfd, buf, 7);
+	if (r<0) {
+		upslogx(LOG_ERR, ""Failed write to UPS"");
+		return -1;
+	}
+
+	/* receive the acknowledgement */
+	r = belkin_nut_receive(buf, MAXMSGSIZE);
+	if (r<0) {
+		return -1;
+	}
+	if ((buf[1]!=0x02 && buf[1]!=0x01) || buf[3] != reg) {
+		upslogx(LOG_ERR, ""Invalid response from UPS"");
+		return -1;
+	}
+	if (buf[1]==0x01) {
+		return -1;
+	}
+	return 0;
+}"
+"cl_string_list_append_string(cl_raw_list_t* list_p,char* string, int lock_list ) {
+
+   int ret_val;
+   cl_string_list_elem_t* new_elem = NULL;
+
+   if (string == NULL || list_p == NULL) {
+      return CL_RETVAL_PARAMS;
+   }
+
+   /* lock the list */
+   if (lock_list == 1) {
+      if (  ( ret_val = cl_raw_list_lock(list_p)) != CL_RETVAL_OK) {
+         return ret_val;
+      }
+   }
+
+   /* add new element list */
+   new_elem = (cl_string_list_elem_t*) malloc(sizeof(cl_string_list_elem_t));
+   if (new_elem == NULL) {
+      if (lock_list == 1) {
+         cl_raw_list_unlock(list_p);
+      }
+      return CL_RETVAL_MALLOC;
+   }
+
+   new_elem->string = strdup(string);
+   if (new_elem->string == NULL) {
+      free(new_elem);
+      if (lock_list == 1) {
+         cl_raw_list_unlock(list_p);
+      }
+      return CL_RETVAL_MALLOC;
+   }
+   new_elem->raw_elem = cl_raw_list_append_elem(list_p, (void*) new_elem);
+   if ( new_elem->raw_elem == NULL) {
+      free(new_elem->string);
+      free(new_elem);
+      if (lock_list == 1) { 
+         cl_raw_list_unlock(list_p);
+      }
+      return CL_RETVAL_MALLOC;
+   }
+   
+   /* unlock the list */
+   if (lock_list == 1) {
+      if (  ( ret_val = cl_raw_list_unlock(list_p)) != CL_RETVAL_OK) {
+         return ret_val;
+      }
+   }
+   return CL_RETVAL_OK;
+}"
+"posix_getcwd(PyObject *self, PyObject *noargs)
+{
+    int bufsize_incr = 1024;
+    int bufsize = 0;
+    char *tmpbuf = NULL;
+    char *res = NULL;
+    PyObject *dynamic_return;
+
+    Py_BEGIN_ALLOW_THREADS
+    do {
+        bufsize = bufsize + bufsize_incr;
+        tmpbuf = malloc(bufsize);
+        if (tmpbuf == NULL) {
+            break;
+        }
+#if defined(PYOS_OS2) && defined(PYCC_GCC)
+        res = _getcwd2(tmpbuf, bufsize);
+#else
+        res = getcwd(tmpbuf, bufsize);
+#endif
+
+        if (res == NULL) {
+            free(tmpbuf);
+        }
+    } while ((res == NULL) && (errno == ERANGE));
+    Py_END_ALLOW_THREADS
+
+    if (res == NULL)
+        return posix_error();
+
+    dynamic_return = PyString_FromString(tmpbuf);
+    free(tmpbuf);
+
+    return dynamic_return;
+}"
+"vmxnet3_activate_dev(struct vmxnet3_adapter *adapter)
+{
+	int err, i;
+	u32 ret;
+	unsigned long flags;
+
+	netdev_dbg(adapter->netdev, ""%s: skb_buf_size %d, rx_buf_per_pkt %d,""
+		"" ring sizes %u %u %u\n"", adapter->netdev->name,
+		adapter->skb_buf_size, adapter->rx_buf_per_pkt,
+		adapter->tx_queue[0].tx_ring.size,
+		adapter->rx_queue[0].rx_ring[0].size,
+		adapter->rx_queue[0].rx_ring[1].size);
+
+	vmxnet3_tq_init_all(adapter);
+	err = vmxnet3_rq_init_all(adapter);
+	if (err) {
+		netdev_err(adapter->netdev,
+			   ""Failed to init rx queue error %d\n"", err);
+		goto rq_err;
+	}
+
+	err = vmxnet3_request_irqs(adapter);
+	if (err) {
+		netdev_err(adapter->netdev,
+			   ""Failed to setup irq for error %d\n"", err);
+		goto irq_err;
+	}
+
+	vmxnet3_setup_driver_shared(adapter);
+
+	VMXNET3_WRITE_BAR1_REG(adapter, VMXNET3_REG_DSAL, VMXNET3_GET_ADDR_LO(
+			       adapter->shared_pa));
+	VMXNET3_WRITE_BAR1_REG(adapter, VMXNET3_REG_DSAH, VMXNET3_GET_ADDR_HI(
+			       adapter->shared_pa));
+	spin_lock_irqsave(&adapter->cmd_lock, flags);
+	VMXNET3_WRITE_BAR1_REG(adapter, VMXNET3_REG_CMD,
+			       VMXNET3_CMD_ACTIVATE_DEV);
+	ret = VMXNET3_READ_BAR1_REG(adapter, VMXNET3_REG_CMD);
+	spin_unlock_irqrestore(&adapter->cmd_lock, flags);
+
+	if (ret != 0) {
+		netdev_err(adapter->netdev,
+			   ""Failed to activate dev: error %u\n"", ret);
+		err = -EINVAL;
+		goto activate_err;
+	}
+
+	for (i = 0; i < adapter->num_rx_queues; i++) {
+		VMXNET3_WRITE_BAR0_REG(adapter,
+				VMXNET3_REG_RXPROD + i * VMXNET3_REG_ALIGN,
+				adapter->rx_queue[i].rx_ring[0].next2fill);
+		VMXNET3_WRITE_BAR0_REG(adapter, (VMXNET3_REG_RXPROD2 +
+				(i * VMXNET3_REG_ALIGN)),
+				adapter->rx_queue[i].rx_ring[1].next2fill);
+	}
+
+	/* Apply the rx filter settins last. */
+	vmxnet3_set_mc(adapter->netdev);
+
+	/*
+	 * Check link state when first activating device. It will start the
+	 * tx queue if the link is up.
+	 */
+	vmxnet3_check_link(adapter, true);
+	for (i = 0; i < adapter->num_rx_queues; i++)
+		napi_enable(&adapter->rx_queue[i].napi);
+	vmxnet3_enable_all_intrs(adapter);
+	clear_bit(VMXNET3_STATE_BIT_QUIESCED, &adapter->state);
+	return 0;
+
+activate_err:
+	VMXNET3_WRITE_BAR1_REG(adapter, VMXNET3_REG_DSAL, 0);
+	VMXNET3_WRITE_BAR1_REG(adapter, VMXNET3_REG_DSAH, 0);
+	vmxnet3_free_irqs(adapter);
+irq_err:
+rq_err:
+	/* free up buffers we allocated */
+	vmxnet3_rq_cleanup_all(adapter);
+	return err;
+}"
+"cc_usb_send_bytes(struct cc_usb *cc, uint8_t *bytes, int len)
+{
+	int	this_len;
+	int	ret = len;
+
+	while (len) {
+		this_len = len;
+		if (this_len > 8)
+			this_len = 8;
+		len -= this_len;
+		cc_usb_printf(cc, ""P"");
+		while (this_len--)
+			cc_usb_printf (cc, "" %02x"", (*bytes++) & 0xff);
+		cc_usb_printf(cc, ""\n"");
+	}
+	return ret;
+}"
+"__ctr_crypt(struct blkcipher_desc *desc,
+				struct blkcipher_walk *walk)
+{
+	struct des3_ede_x86_ctx *ctx = crypto_blkcipher_ctx(desc->tfm);
+	unsigned int bsize = DES3_EDE_BLOCK_SIZE;
+	unsigned int nbytes = walk->nbytes;
+	__be64 *src = (__be64 *)walk->src.virt.addr;
+	__be64 *dst = (__be64 *)walk->dst.virt.addr;
+	u64 ctrblk = be64_to_cpu(*(__be64 *)walk->iv);
+	__be64 ctrblocks[3];
+
+	/* Process four block batch */
+	if (nbytes >= bsize * 3) {
+		do {
+			/* create ctrblks for parallel encrypt */
+			ctrblocks[0] = cpu_to_be64(ctrblk++);
+			ctrblocks[1] = cpu_to_be64(ctrblk++);
+			ctrblocks[2] = cpu_to_be64(ctrblk++);
+
+			des3_ede_enc_blk_3way(ctx, (u8 *)ctrblocks,
+					      (u8 *)ctrblocks);
+
+			dst[0] = src[0] ^ ctrblocks[0];
+			dst[1] = src[1] ^ ctrblocks[1];
+			dst[2] = src[2] ^ ctrblocks[2];
+
+			src += 3;
+			dst += 3;
+		} while ((nbytes -= bsize * 3) >= bsize * 3);
+
+		if (nbytes < bsize)
+			goto done;
+	}
+
+	/* Handle leftovers */
+	do {
+		ctrblocks[0] = cpu_to_be64(ctrblk++);
+
+		des3_ede_enc_blk(ctx, (u8 *)ctrblocks, (u8 *)ctrblocks);
+
+		dst[0] = src[0] ^ ctrblocks[0];
+
+		src += 1;
+		dst += 1;
+	} while ((nbytes -= bsize) >= bsize);
+
+done:
+	*(__be64 *)walk->iv = cpu_to_be64(ctrblk);
+	return nbytes;
+}"
+"pkcs11_add_module (const char *name, struct ck_function_list *module)
+{
+  struct ck_info info;
+  int i;
+
+  if (active_providers >= MAX_PROVIDERS)
+    {
+      gnutls_assert ();
+      return GNUTLS_E_CONSTRAINT_ERROR;
+    }
+
+  /* initially check if this module is a duplicate */
+  memset(&info, 0, sizeof(info));
+  pkcs11_get_module_info (module, &info);
+  for (i=0;i<active_providers;i++)
+    {
+      /* already loaded, skip the rest */
+      if (memcmp(&info, &providers[i].info, sizeof(info)) == 0)
+        {
+          _gnutls_debug_log(""%s is already loaded.\n"", name);
+          return 0;
+        }
+    }
+
+  active_providers++;
+  providers[active_providers - 1].module = module;
+
+  /* cache the number of slots in this module */
+  if (pkcs11_get_slot_list
+      (providers[active_providers - 1].module, 0, NULL,
+       &providers[active_providers - 1].nslots) != CKR_OK)
+    {
+      gnutls_assert ();
+      goto fail;
+    }
+
+  providers[active_providers - 1].slots =
+    gnutls_malloc (sizeof (*providers[active_providers - 1].slots) *
+                   providers[active_providers - 1].nslots);
+  if (providers[active_providers - 1].slots == NULL)
+    {
+      gnutls_assert ();
+      goto fail;
+    }
+
+  if (pkcs11_get_slot_list
+      (providers[active_providers - 1].module, 0,
+       providers[active_providers - 1].slots,
+       &providers[active_providers - 1].nslots) != CKR_OK)
+    {
+      gnutls_assert ();
+      gnutls_free (providers[active_providers - 1].slots);
+      goto fail;
+    }
+
+  memcpy (&providers[active_providers - 1].info, &info, sizeof(info));
+
+  _gnutls_debug_log (""p11: loaded provider '%s' with %d slots\n"",
+                     name, (int) providers[active_providers - 1].nslots);
+
+  return 0;
+
+fail:
+  active_providers--;
+  return GNUTLS_E_PKCS11_LOAD_ERROR;
+}"
+"set_transfer_voltage_high(int val) {
+	char response[MAX_RESPONSE_LENGTH];
+	char *ptr;
+	int low;
+
+	if (do_command(POLL, TRANSFER_VOLTAGE, """", response) <= 0)
+		return;
+	ptr = field(response, 0);
+	if (!ptr)
+		return;
+	low = atoi(ptr);
+	ptr = field(response, 1);
+	if (!ptr || val == atoi(ptr))
+		return;
+	snprintf(response, sizeof(response), ""%d;%d"", low, val);
+	do_command(SET, TRANSFER_VOLTAGE, response, NULL);
+}"
+"gl_bind_control_char(GetLine *gl, KtBinder binder, char c,
+				const char *action)
+{
+  char keyseq[2];
+/*
+ * Quietly reject binding to the NUL control character, since this
+ * is an ambiguous prefix of all bindings.
+ */
+  if(c == '\0')
+    return 0;
+/*
+ * Making sure not to bind characters which aren't either control or
+ * meta characters.
+ */
+  if(IS_CTRL_CHAR(c) || IS_META_CHAR(c)) {
+    keyseq[0] = c;
+    keyseq[1] = '\0';
+  } else {
+    return 0;
+  };
+/*
+ * Install the binding.
+ */
+  if(_kt_set_keybinding(gl->bindings, binder, keyseq, action)) {
+    _err_record_msg(gl->err, _kt_last_error(gl->bindings), END_ERR_MSG);
+    return 1;
+  };
+  return 0;
+}"
+"ckh_new(ckh_t *ckh, size_t minitems, ckh_hash_t *hash, ckh_keycomp_t *keycomp)
+{
+	bool ret;
+	size_t mincells, usize;
+	unsigned lg_mincells;
+
+	assert(minitems > 0);
+	assert(hash != NULL);
+	assert(keycomp != NULL);
+
+#ifdef CKH_COUNT
+	ckh->ngrows = 0;
+	ckh->nshrinks = 0;
+	ckh->nshrinkfails = 0;
+	ckh->ninserts = 0;
+	ckh->nrelocs = 0;
+#endif
+	ckh->prn_state = 42; /* Value doesn't really matter. */
+	ckh->count = 0;
+
+	/*
+	 * Find the minimum power of 2 that is large enough to fit aBaseCount
+	 * entries.  We are using (2+,2) cuckoo hashing, which has an expected
+	 * maximum load factor of at least ~0.86, so 0.75 is a conservative load
+	 * factor that will typically allow 2^aLgMinItems to fit without ever
+	 * growing the table.
+	 */
+	assert(LG_CKH_BUCKET_CELLS > 0);
+	mincells = ((minitems + (3 - (minitems % 3))) / 3) << 2;
+	for (lg_mincells = LG_CKH_BUCKET_CELLS;
+	    (ZU(1) << lg_mincells) < mincells;
+	    lg_mincells++)
+		; /* Do nothing. */
+	ckh->lg_minbuckets = lg_mincells - LG_CKH_BUCKET_CELLS;
+	ckh->lg_curbuckets = lg_mincells - LG_CKH_BUCKET_CELLS;
+	ckh->hash = hash;
+	ckh->keycomp = keycomp;
+
+	usize = sa2u(sizeof(ckhc_t) << lg_mincells, CACHELINE, NULL);
+	if (usize == 0) {
+		ret = true;
+		goto RETURN;
+	}
+	ckh->tab = (ckhc_t *)ipalloc(usize, CACHELINE, true);
+	if (ckh->tab == NULL) {
+		ret = true;
+		goto RETURN;
+	}
+
+#ifdef JEMALLOC_DEBUG
+	ckh->magic = CKH_MAGIC;
+#endif
+
+	ret = false;
+RETURN:
+	return (ret);
+}"
+"hexchat_plugin_get_info (char **name, char **desc, char **version,
+							  void **reserved)
+{
+	*name = ""Perl"";
+	*desc = ""Perl scripting interface"";
+	*version = PACKAGE_VERSION;
+	if (reserved)
+		*reserved = NULL;
+}"
+"show_object(const unsigned char *sha1, int suppress_header)
+{
+	unsigned long size;
+	enum object_type type;
+	char *buf = read_sha1_file(sha1, &type, &size);
+	int offset = 0;
+
+	if (!buf)
+		return error(""Could not read object %s"", sha1_to_hex(sha1));
+
+	if (suppress_header)
+		while (offset < size && buf[offset++] != '\n') {
+			int new_offset = offset;
+			while (new_offset < size && buf[new_offset++] != '\n')
+				; /* do nothing */
+			offset = new_offset;
+		}
+
+	if (offset < size)
+		fwrite(buf + offset, size - offset, 1, stdout);
+	free(buf);
+	return 0;
+}"
+"set_names(char *name)
+{
+  int fd;
+
+  if (reg_fname == 0) {
+    reg_fname = lam_reg_filename();
+    if (reg_fname == 0) {
+      fprintf(stderr, ""%s: Problem obtaining registry filename\n"", name);
+      return LAMERROR;
+    }
+    
+    reg_tmpname = lam_reg_tmpname();
+    if (reg_tmpname == 0) {
+      fprintf(stderr, ""%s: Problem obtaining temporary filename\n"", name);
+      return LAMERROR;
+    }
+    
+    reg_lockname = lam_reg_lockname();
+    if (reg_lockname == 0) {
+      fprintf(stderr, ""%s: Problem obtaining registry lock filename\n"", name);
+      return LAMERROR;
+    }
+
+    /* Test to see if we can make the lockfile exclusively -- this may
+       fail if the lockfile is on NFS.  Make a unique filename and try
+       to open it with O_EXCL.  If we fail (note that we can't get
+       EEXIST, because this is a unique filename, so there's no
+       possibility that some other process ahs already created it),
+       then O_EXCL won't work.  See lock_registry(), below, for more
+       info on this. */
+
+    reg_mylockname = malloc(MAXPATHLEN);
+    snprintf(reg_mylockname, MAXPATHLEN - 1, ""%s.%d"", 
+	     reg_lockname, lam_getpid());
+    fd = open(reg_mylockname, O_RDWR | O_CREAT | O_EXCL, 0600);
+    if (fd == -1) {
+      oexcl_works = 0;
+    } else {
+      oexcl_works = 1;
+      close(fd);
+    }
+
+    /* we need to unlink the filename regardless of whether the open
+       succeeded or not -- some broken filesystems (cough cough linux
+       NFS cough cough) will leave a broken entry in the directory
+       listing even if the create failed.  <sigh> */
+    
+    unlink(reg_mylockname);
+  }
+
+  return 0;
+}"
+"mwifiex_cmd_802_11_subsc_evt(struct mwifiex_private *priv,
+			     struct host_cmd_ds_command *cmd,
+			     struct mwifiex_ds_misc_subsc_evt *subsc_evt_cfg)
+{
+	struct host_cmd_ds_802_11_subsc_evt *subsc_evt = &cmd->params.subsc_evt;
+	struct mwifiex_ie_types_rssi_threshold *rssi_tlv;
+	u16 event_bitmap;
+	u8 *pos;
+
+	cmd->command = cpu_to_le16(HostCmd_CMD_802_11_SUBSCRIBE_EVENT);
+	cmd->size = cpu_to_le16(sizeof(struct host_cmd_ds_802_11_subsc_evt) +
+				S_DS_GEN);
+
+	subsc_evt->action = cpu_to_le16(subsc_evt_cfg->action);
+	mwifiex_dbg(priv->adapter, CMD,
+		    ""cmd: action: %d\n"", subsc_evt_cfg->action);
+
+	/*For query requests, no configuration TLV structures are to be added.*/
+	if (subsc_evt_cfg->action == HostCmd_ACT_GEN_GET)
+		return 0;
+
+	subsc_evt->events = cpu_to_le16(subsc_evt_cfg->events);
+
+	event_bitmap = subsc_evt_cfg->events;
+	mwifiex_dbg(priv->adapter, CMD, ""cmd: event bitmap : %16x\n"",
+		    event_bitmap);
+
+	if (((subsc_evt_cfg->action == HostCmd_ACT_BITWISE_CLR) ||
+	     (subsc_evt_cfg->action == HostCmd_ACT_BITWISE_SET)) &&
+	    (event_bitmap == 0)) {
+		mwifiex_dbg(priv->adapter, ERROR,
+			    ""Error: No event specified\t""
+			    ""for bitwise action type\n"");
+		return -EINVAL;
+	}
+
+	/*
+	 * Append TLV structures for each of the specified events for
+	 * subscribing or re-configuring. This is not required for
+	 * bitwise unsubscribing request.
+	 */
+	if (subsc_evt_cfg->action == HostCmd_ACT_BITWISE_CLR)
+		return 0;
+
+	pos = ((u8 *)subsc_evt) +
+			sizeof(struct host_cmd_ds_802_11_subsc_evt);
+
+	if (event_bitmap & BITMASK_BCN_RSSI_LOW) {
+		rssi_tlv = (struct mwifiex_ie_types_rssi_threshold *) pos;
+
+		rssi_tlv->header.type = cpu_to_le16(TLV_TYPE_RSSI_LOW);
+		rssi_tlv->header.len =
+		    cpu_to_le16(sizeof(struct mwifiex_ie_types_rssi_threshold) -
+				sizeof(struct mwifiex_ie_types_header));
+		rssi_tlv->abs_value = subsc_evt_cfg->bcn_l_rssi_cfg.abs_value;
+		rssi_tlv->evt_freq = subsc_evt_cfg->bcn_l_rssi_cfg.evt_freq;
+
+		mwifiex_dbg(priv->adapter, EVENT,
+			    ""Cfg Beacon Low Rssi event,\t""
+			    ""RSSI:-%d dBm, Freq:%d\n"",
+			    subsc_evt_cfg->bcn_l_rssi_cfg.abs_value,
+			    subsc_evt_cfg->bcn_l_rssi_cfg.evt_freq);
+
+		pos += sizeof(struct mwifiex_ie_types_rssi_threshold);
+		le16_add_cpu(&cmd->size,
+			     sizeof(struct mwifiex_ie_types_rssi_threshold));
+	}
+
+	if (event_bitmap & BITMASK_BCN_RSSI_HIGH) {
+		rssi_tlv = (struct mwifiex_ie_types_rssi_threshold *) pos;
+
+		rssi_tlv->header.type = cpu_to_le16(TLV_TYPE_RSSI_HIGH);
+		rssi_tlv->header.len =
+		    cpu_to_le16(sizeof(struct mwifiex_ie_types_rssi_threshold) -
+				sizeof(struct mwifiex_ie_types_header));
+		rssi_tlv->abs_value = subsc_evt_cfg->bcn_h_rssi_cfg.abs_value;
+		rssi_tlv->evt_freq = subsc_evt_cfg->bcn_h_rssi_cfg.evt_freq;
+
+		mwifiex_dbg(priv->adapter, EVENT,
+			    ""Cfg Beacon High Rssi event,\t""
+			    ""RSSI:-%d dBm, Freq:%d\n"",
+			    subsc_evt_cfg->bcn_h_rssi_cfg.abs_value,
+			    subsc_evt_cfg->bcn_h_rssi_cfg.evt_freq);
+
+		pos += sizeof(struct mwifiex_ie_types_rssi_threshold);
+		le16_add_cpu(&cmd->size,
+			     sizeof(struct mwifiex_ie_types_rssi_threshold));
+	}
+
+	return 0;
+}"
+"cmpfbe_write_lm_dsm_dec(fsbe_context *cx, Memory_table *mem, int npes) {
+    int pe = 0;
+    int lm_size = 0;
+    int dsm_size = 0;
+    
+    lm_size = get_lm_size(cx, memory_head);
+
+    if (lm_size > 0) {
+        ompfbe_iprintf(cx, ""INTEGER LM(%d)\n"", lm_size);
+        ompfbe_iprintf(cx, ""COMMON/LOCAL_MEMORY/LM\n"");
+    }
+
+    for (pe = 0; pe < npes; pe++) {
+        dsm_size = get_dsm_size(cx, memory_head, pe);
+        if (dsm_size > 0) {
+            ompfbe_iprintf(cx, ""INTEGER DSM%d(%d)\n"", pe, dsm_size);
+            ompfbe_iprintf(cx, ""COMMON/DSM/DSM%d\n"", pe);
+        }
+    }
+}"
+"test_checkout_tree__donot_update_deleted_file_by_default(void)
+{
+	git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+	git_oid old_id, new_id;
+	git_commit *old_commit = NULL, *new_commit = NULL;
+	git_index *index = NULL;
+	checkout_counts ct;
+
+	opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+	memset(&ct, 0, sizeof(ct));
+	opts.notify_flags = GIT_CHECKOUT_NOTIFY_ALL;
+	opts.notify_cb = checkout_count_callback;
+	opts.notify_payload = &ct;
+
+	cl_git_pass(git_repository_index(&index, g_repo));
+
+	cl_git_pass(git_oid_fromstr(&old_id, ""be3563ae3f795b2b4353bcce3a527ad0a4f7f644""));
+	cl_git_pass(git_commit_lookup(&old_commit, g_repo, &old_id));
+	cl_git_pass(git_reset(g_repo, (git_object *)old_commit, GIT_RESET_HARD, NULL, NULL, NULL));
+
+	cl_git_pass(p_unlink(""testrepo/branch_file.txt""));
+	cl_git_pass(git_index_remove_bypath(index ,""branch_file.txt""));
+	cl_git_pass(git_index_write(index));
+
+	cl_assert(!git_path_exists(""testrepo/branch_file.txt""));
+
+	cl_git_pass(git_oid_fromstr(&new_id, ""099fabac3a9ea935598528c27f866e34089c2eff""));
+	cl_git_pass(git_commit_lookup(&new_commit, g_repo, &new_id));
+
+
+	cl_git_fail(git_checkout_tree(g_repo, (git_object *)new_commit, &opts));
+
+	cl_assert_equal_i(1, ct.n_conflicts);
+	cl_assert_equal_i(1, ct.n_updates);
+
+	git_commit_free(old_commit);
+	git_commit_free(new_commit);
+	git_index_free(index);
+}"
+"kdt_query (const Kdt * kdt, const KdtRect rect)
+{
+  rewind (kdt->nodes);
+  rewind (kdt->leaves);
+  Header h;
+  if (fread (&h, sizeof (Header), 1, kdt->nodes) != 1)
+    return -1;
+  if (rect[0].l > h.bound[0].h || rect[1].l > h.bound[1].h || 
+      rect[0].h < h.bound[0].l || rect[1].h < h.bound[1].l)
+    return 0;
+  return query (kdt, rect, 0, h.len);
+}"
+"fmtCopyColumnList(const TableInfo *ti, PQExpBuffer buffer)
+{
+	int			numatts = ti->numatts;
+	char	  **attnames = ti->attnames;
+	bool	   *attisdropped = ti->attisdropped;
+	bool		needComma;
+	int			i;
+
+	appendPQExpBufferChar(buffer, '(');
+	needComma = false;
+	for (i = 0; i < numatts; i++)
+	{
+		if (attisdropped[i])
+			continue;
+		if (needComma)
+			appendPQExpBufferStr(buffer, "", "");
+		appendPQExpBufferStr(buffer, fmtId(attnames[i]));
+		needComma = true;
+	}
+
+	if (!needComma)
+		return """";				/* no undropped columns */
+
+	appendPQExpBufferChar(buffer, ')');
+	return buffer->data;
+}"
+"x_color_free (void)
+{
+  int i;
+
+  gdk_colormap_free_colors (colormap, &black, 1);
+  gdk_colormap_free_colors (colormap, &white, 1);
+
+  for (i = 0; i < MAX_COLORS; i++) {
+    if (display_colors[i].enabled)
+      gdk_colormap_free_colors (colormap, gdk_colors[i], 1);
+    if (display_outline_colors[i].enabled)
+      gdk_colormap_free_colors (colormap, gdk_outline_colors[i], 1);
+  }
+}"
+"parse_data(Octstr *in, Octstr *out) {
+	int stx, etx;
+	Octstr *packet;
+
+	for (;;) {
+		/* Look for start of packet.  Delete everything up to the start
+		 * marker.  (CIMD2 section 3.1 says we can ignore any data
+		 * transmitted between packets.) */
+		stx = octstr_search_char(in, STX, 0);
+		if (stx < 0)
+			octstr_delete(in, 0, octstr_len(in));
+		else if (stx > 0)
+			octstr_delete(in, 0, stx);
+
+		etx = octstr_search_char(in, ETX, 0);
+		if (etx < 0)
+			return;  /* Incomplete packet; wait for more data. */
+
+		/* Copy the data between stx and etx */
+		packet = octstr_copy(in, 1, etx - 1);
+		/* Then cut the packet (including stx and etx) from inbuffer */
+		octstr_delete(in, 0, etx + 1);
+
+		parse_packet(packet, out);
+
+		octstr_destroy(packet);
+	}
+}"
+"few_vals (int t1, int t2, const double *x, double *ratio)
+{
+    double test[FEWVALS];
+    int match;
+    int i, t, n = 0, nv = 0;
+
+    for (t=t1; t<=t2; t++) {
+	if (!na(x[t])) {
+	    match = 0;
+	    for (i=0; i<nv; i++) {
+		if (x[t] == test[i]) {
+		    match = 1;
+		    break;
+		}
+	    }
+	    if (!match) {
+		if (nv == FEWVALS) {
+		    nv++;
+		    break;
+		}
+		test[nv++] = x[t];
+	    }
+	    n++;
+	}
+    }
+
+    *ratio = (double) nv / n;
+
+    return nv;
+}"
+"gchord_adjust(struct SYMBOL *s)
+{
+	char *p, *q;
+	int annot, l;
+
+	s->gcf = cfmt.gcf;
+	s->anf = cfmt.anf;
+	annot = 0;
+	if (curvoice->transpose != 0)
+		gch_transpose(s);
+	p = s->as.text;
+	if (strchr(""^_<>@"", *p) != 0) {
+		annot = 1;		/* annotation */
+		p++;
+	}
+	q = p;
+/*fixme: treat 'dim' as 'o', 'halfdim' as '/o', and 'maj' as a triangle*/
+	while (*p != '\0') {
+		switch (*p) {
+		case '#':
+		case 'b':
+		case '=':
+			if (annot)
+				break;
+			if (p == q)	/* 1st char or after a slash */
+				break;
+
+			/* set the accidentals as unused utf-8 values
+			 * (see subs.c) */
+			switch (*p) {
+			case '#':
+				*p = 0x01;
+				break;
+			case 'b':
+				*p = 0x02;
+				break;
+			default:
+/*			case '=': */
+				*p = 0x03;
+				break;
+			}
+			break;
+		case '\\':
+			p++;
+			switch (*p) {
+			case '\0':
+				return;
+			case 'n':
+				p[-1] = ';';
+				goto move;
+			case '#':
+				p[-1] = 0x01;
+				goto move;
+			case 'b':
+				p[-1] = 0x02;
+				goto move;
+			case '=':
+				p[-1] = 0x03;
+			move:
+				l = strlen(p);
+				memmove(p, p + 1, l);
+				p--;
+				break;
+			}
+			break;
+		case ' ':
+			if (p != q)
+				break;
+			/* fall thru */
+		case '/':
+			q = p + 1;
+			break;
+		case '\n':
+			if (strchr(""^_<>@"", p[1]) != 0) {
+				annot = 1;
+				p++;
+			} else {
+				annot = 0;
+			}
+			q = p + 1;
+			break;
+		}
+		p++;
+	}
+}"
+"bigfile(void)
+{
+  int fd, i, total, cc;
+
+  printf(1, ""bigfile test\n"");
+
+  unlink(""bigfile"");
+  fd = open(""bigfile"", O_CREATE | O_RDWR);
+  if(fd < 0){
+    printf(1, ""cannot create bigfile"");
+    exit();
+  }
+  for(i = 0; i < 20; i++){
+    memset(buf, i, 600);
+    if(write(fd, buf, 600) != 600){
+      printf(1, ""write bigfile failed\n"");
+      exit();
+    }
+  }
+  close(fd);
+
+  fd = open(""bigfile"", 0);
+  if(fd < 0){
+    printf(1, ""cannot open bigfile\n"");
+    exit();
+  }
+  total = 0;
+  for(i = 0; ; i++){
+    cc = read(fd, buf, 300);
+    if(cc < 0){
+      printf(1, ""read bigfile failed\n"");
+      exit();
+    }
+    if(cc == 0)
+      break;
+    if(cc != 300){
+      printf(1, ""short read bigfile\n"");
+      exit();
+    }
+    if(buf[0] != i/2 || buf[299] != i/2){
+      printf(1, ""read bigfile wrong data\n"");
+      exit();
+    }
+    total += cc;
+  }
+  close(fd);
+  if(total != 20*600){
+    printf(1, ""read bigfile wrong total\n"");
+    exit();
+  }
+  unlink(""bigfile"");
+
+  printf(1, ""bigfile test ok\n"");
+}"
+"TS_RESP_set_genTime_with_precision(ASN1_GENERALIZEDTIME *asn1_time, 
+				   long sec, long usec, unsigned precision)
+	{
+	time_t time_sec = (time_t) sec;
+	struct tm *tm = NULL;	
+	char genTime_str[17 + TS_MAX_CLOCK_PRECISION_DIGITS];
+	char *p = genTime_str;
+	char *p_end = genTime_str + sizeof(genTime_str);
+
+	if (precision > TS_MAX_CLOCK_PRECISION_DIGITS)
+		goto err;
+
+	
+	if (!(tm = gmtime(&time_sec)))
+		goto err;
+
+	/* 
+	 * Put ""genTime_str"" in GeneralizedTime format.  We work around the 
+	 * restrictions imposed by rfc3280 (i.e. ""GeneralizedTime values MUST 
+	 * NOT include fractional seconds"") and OpenSSL related functions to 
+	 * meet the rfc3161 requirement: ""GeneralizedTime syntax can include 
+	 * fraction-of-second details"". 
+	 */                   
+	p += BIO_snprintf(p, p_end - p,
+			  ""%04d%02d%02d%02d%02d%02d"",
+			  tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, 
+			  tm->tm_hour, tm->tm_min, tm->tm_sec);
+	if (precision > 0)
+	{
+		/* Add fraction of seconds (leave space for dot and null). */
+		BIO_snprintf(p, 2 + precision, "".%ld"", usec);
+		/* We cannot use the snprintf return value, 
+		   because it might have been truncated. */
+		p += strlen(p);
+
+		/* To make things a bit harder, X.690 | ISO/IEC 8825-1 provides
+		   the following restrictions for a DER-encoding, which OpenSSL
+		   (specifically ASN1_GENERALIZEDTIME_check() function) doesn't 
+		   support:
+		   ""The encoding MUST terminate with a ""Z"" (which means ""Zulu"" 
+		   time). The decimal point element, if present, MUST be the 
+		   point option ""."". The fractional-seconds elements, 
+		   if present, MUST omit all trailing 0's; 
+		   if the elements correspond to 0, they MUST be wholly
+		   omitted, and the decimal point element also MUST be
+		   omitted."" */
+		/* Remove trailing zeros. The dot guarantees the exit
+		   condition of this loop even if all the digits are zero. */
+		while (*--p == '0')
+			/* empty */;
+		/* p points to either the dot or the last non-zero digit. */
+		if (*p != '.') ++p;
+		}
+	/* Add the trailing Z and the terminating null. */
+	*p++ = 'Z';
+	*p++ = '\0';
+
+	/* Now call OpenSSL to check and set our genTime value */
+	if (!asn1_time && !(asn1_time = M_ASN1_GENERALIZEDTIME_new()))
+		goto err;
+	if (!ASN1_GENERALIZEDTIME_set_string(asn1_time, genTime_str))
+		{
+		ASN1_GENERALIZEDTIME_free(asn1_time);
+		goto err;
+		}
+
+	return asn1_time;
+ err:
+	TSerr(TS_F_TS_RESP_SET_GENTIME_WITH_PRECISION, TS_R_COULD_NOT_SET_TIME);
+	return NULL;
+	}"
+"ev_loop_verify (EV_P)
+{
+#if EV_VERIFY
+  int i;
+  WL w;
+
+  assert (activecnt >= -1);
+
+  assert (fdchangemax >= fdchangecnt);
+  for (i = 0; i < fdchangecnt; ++i)
+    assert ((""libev: negative fd in fdchanges"", fdchanges [i] >= 0));
+
+  assert (anfdmax >= 0);
+  for (i = 0; i < anfdmax; ++i)
+    for (w = anfds [i].head; w; w = w->next)
+      {
+        verify_watcher (EV_A_ (W)w);
+        assert ((""libev: inactive fd watcher on anfd list"", ev_active (w) == 1));
+        assert ((""libev: fd mismatch between watcher and anfd"", ((ev_io *)w)->fd == i));
+      }
+
+  assert (timermax >= timercnt);
+  verify_heap (EV_A_ timers, timercnt);
+
+#if EV_PERIODIC_ENABLE
+  assert (periodicmax >= periodiccnt);
+  verify_heap (EV_A_ periodics, periodiccnt);
+#endif
+
+  for (i = NUMPRI; i--; )
+    {
+      assert (pendingmax [i] >= pendingcnt [i]);
+#if EV_IDLE_ENABLE
+      assert (idleall >= 0);
+      assert (idlemax [i] >= idlecnt [i]);
+      array_verify (EV_A_ (W *)idles [i], idlecnt [i]);
+#endif
+    }
+
+#if EV_FORK_ENABLE
+  assert (forkmax >= forkcnt);
+  array_verify (EV_A_ (W *)forks, forkcnt);
+#endif
+
+#if EV_ASYNC_ENABLE
+  assert (asyncmax >= asynccnt);
+  array_verify (EV_A_ (W *)asyncs, asynccnt);
+#endif
+
+  assert (preparemax >= preparecnt);
+  array_verify (EV_A_ (W *)prepares, preparecnt);
+
+  assert (checkmax >= checkcnt);
+  array_verify (EV_A_ (W *)checks, checkcnt);
+
+# if 0
+  for (w = (ev_child *)childs [chain & (EV_PID_HASHSIZE - 1)]; w; w = (ev_child *)((WL)w)->next)
+  for (signum = EV_NSIG; signum--; ) if (signals [signum].pending)
+# endif
+#endif
+}"
+"mkdirs(char *s)
+{
+    struct stat st;
+    char *buf;
+    if(stat(s,&st)==-1) {
+	if(strrchr(s,'/')!=NULL) {
+	    buf=xmalloc(strlen(s)+1);
+	    ovlstrcpy(buf,s); *strrchr(buf,'/')=0;
+	    mkdirs(buf); free(buf);
+	}
+	mkdir(s,-1);
+    }
+}"

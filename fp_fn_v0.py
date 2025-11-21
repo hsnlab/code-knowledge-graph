@@ -66,6 +66,21 @@ TS_LANG = Language(tsc.language()) if LANG.lower() == 'c' else Language(tscpp.la
 parser = Parser(TS_LANG)
 print('Tree-Sitter OK, LANG =', LANG)
 
+# ---- hibatípus oszlop automatikus felismeréséhez ----
+ERROR_TYPE_CANDIDATES = [
+    'CWE', 'cwe', 'bug_type', 'BugType', 'vuln_type', 'vul_type',
+    'error_type', 'ErrorType', 'vulnerability', 'vul_category'
+]
+
+def get_error_type_column(df: pd.DataFrame):
+    """Megpróbálja kitalálni, melyik oszlop a hibatípus (pl. CWE)."""
+    lower_candidates = [c.lower() for c in ERROR_TYPE_CANDIDATES]
+    for c in df.columns:
+        if c in ERROR_TYPE_CANDIDATES:
+            return c
+        if c.lower() in lower_candidates:
+            return c
+    return None
 
 
 # =========================
@@ -665,6 +680,41 @@ print("Confusion matrix:\n", te_cm)
 df_fn_test, df_fp_test = collect_misclassified(test_loader, best_thr, df_test)
 print("False negative-ek száma (sebezhető, de nem detektált):", len(df_fn_test))
 print("False positive-ok száma (nem sebezhető, de sebezhetőnek jelölt):", len(df_fp_test))
+
+# ---- HIBATÍPUSONKÉNTI FN-ANALÍZIS + 1 PÉLDA / TÍPUS ----
+err_col = get_error_type_column(df_test)
+
+if err_col is None:
+    print("\nNem találtam egyértelmű hibatípus-oszlopot (pl. CWE) a df_test-ben.")
+else:
+    print(f"\nHibatípus-oszlop: {err_col}")
+
+    # 1) FN-ek mentése: hibatípus + nyers kód
+    cols_to_save = [c for c in [err_col, 'code'] if c in df_fn_test.columns]
+    if len(cols_to_save) == 2:
+        out_csv = "test_false_negatives_with_types.csv"
+        df_fn_test[cols_to_save].to_csv(out_csv, index=False)
+        print(f"FN-ek hibatípussal együtt elmentve ide: {out_csv}")
+    else:
+        print("Figyelem: a df_fn_test-ben nincs 'code' vagy hibatípus oszlop, nem tudok CSV-t írni.")
+
+    # 2) FN-ek darabszáma hibatípusonként
+    print("\nFalse negative-ek hibatípus szerint (darabszám):")
+    print(df_fn_test[err_col].value_counts(dropna=False))
+
+    # 3) Minden hibatípushoz 1 példa függvénykód
+    print("\nPélda minden false-negative hibatípusra (1 kód / típus):")
+    examples = df_fn_test.groupby(err_col).head(1)
+
+    for _, row in examples.iterrows():
+        bug_type = row[err_col]
+        code_snippet = str(row['code'])[:400]  # hosszabb kódot vágjuk 400 karakternél
+        print("\n==============================")
+        print(f"HIBATÍPUS: {bug_type}")
+        print("KÓDRÉSZLET (FN példa):\n")
+        print(code_snippet)
+        print("==============================")
+
 
 # Hibatípus szerinti statisztika (ha van ilyen oszlop)
 err_col = guess_error_type_column(df_test)
