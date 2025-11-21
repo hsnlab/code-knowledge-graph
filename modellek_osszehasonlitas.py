@@ -111,7 +111,7 @@ def make_about_10pct_pos(df: pd.DataFrame, seed: int = SEED, neg_per_pos: int = 
     df_bal = pd.concat([df_pos, df_neg_sampled], axis=0).sample(frac=1.0, random_state=seed).reset_index(drop=True)
     return df_bal
 
-raw_df = make_about_10pct_pos(raw_df, seed=SEED, neg_per_pos=9)
+raw_df = make_about_10pct_pos(raw_df, seed=SEED, neg_per_pos=3)
 
 if MAX_SAMPLES > 0 and len(raw_df) > MAX_SAMPLES:
     raw_df = raw_df.sample(MAX_SAMPLES, random_state=SEED).reset_index(drop=True)
@@ -121,9 +121,32 @@ print(raw_df['label'].value_counts())
 
 # --- Train/Val/Test split ---
 from sklearn.model_selection import train_test_split
-train_df, temp_df = train_test_split(raw_df, test_size=0.3, random_state=SEED, stratify=raw_df["label"])
-val_df, test_df = train_test_split(temp_df, test_size=0.5, random_state=SEED, stratify=temp_df["label"])
+# =========================
+# FIX VALIDATION (2000) + TEST (2000) SPLIT — STRATIFIED
+# =========================
+
+VAL_SIZE = 2000
+TEST_SIZE = 2000
+
+# véletlen keverés (a balanszolt raw_df-en)
+raw_df = raw_df.sample(frac=1.0, random_state=SEED).reset_index(drop=True)
+
+# --- stratifikált validációs mintavétel ---
+val_df = raw_df.groupby("label", group_keys=False).apply(
+    lambda x: x.sample(int(VAL_SIZE * len(x) / len(raw_df)), random_state=SEED)
+)
+
+remaining = raw_df.drop(val_df.index)
+
+# --- stratifikált teszt mintavétel ---
+test_df = remaining.groupby("label", group_keys=False).apply(
+    lambda x: x.sample(int(TEST_SIZE * len(x) / len(remaining)), random_state=SEED)
+)
+
+train_df = remaining.drop(test_df.index)
+
 print("Train/Val/Test:", len(train_df), len(val_df), len(test_df))
+
 
 # =========================
 # 4) KÓD NORMALIZÁLÁS (FORMATTING + KOMMENT ELTÁVOLÍTÁS)
