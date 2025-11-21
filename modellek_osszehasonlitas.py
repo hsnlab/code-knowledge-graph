@@ -680,7 +680,7 @@ print("\n[EDA] Alap statisztikák a kiegyensúlyozott mintán:")
 print("Mintaszám:", len(raw_df))
 print(raw_df['label'].value_counts().rename('count'))
 print(raw_df['label'].value_counts(normalize=True).rename('proportion').round(3))
-
+"""
 # --- Mérőszámok a kódokról (nyers + normalizált) ---
 def _safe_len(s): 
     try: return len(s)
@@ -729,7 +729,7 @@ eda_df.boxplot(column=["len_chars", "len_chars_norm"])
 plt.title("Kódhossz eloszlás (nyers vs normalizált)")
 plt.savefig(os.path.join(EDA_DIR, "length_boxplot.png"))
 plt.close()
-
+"""
 # =========================
 # 9) OPTIMALIZÁLÓ, LOSS, AMP
 # =========================
