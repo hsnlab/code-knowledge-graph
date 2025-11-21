@@ -479,9 +479,11 @@ class GGNNClassifierFeatsNoEmb(torch.nn.Module):
                     e_idx = edge_index[:,mask]
                     src, dst = e_idx[0], e_idx[1]
                     m = self.msg_linears[et](x[src])
-                    agg = torch.zeros_like(x)
+                    agg = torch.zeros_like(x, dtype=x.dtype)
+                    m = m.to(x.dtype)
                     agg.index_add_(0, dst, m)
                     msgs.append(agg)
+
                 h_in = x.unsqueeze(0)
                 m_all = sum(msgs).unsqueeze(0)
                 h_out, _ = self.gru(m_all, h_in)
