@@ -1,0 +1,60 @@
+{
+  "standalone_cfg_tests": {
+    "simple_case_two_clauses": {
+      "mock": "test(X) ->\n    case X of\n        1 -> ok;\n        2 -> error\n    end.",
+      "expected_nodes": [
+        {"node_id": "node_0", "code": "Entry", "type": "Entry"},
+        {"node_id": "node_1", "code": "test(X)", "type": "Function"},
+        {"node_id": "node_2", "code": "case X", "type": "Branch"},
+        {"node_id": "node_3", "code": "1", "type": "Branch"},
+        {"node_id": "node_4", "code": "ok", "type": "BasicBlock"},
+        {"node_id": "node_5", "code": "2", "type": "Branch"},
+        {"node_id": "node_6", "code": "error", "type": "BasicBlock"},
+        {"node_id": "node_7", "code": "merge", "type": "Merge"},
+        {"node_id": "node_8", "code": "Exit", "type": "Exit"}
+      ],
+      "expected_edges": [
+        {"source_id": "node_0", "target_id": "node_1"},
+        {"source_id": "node_1", "target_id": "node_2"},
+        {"source_id": "node_2", "target_id": "node_3"},
+        {"source_id": "node_3", "target_id": "node_4"},
+        {"source_id": "node_3", "target_id": "node_5"},
+        {"source_id": "node_5", "target_id": "node_6"},
+        {"source_id": "node_4", "target_id": "node_7"},
+        {"source_id": "node_6", "target_id": "node_7"},
+        {"source_id": "node_5", "target_id": "node_7"},
+        {"source_id": "node_7", "target_id": "node_8"}
+      ]
+    },
+    "case_with_sequential_before_after": {
+      "mock": "test(X) ->\n    A = 1,\n    case X of\n        0 -> zero;\n        _ -> other\n    end,\n    done.",
+      "expected_nodes": [
+        {"node_id": "node_0", "code": "Entry", "type": "Entry"},
+        {"node_id": "node_1", "code": "test(X)", "type": "Function"},
+        {"node_id": "node_2", "code": "A = 1", "type": "BasicBlock"},
+        {"node_id": "node_3", "code": "case X", "type": "Branch"},
+        {"node_id": "node_4", "code": "0", "type": "Branch"},
+        {"node_id": "node_5", "code": "zero", "type": "BasicBlock"},
+        {"node_id": "node_6", "code": "_", "type": "Branch"},
+        {"node_id": "node_7", "code": "other", "type": "BasicBlock"},
+        {"node_id": "node_8", "code": "merge", "type": "Merge"},
+        {"node_id": "node_9", "code": "done", "type": "BasicBlock"},
+        {"node_id": "node_10", "code": "Exit", "type": "Exit"}
+      ],
+      "expected_edges": [
+        {"source_id": "node_0", "target_id": "node_1"},
+        {"source_id": "node_1", "target_id": "node_2"},
+        {"source_id": "node_2", "target_id": "node_3"},
+        {"source_id": "node_3", "target_id": "node_4"},
+        {"source_id": "node_4", "target_id": "node_5"},
+        {"source_id": "node_4", "target_id": "node_6"},
+        {"source_id": "node_6", "target_id": "node_7"},
+        {"source_id": "node_5", "target_id": "node_8"},
+        {"source_id": "node_7", "target_id": "node_8"},
+        {"source_id": "node_6", "target_id": "node_8"},
+        {"source_id": "node_8", "target_id": "node_9"},
+        {"source_id": "node_9", "target_id": "node_10"}
+      ]
+    }
+  }
+}
