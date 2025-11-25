@@ -420,6 +420,11 @@ class ErlangAstAdapter(LanguageAstAdapter):
         # Extract just the function name (no module, no arity)
 
         calls['name'] = calls['combinedName'].apply(self.__extract_function_name)
+        if not functions.empty:
+            func_mapping = functions.set_index('combinedName')['fnc_id'].to_dict()        
+            calls['func_id'] = calls['combinedName'].map(func_mapping)
+        else:
+            calls['func_id'] = None
 
     def create_combined_name(self, functions: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
         """
