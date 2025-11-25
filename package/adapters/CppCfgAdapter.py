@@ -6,7 +6,7 @@ This adapter calls the Joern Flask API to extract CFG from C++ code
 import requests
 import pandas as pd
 from typing import Tuple, List
-from package.adapters import CfgAdapter  # Import the CLASS from the module
+from package.adapters import CfgAdapter  
 from package.adapters import LanguageAstAdapterRegistry
 
 
@@ -102,7 +102,6 @@ class CppCfgAdapter(CfgAdapter):
                 # Deduplicate edges (remove duplicate source->target pairs)
                 edges_df = edges_df.drop_duplicates(subset=['source_id', 'target_id']).reset_index(drop=True)
                 
-                # Drop label column if it's empty (to match your format)
                 if 'label' in edges_df.columns and edges_df['label'].str.strip().eq('').all():
                     edges_df = edges_df[['source_id', 'target_id']]
             else:
