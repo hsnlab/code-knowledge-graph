@@ -6,3 +6,4 @@ from .ErlangAstAdapter import ErlangAstAdapter
 from .LanguageAstAdapterRegistry import LanguageAstAdapterRegistry
 from .CfgAdapter import CfgAdapter
 from .CppCfgAdapter import CppCfgAdapter
+from .ErlangCfgAdapter import ErlangCfgAdapter
