@@ -1,1 +1,0 @@
-from .ErlangCfgParser import ErlangCfgParser
