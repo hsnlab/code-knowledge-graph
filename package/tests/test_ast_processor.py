@@ -1,11 +1,14 @@
 import unittest
 import json
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from package.ast_processor import AstProcessor
 from package.adapters import LanguageAstAdapterRegistry
 from pandas.testing import assert_frame_equal
 from pandas import DataFrame, notna
-import sys
+
 import re
 
 class TestAstProcessor(unittest.TestCase):

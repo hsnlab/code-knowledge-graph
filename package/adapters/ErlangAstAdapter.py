@@ -290,12 +290,12 @@ class ErlangAstAdapter(LanguageAstAdapter):
             
             if module_name and func_name:
                 return f"{module_name}:{func_name}"
-        
+                
         # If no remote call, check for local call
         if atom_node:
             return atom_node.text.decode('utf-8')
-        
-        return None
+             
+        return None 
 
     def _extract_spawn_target(self, spawn_call_node: Node) -> str | None:
         """
@@ -395,8 +395,16 @@ class ErlangAstAdapter(LanguageAstAdapter):
         return f"{module_name}:{function_name}"
     
     def should_skip_call_node(self, node: Node) -> bool:
-        """Only process actual 'call' type nodes."""
-        return node.type != 'call'
+        """Skip call nodes that are not actual function calls."""
+        if node.type != 'call':
+            return True
+
+        parent = node.parent
+        while parent:
+            if parent.type in ['spec', 'type_alias', 'opaque', 'wild_attribute', 'type_sig']:
+                return True
+            parent = parent.parent
+        return False
     
     # Extract just function name (no module, no arity) for name column
     def __extract_function_name(self, combined_name):
@@ -405,20 +413,35 @@ class ErlangAstAdapter(LanguageAstAdapter):
         return function_only
 
     def resolve_calls(self, calls: pd.DataFrame, functions: pd.DataFrame, 
-                classes: pd.DataFrame, imports: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
+        classes: pd.DataFrame, imports: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
         """
-        For Erlang: Extract function name from fully qualified name.
-        - combinedName: Full qualified name with module and arity (e.g., "poolboy:checkout/3")
-        - name: Just the function name (e.g., "checkout")
+        For Erlang: Add module prefix to local calls, then match WITH arity (exact match).
         """
         if calls.empty:
             return
         
-        # Store full name as combinedName
-        calls['combinedName'] = calls['name']
+        # Build file_id -> module_name mapping
+        file_to_module = {}
+        if filename_lookup:
+            for file_id, filepath in filename_lookup.items():
+                filename = filepath.split('/')[-1].split('\\')[-1]
+                if filename.endswith('.erl'):
+                    module_name = filename[:-4]
+                    file_to_module[file_id] = module_name
         
-        # Extract just the function name (no module, no arity)
-
+        # For each call, create combinedName (with module prefix)
+        def create_combined_name(row):
+            call_name = row['name']  # Already has arity from parse_calls
+            
+            if ':' in call_name:
+                return call_name
+            
+            file_id = row.get('file_id')
+            module_name = file_to_module.get(file_id, 'unknown')
+            return f"{module_name}:{call_name}"
+        
+        calls['combinedName'] = calls.apply(create_combined_name, axis=1)
+        
         calls['name'] = calls['combinedName'].apply(self.__extract_function_name)
 
     def create_combined_name(self, functions: pd.DataFrame, filename_lookup: dict[str, str] = None) -> None:
