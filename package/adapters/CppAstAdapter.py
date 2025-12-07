@@ -598,14 +598,16 @@ class CppAstAdapter(LanguageAstAdapter):
                 return base_name
 
             # Handle method calls without object (implicit this)
-            if class_name and class_name != 'Global' and '::' not in call_name and '->' not in call_name and '.' not in call_name:
-                potential_method = f"{class_name}.{call_name}"
-                
-                if not functions.empty and 'combinedName' in functions.columns:
-                    if potential_method in functions['combinedName'].values:
-                        return potential_method
-                
-                return call_name
+            if class_name and class_name != 'Global' and '::' not in call_name and '->' not in call_name and '.' not in call_name:               
+                if not functions.empty:
+                    same_class_methods = functions[
+                        (functions['name'] == call_name) & 
+                        (functions['class'] == class_name)
+                    ]
+                    
+                    if not same_class_methods.empty:
+                        # Found method in same class → implicit this-> call
+                        return f"{class_name}.{call_name}"
 
             return call_name
 
@@ -623,7 +625,7 @@ class CppAstAdapter(LanguageAstAdapter):
                 calls.loc[new_index] = call_dict
 
         calls.reset_index(drop=True, inplace=True)
-        calls.drop_duplicates(subset=['name', 'combinedName'], keep='first', inplace=True)
+        calls.drop_duplicates(subset=['func_id','name', 'combinedName'], keep='first', inplace=True)
         calls.reset_index(drop=True, inplace=True)
 
         
