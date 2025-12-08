@@ -321,8 +321,37 @@ def normalize_code(code: str) -> str:
 # 6) STRATIFIKÁLT SPLIT
 # =========================
 
-df_train, df_tmp = train_test_split(raw_df, test_size=0.2, stratify=raw_df['label'], random_state=SEED)
-df_val, df_test = train_test_split(df_tmp, test_size=0.5, stratify=df_tmp['label'], random_state=SEED)
+df_train, df_tmp = train_test_split(
+    raw_df,
+    test_size=0.2,
+    stratify=raw_df['label'],
+    random_state=SEED
+)
+df_val, df_test = train_test_split(
+    df_tmp,
+    test_size=0.5,
+    stratify=df_tmp['label'],
+    random_state=SEED
+)
+
+# <<< ÚJ: pozitív oversampling CSAK a TRAIN-ben >>>
+POS_MULT = 10  # hányszorosára növeljük a pozitív minták számát (pl. 3 = kb. 3x több pos)
+
+df_pos_tr = df_train[df_train['label'] == 1]
+
+if len(df_pos_tr) > 0 and POS_MULT > 1:
+    df_train = pd.concat(
+        [
+            df_train,
+            df_pos_tr.sample(
+                len(df_pos_tr) * (POS_MULT - 1),
+                replace=True,
+                random_state=SEED
+            )
+        ]
+    ).sample(frac=1, random_state=SEED).reset_index(drop=True)
+
+# (Val/Test-et nem bántjuk, ott az eredeti eloszlás marad)
 for name, df in [("Train", df_train), ("Val", df_val), ("Test", df_test)]:
     print(f"{name}: {len(df)} | arány:\n", df['label'].value_counts(normalize=True).round(3))
 
