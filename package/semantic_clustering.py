@@ -78,7 +78,8 @@ class SemanticClustering():
 
             prompt = (
                 f"These function names belong to one cluster:\n{sample_texts}\n\n"
-                f"Write a very short one-sentence summary describing the content of this cluster."
+                #f"Write a very short one-sentence summary describing the content of this cluster."
+                f"Write some keywords and synonyms that summarize the theme of these function names, separated by commas."
             )
             prompts.append((c, prompt))
 

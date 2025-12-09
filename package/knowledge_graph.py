@@ -114,14 +114,14 @@ class KnowledgeGraphBuilder():
         # Semantic clustering
         if semantic_clustering:
             cluster_nodes, cluster_edges, cluster_df = self.__cluster_function_nodes(cg_nodes)
-            ensemble_cluster_nodes, ensemble_cluster_edges = self.__create_ensemble_clusters(cg_edges, cg_nodes, cluster_df) 
+            #ensemble_cluster_nodes, ensemble_cluster_edges = self.__create_ensemble_clusters(cg_edges, cg_nodes, cluster_df) 
             print('Function nodes clustered.')
         else:
             # Skip clustering
             cluster_nodes = pd.DataFrame(columns=['ID', 'summary'])
             cluster_edges = pd.DataFrame(columns=['source', 'target'])
-            ensemble_cluster_nodes = pd.DataFrame(columns=['ID', 'summary'])
-            ensemble_cluster_edges = pd.DataFrame(columns=['source', 'target'])
+            #ensemble_cluster_nodes = pd.DataFrame(columns=['ID', 'summary'])
+            #ensemble_cluster_edges = pd.DataFrame(columns=['source', 'target'])
             print('Clustering skipped (semantic_clustering=False).')
         
         # Issues
@@ -251,8 +251,8 @@ class KnowledgeGraphBuilder():
             "developer_function_edges": dev_edges_df,
             "question_nodes": question_nodes,
             "question_cluster_edges": question_edges,
-            "clusterensemble_nodes": ensemble_cluster_nodes,
-            "clusterensemble_edges": ensemble_cluster_edges
+            #"clusterensemble_nodes": ensemble_cluster_nodes,
+            #"clusterensemble_edges": ensemble_cluster_edges
         }
         
 
@@ -1199,8 +1199,7 @@ class KnowledgeGraphBuilder():
 
         # Create edges for the clusters
         cluster_df = cluster_df.merge(cg_nodes[['func_id', 'combinedName']], left_on='original', right_on='combinedName', how='left')
-        #cluster_nodes = cluster_df[['cluster', 'cluster_summary']].drop_duplicates().rename(columns={'cluster': 'ID', 'cluster_summary': 'summary'})
-        cluster_nodes = cluster_df[['cluster']].rename(columns={'cluster': 'ID'})
+        cluster_nodes = cluster_df[['cluster', 'cluster_summary']].drop_duplicates().rename(columns={'cluster': 'ID', 'cluster_summary': 'summary'})
 
         cluster_nodes['ID'] = cluster_nodes['ID'].astype(int) + 1
         cluster_edges = cluster_df[['cluster', 'func_id']].drop_duplicates().rename(columns={'cluster': 'source', 'func_id': 'target'})
