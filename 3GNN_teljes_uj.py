@@ -679,11 +679,10 @@ class GGNNClassifierFeatsNoEmb(nn.Module):
 # 13) POS_WEIGHT, VOCAB, MODELL INICIALIZÁLÁS
 # =========================
 
-# pos_weight a train split arányából
-train_labels = df_train['label'].astype(int).to_numpy()
-pos = (train_labels==1).sum(); neg = (train_labels==0).sum()
-pos_weight = torch.tensor([max(1.0, neg/max(1,pos))], dtype=torch.float, device=device)
+# pos_weight: most fixen 1.0, mert a trainben már oversamplinggel erősítjük a pozitívakat
+pos_weight = torch.tensor([1.0], dtype=torch.float, device=device)
 print('pos_weight (BCE):', float(pos_weight.item()))
+
 
 # Vocab a shardolás közben töltődött, most fixáljuk
 vocab_size = type_vocab.size()
