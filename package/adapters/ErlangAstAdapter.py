@@ -103,22 +103,67 @@ class ErlangAstAdapter(LanguageAstAdapter):
     def _extract_parameters(self, function_clause: Node) -> dict[str, str]:
         """Extract parameters from expr_args in function_clause."""
         params = {}
-
+        
         # Find expr_args node
         expr_args = None
         for child in function_clause.named_children:
             if child.type == 'expr_args':
                 expr_args = child
                 break
-
+        
         if not expr_args:
             return params
-
-        # Extract all variables from expr_args
-        self._collect_vars_from_node(expr_args, params)
-
+        
+        for param_node in expr_args.named_children:
+            # Extract main variable from this parameter
+            var_name = self._extract_main_var(param_node)
+            if var_name:
+                params[var_name] = 'Any'
+        
         return params
 
+    def _extract_main_var(self, node: Node) -> str | None:
+        """
+        Extract the main variable from a parameter pattern (non-recursive).
+        
+        Examples:
+        - Request -> "Request"
+        - #request{priority = reshard} = Request -> "Request"
+        - #state{} = State -> "State"
+        - [H|T] -> "H" or placeholder
+        - _ -> "_anon_<position>"
+        - 0 -> "0"
+        """
+        # Pattern match: Pattern = Variable
+        # e.g., #request{} = Request
+        if node.type == 'match_expr':
+            # Look for the variable on the RIGHT side of '='
+            for child in node.named_children:
+                if child.type == 'var':
+                    var_name = child.text.decode('utf-8')
+                    if var_name == '_':
+                        return f"_anon_{node.start_byte}"
+                    return var_name
+        
+        # Simple variable
+        # e.g., Request, State, _
+        elif node.type == 'var':
+            var_name = node.text.decode('utf-8')
+            
+            if var_name == '_':
+                return f"_anon_{node.start_byte}"
+            return var_name
+        
+        # Literal patterns (for pattern matching in multiple clauses)
+        elif node.type in ['integer', 'atom', 'string']:
+            return node.text.decode('utf-8')
+        
+        # Complex patterns without explicit variable
+        # e.g., [H|T], {X, Y}, #record{} without '= Var', tuples
+        else:
+            # Return a unique placeholder based on position
+            return f"_param_{node.start_byte}"
+            
     def _collect_vars_from_node(self, node: Node, params: dict):
         """Recursively collect variables and pattern values from a node."""
         if node.type == 'var':
@@ -430,9 +475,9 @@ class ErlangAstAdapter(LanguageAstAdapter):
                     file_to_module[file_id] = module_name
         
         # For each call, create combinedName (with module prefix)
-        def create_combined_name(row):
+        def create_combined_name_call(row):
             call_name = row['name']  # Already has arity from parse_calls
-            
+
             if ':' in call_name:
                 return call_name
             
@@ -440,7 +485,7 @@ class ErlangAstAdapter(LanguageAstAdapter):
             module_name = file_to_module.get(file_id, 'unknown')
             return f"{module_name}:{call_name}"
         
-        calls['combinedName'] = calls.apply(create_combined_name, axis=1)
+        calls['combinedName'] = calls.apply(create_combined_name_call, axis=1)
         
         calls['name'] = calls['combinedName'].apply(self.__extract_function_name)
 

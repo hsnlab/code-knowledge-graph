@@ -136,7 +136,7 @@ class CallGraphBuilder:
         directory_mapper: dict[str, str] = {}
 
         for dirpath, _, filenames in os.walk(path):
-            if ".git" in dirpath:
+            if ".git" in dirpath and ".github" not in dirpath:
                 continue #skip git related folder todo: add exclude list
             dir_id, dir_df = self.add_directory_node(dirpath, directory_mapper, self.fl_id)
             self.files = self.__concat_df(self.files, dir_df)

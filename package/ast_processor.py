@@ -110,7 +110,7 @@ class AstProcessor:
             func_name = current_function["name"]
             func_params = json.loads(current_function["params"])
             fnc_id = current_function["fnc_id"]
-
+            class_name = current_function["class"]
         # Handle calls (using current function context)
         self._handle_calls(node, file_id=file_id, cll_id=self.id_dict.get("cll_id", None),
                            current_class_name=class_name, current_base_classes=class_base_classes,

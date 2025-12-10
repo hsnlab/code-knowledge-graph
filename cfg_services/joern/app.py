@@ -127,63 +127,7 @@ class PersistentJoernManager:
             return os.path.join(cfg_output_dir, best_file)
         
         return None
-    
-    def is_statement_level_node(self, node):
-        """
-        Determine if a node represents a complete statement (not a sub-expression).
-        
-        Statement-level nodes are:
-        - Assignments (operator.assignment)
-        - Function calls (NOT operators)
-        - Control structures (if/while/for)
-        - Returns
-        """
-        node_type = node.get('type', '')
-        node_type_raw = node.get('type_raw', '')
-        code = node.get('code', '').strip()
-        
-        # 1. Always skip metadata
-        if node_type in ['METHOD', 'METHOD_RETURN', 'BLOCK', 'METHOD_PARAMETER_IN', 
-                        'METHOD_PARAMETER_OUT', 'TYPE_REF']:
-            return False
-        
-        # 2. Always skip primitives
-        if node_type in ['IDENTIFIER', 'LITERAL', 'FIELD_IDENTIFIER'] or node_type_raw == 'FIELD_IDENTIFIER':
-            return False
-        
-        # 3. Always skip empty/generic
-        if not code or code in ['ANY', 'RET', 'void', 'int', 'bool', 'UNKNOWN']:
-            return False
-        
-        # 4. For CALL nodes, determine if it's a statement
-        if node_type == 'CALL':
-            is_operator = '&lt;operator&gt;' in node_type_raw or '<operator>' in node_type_raw
-            
-            if is_operator:
-                # Keep assignments (statements)
-                if 'assignment' in node_type_raw.lower():
-                    return True
                 
-                # Keep comparison operators (they're branch conditions in CFG)
-                if any(comp in node_type_raw.lower() for comp in ['greaterthan', 'lessthan', 'equals', 'notequals', 'logicalor', 'logicaland', 'logicalnot']):
-                    return True
-                
-                # Skip other operators (cast, fieldAccess, indirectIndexAccess, shiftLeft, etc.)
-                return False
-            else:
-                # Regular function calls are statements
-                return True
-        
-        # 5. Control structures are statements
-        if node_type == 'CONTROL_STRUCTURE':
-            return True
-        
-        # 6. Returns are statements
-        if node_type == 'RETURN':
-            return True
-        
-        return False
-        
     def extract_cfg(self, code: str, language: str = "c",  target_method: str = None) -> tuple:
         """
         Extract CFG from code - ONLY ONE AT A TIME
@@ -350,11 +294,8 @@ class PersistentJoernManager:
                 # APPLY STATEMENT-LEVEL FILTERING
                 original_node_count = len(nodes)
 
-                # Filter to statement-level nodes only
-                filtered_nodes = [n for n in nodes if self.is_statement_level_node(n)]
-
                 # Get remaining node IDs
-                filtered_node_ids = {n['node_id'] for n in filtered_nodes}
+                filtered_node_ids = {n['node_id'] for n in nodes}
 
                 # Filter edges to only connect remaining nodes
                 filtered_edges = [
@@ -371,7 +312,7 @@ class PersistentJoernManager:
                         seen_edges.add(edge_key)
                         unique_edges.append(edge)
 
-                nodes = filtered_nodes
+                nodes = nodes
                 edges = unique_edges
 
                 logging.info(f"Request {request_id}: Filtered {original_node_count} -> {len(nodes)} nodes")
