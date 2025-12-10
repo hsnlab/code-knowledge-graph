@@ -35,12 +35,13 @@ class KnowledgeGraphBuilder():
 
     def build_knowledge_graph(
         self, 
-        repo_name: str, 
+        repo_name: str = None, 
+        repo_path: str = None,
         graph_type: str = "AST", 
         num_of_PRs: int = -1,
         num_of_issues: int = -1,
         done_prs: list = None,
-        semantic_clustering: bool = True,
+        semantic_clustering: bool = False,
         create_embedding: bool = False,
         scrape_comments: bool = False,
         repo_path_modifier: str = None,
@@ -51,7 +52,7 @@ class KnowledgeGraphBuilder():
         project_language: str | None = None,
         developer_mode: str | None = 'contributors',
         max_commits: int = 200,
-        skip_artifacts: bool = False,
+        skip_artifacts: bool = True,
     ):
         """
         Builds a knowledge graph from the given repository.
@@ -78,14 +79,30 @@ class KnowledgeGraphBuilder():
         :return: By defult, it returns a dictionary containing nodes, edges, imports, and other parts of the hierarchical graph. If the URI, user and password data is given, it saves it into a Neo4J database.
         """
 
-        # Clone repository
-        repo_path = self.__clone_github_repo(repo_name)
-        if repo_path_modifier:
-            repo_path = repo_path + '/' + repo_path_modifier if repo_path_modifier[0] != '/' else repo_path + repo_path_modifier
-            repo_path = repo_path if repo_path[-1] == '/' else repo_path + '/'
+        # Check repo_name or repo_path
+        if not repo_name and not repo_path:
+            raise ValueError("Either 'repo_name' or 'repo_path' must be provided.")
+        if repo_name and repo_path:
+            raise ValueError("Only one of 'repo_name' or 'repo_path' should be provided.")
+        if not repo_name and repo_path:
+            print("Warning: 'repo_name' not provided, GitHub API features will be disabled.")
 
-        # Initialize repository
-        self.repository = self.git.get_repo(repo_name)
+        # Clone repository if repo_path not given
+        if not repo_path:
+            repo_path = self.__clone_github_repo(repo_name)
+
+            # Initialize repository
+            self.repository = self.git.get_repo(repo_name)
+
+        else:
+            # If repo_path is given, we assume local path and no GitHub API usage
+            self.repository = None
+
+        if repo_path_modifier:
+                repo_path = repo_path + '/' + repo_path_modifier if repo_path_modifier[0] != '/' else repo_path + repo_path_modifier
+                repo_path = repo_path if repo_path[-1] == '/' else repo_path + '/'
+
+
 
         # Build hierarchical graph (CG + CFG/AST)        
         hg = HierarchicalGraphBuilder()
@@ -149,10 +166,7 @@ class KnowledgeGraphBuilder():
         else:
             artifacts = self.__get_repo_CI_artifacts(self.repository)
         print('Artifacts scraped.')
-        
-        # Actions
-        actions = pd.DataFrame(columns=['name', 'path', 'triggers', 'platforms', 'actions_used'])
-        print('Actions scraped.')
+
 
         # Developers
         developers_df = pd.DataFrame(columns=['ID', 'dev_name', 'dev_email', 'dev_full'])
@@ -241,7 +255,6 @@ class KnowledgeGraphBuilder():
             "issue_nodes": issues,
             "issue_pr_edges": issue_to_pr_edges,
             "artifacts": artifacts,
-            "actions": actions,
             "cluster_nodes": cluster_nodes,
             "cluster_function_edges": cluster_edges,
             "functionversion_nodes": function_version_nodes,
@@ -251,8 +264,6 @@ class KnowledgeGraphBuilder():
             "developer_function_edges": dev_edges_df,
             "question_nodes": question_nodes,
             "question_cluster_edges": question_edges,
-            #"clusterensemble_nodes": ensemble_cluster_nodes,
-            #"clusterensemble_edges": ensemble_cluster_edges
         }
         
 

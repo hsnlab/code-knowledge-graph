@@ -14,7 +14,7 @@ import re
 
 class SemanticClustering():
 
-    def __init__(self, hugging_face_token=None, llm_model="mistralai/mistral-7b-instruct-v0.3"):
+    def __init__(self, hugging_face_token=None, llm_model="mistralai/Mistral-7B-Instruct-v0.3"):
 
         self.llm_model = llm_model
         device = 0 if torch.cuda.is_available() else -1
