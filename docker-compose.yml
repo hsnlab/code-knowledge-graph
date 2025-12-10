@@ -8,7 +8,7 @@ services:
       - "7474:7474"  # HTTP
       - "7687:7687"  # Bolt
     environment:
-      - NEO4J_AUTH=neo4j/password123
+      - NEO4J_AUTH=neo4j/
       - NEO4J_dbms_memory_pagecache_size=1G
       - NEO4J_dbms_memory_heap_max__size=2G
     volumes:
