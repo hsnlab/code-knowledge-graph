@@ -322,7 +322,7 @@ class HierarchicalGraphBuilder:
 
 
         # Filter columns
-        col_mask = ['fnc_id', 'combinedName', 'function_code', 'docstring', 'docstring_embedding', 'function_location', 'file_id'] if 'docstring_embedding' in filtered_cg_nodes.columns else ['fnc_id', 'combinedName', 'function_code', 'docstring', 'function_location', 'file_id']
+        col_mask = ['fnc_id', 'combinedName', 'function_code', 'docstring', 'docstring_embedding', 'function_location', 'file_id'] if 'docstring_embedding' in filtered_cg_nodes.columns else ['fnc_id', 'combinedName', 'function_code', 'docstring', 'function_location', 'file_id','return_type']
         filtered_cg_nodes = filtered_cg_nodes[col_mask]
 
 

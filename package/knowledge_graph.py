@@ -218,7 +218,10 @@ class KnowledgeGraphBuilder():
             imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
         
         # Classes
-        classes, class_edges, class_class_edges = self.__create_class_edges(classes, cg_nodes)
+        classes, class_edges, class_class_edges, class_name_to_id = self.__create_class_edges(classes, cg_nodes)
+
+        # Return type edges
+        return_type_edges = self.__create_return_type_edges(cg_nodes, class_name_to_id)
 
         # File nodes
         files_nodes, file_file_edges, config_nodes, config_file_edges = self.__create_file_nodes_and_edges(repo_files)
@@ -273,6 +276,7 @@ class KnowledgeGraphBuilder():
             "developer_function_edges": dev_edges_df,
             "question_nodes": question_nodes,
             "question_cluster_edges": question_edges,
+            "function_class_return_edges": return_type_edges,
         }
         
 
@@ -1203,7 +1207,34 @@ class KnowledgeGraphBuilder():
         class_edges = pd.DataFrame(class_edges_list) if class_edges_list else pd.DataFrame(columns=['source', 'target'])
         classes = classes_grouped[['ID', 'name', 'base_classes', 'file_ids']]
         
-        return classes, class_edges, class_class_edges
+        return classes, class_edges, class_class_edges, class_name_to_id
+
+    def __create_return_type_edges(self, cg_nodes: pd.DataFrame, class_name_to_id: dict) -> pd.DataFrame:
+    #Create FUNCTION -> CLASS edges based on function return types.
+        edges_list = []
+
+        for _, row in cg_nodes.iterrows():
+            return_type = row.get('return_type')
+            if not return_type or pd.isna(return_type):
+                continue
+
+            # Handle generic types like List[MyClass] — extract the inner type(s)
+            # For simple types, just look up directly
+            types_to_check = [return_type]
+
+            # Extract types from generics like Optional[X], List[X], Dict[K, V]
+            inner = re.findall(r'[\w]+', return_type)
+            if inner:
+                types_to_check = inner
+
+            for type_name in types_to_check:
+                if type_name in class_name_to_id:
+                    edges_list.append({
+                        'source': row['func_id'],
+                        'target': class_name_to_id[type_name],
+                    })
+
+        return pd.DataFrame(edges_list) if edges_list else pd.DataFrame(columns=['source', 'target'])
 
 
 

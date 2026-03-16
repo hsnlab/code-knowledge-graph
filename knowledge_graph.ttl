@@ -94,3 +94,7 @@
 :function_parameter_edges a rdf:Property ;
   rdfs:domain :function_nodes ;
   rdfs:range  :parameter_nodes;
+
+:function_class_return_edges a rdf:Property ;
+  rdfs:domain :function_nodes ;
+  rdfs:range :class_nodes .
