@@ -118,7 +118,9 @@ class KnowledgeGraphBuilder():
             version_edges,
             functionversion_function_edges,
             classes,
-            repo_files
+            repo_files,
+            parameter_nodes,
+            parameter_edges
         ) = hg.create_hierarchical_graph(
             repo_path,
             graph_type=graph_type,
@@ -230,6 +232,11 @@ class KnowledgeGraphBuilder():
         # Questions
         question_nodes, question_edges = self.__create_question_nodes(cluster_nodes)
 
+        # Parameter nodes and edges
+        if not parameter_nodes.empty:
+            parameter_nodes = parameter_nodes.rename(columns={'param_id': 'ID'})
+            parameter_edges = parameter_edges.rename(columns={'source_id': 'source', 'param_id': 'target'})
+        
         # Knowledge graph
         self.knowledge_graph = {
             "function_nodes": cg_nodes,
@@ -257,6 +264,8 @@ class KnowledgeGraphBuilder():
             "artifacts": artifacts,
             "cluster_nodes": cluster_nodes,
             "cluster_function_edges": cluster_edges,
+            "parameter_nodes": parameter_nodes,
+            "function_parameter_edges": parameter_edges,
             "functionversion_nodes": function_version_nodes,
             "functionversion_edges": version_edges,
             "functionversion_function_edges": functionversion_function_edges,

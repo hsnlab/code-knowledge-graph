@@ -93,7 +93,7 @@ class HierarchicalGraphBuilder:
         """
         print("Building CG...")
         # return the project language
-        self.nodes, self.edges, self.imports, self.classes, self.files, language = CallGraphBuilder().build_call_graph(path, return_type="pandas", repo_functions_only=repo_functions_only, project_language=project_language)
+        self.nodes, self.edges, self.imports, self.classes, self.files, language, self.parameter_nodes, self.parameter_edges = CallGraphBuilder().build_call_graph(path, return_type="pandas", repo_functions_only=repo_functions_only, project_language=project_language)
 
         # Convert function IDs to integers
         self.nodes['fnc_id'] = self.nodes['fnc_id'].astype(int)
@@ -214,7 +214,9 @@ class HierarchicalGraphBuilder:
                 self.version_edges,
                 self.functionversion_function_edges,
                 self.classes,
-                self.files
+                self.files,
+                self.parameter_nodes,
+                self.parameter_edges
             )
         
         else:
@@ -345,6 +347,15 @@ class HierarchicalGraphBuilder:
         # Update the func_id column in the subgraph nodes accordinf to the new func_id col in the self.nodes (CG)
         self.subgraph_nodes = self.subgraph_nodes.merge(self.nodes[['fnc_id', 'RS_func_id']], left_on='func_id', right_on='fnc_id', how='left')
         self.subgraph_nodes = self.subgraph_nodes.drop(columns=['func_id', 'fnc_id']).rename(columns={'RS_func_id': 'func_id'})
+
+        # Filter parameter nodes: remove params belonging to removed functions
+        self.parameter_edges = self.parameter_edges[self.parameter_edges['source_id'].isin(self.nodes['fnc_id'])]
+        self.parameter_nodes = self.parameter_nodes[self.parameter_nodes['param_id'].isin(self.parameter_edges['param_id'])]
+        
+        # Remap source_id in parameter edges to new func_id
+        self.parameter_edges = self.parameter_edges.merge(self.nodes[['fnc_id', 'RS_func_id']],left_on='source_id', right_on='fnc_id', how='left')
+        self.parameter_edges = self.parameter_edges.drop(columns=['source_id', 'fnc_id']).rename(columns={'RS_func_id': 'source_id'})
+        self.parameter_edges['source_id'] = self.parameter_edges['source_id'].round().astype(int)
 
         # Update the func_id column in the subgraph edges according to the new func_id col in the self.nodes (CG)
         self.subgraph_edges = self.subgraph_edges.merge(self.nodes[['fnc_id', 'RS_func_id']], left_on='func_id', right_on='fnc_id', how='left')

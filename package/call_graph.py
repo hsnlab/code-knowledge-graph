@@ -265,8 +265,10 @@ class CallGraphBuilder:
             # 3. Resolve calls (adds combinedName to calls)
             language_adapter.resolve_calls(self.calls, self.functions, self.classes, self.imports, filename_lookup)
 
+        self.parameter_nodes, self.parameter_edges = self.build_parameter_nodes_and_edges()
+
         if return_type == "original":
-            return self.imports, self.classes, self.functions, self.calls, self.files, project_language
+            return self.imports, self.classes, self.functions, self.calls, self.files, project_language, self.parameter_nodes, self.parameter_edges
 
         # Create nodes and edges for the call graph
         self.nodes = copy.deepcopy(self.functions)
@@ -315,7 +317,7 @@ class CallGraphBuilder:
             self.edges['target_id'] = self.edges['target_id'].astype(int)
 
         if return_type == "pandas":
-            return self.nodes, self.edges, self.imports, self.classes, self.files, project_language
+            return self.nodes, self.edges, self.imports, self.classes, self.files, project_language, self.parameter_nodes, self.parameter_edges
 
         elif return_type == "networkx":
             G = nx.from_pandas_edgelist(self.edges, source='source_id', target='target_id', create_using=nx.DiGraph())
@@ -747,3 +749,29 @@ class CallGraphBuilder:
                 )
             ), axis=1
         )
+    def build_parameter_nodes_and_edges(self):
+        #Create PARAMETER nodes and FUNCTION->PARAMETER edges
+        param_rows = []
+        edge_rows = []
+        param_id = 0
+
+        for _, func_row in self.functions.iterrows():
+            fnc_id = func_row['func_id']
+            params_raw = func_row.get('params', '{}')
+            params = json.loads(params_raw) if isinstance(params_raw,str) else params_raw
+
+            for position, (param_name, param_type) in enumerate(params.items()):
+                param_rows.append({
+                    'param_id' : param_id,
+                    'name' : param_name,
+                    'type': param_type,
+                    'position': position,
+                })
+                edge_rows.append({
+                    'source_id':fnc_id,
+                    'param_id':param_id,
+                })
+                param_id += 1
+        parameter_nodes = pd.DataFrame(param_rows)
+        parameter_edges = pd.DataFrame(edge_rows)
+        return parameter_nodes, parameter_edges

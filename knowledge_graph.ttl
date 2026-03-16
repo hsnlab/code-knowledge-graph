@@ -16,6 +16,7 @@
 :developer_nodes          a rdfs:Class .
 :question_nodes           a rdfs:Class .
 :clusterensemble_nodes    a rdfs:Class .
+:parameter_nodes          a rdfs:Class .
 
 # Edge types (object properties)
 :function_edges a rdf:Property ;
@@ -89,3 +90,7 @@
 :clusterensemble_edges a rdf:Property ;
   rdfs:domain :clusterensemble_nodes ;
   rdfs:range  :clusterensemble_nodes .
+
+:function_parameter_edges a rdf:Property ;
+  rdfs:domain :function_nodes ;
+  rdfs:range  :parameter_nodes;

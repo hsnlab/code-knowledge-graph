@@ -3,6 +3,7 @@ from package.adapters import NodeType
 
 from tree_sitter import Node
 import pandas as pd
+import json
 
 from package.adapters.LanguageAstAdapterRegistry import LanguageAstAdapterRegistry
 
@@ -189,4 +190,31 @@ class PythonAdapter(LanguageAstAdapter):
     def parse_calls(self, top_call_node: Node, file_id: str, cll_id: int,
                     current_class_name: str, class_base_classes: list, class_id: int,
                     fnc_id: int, func_name: str, func_params: dict) -> list[pd.DataFrame]:
-        return []
+        calls = []
+        call_name = self._extract_call_name(top_call_node)
+
+        if call_name:
+            new_row = pd.DataFrame([{
+                'file_id': file_id,
+                'cll_id': cll_id,
+                'name': call_name,
+                'call_position': top_call_node.start_byte,
+                'class': current_class_name,
+                'class_base_classes': class_base_classes,
+                'class_id': class_id,
+                'func_id': fnc_id,
+                'func_name': func_name,
+                'func_params': json.dumps(func_params) if func_params else '{}'
+            }])
+            calls.append(new_row)
+
+        return calls
+
+    def _extract_call_name(self, call_node: Node) -> str | None:
+        """Extract the function/method name from a Python call node."""
+        for child in call_node.named_children:
+            if child.type == 'argument_list':
+                continue
+            if child.type in ('identifier', 'attribute'):
+                return child.text.decode('utf-8')
+        return None
