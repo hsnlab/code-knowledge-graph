@@ -120,7 +120,8 @@ class KnowledgeGraphBuilder():
             classes,
             repo_files,
             parameter_nodes,
-            parameter_edges
+            parameter_edges,
+            comments
         ) = hg.create_hierarchical_graph(
             repo_path,
             graph_type=graph_type,
@@ -129,7 +130,9 @@ class KnowledgeGraphBuilder():
             repo_functions_only=repo_functions_only
         )
 
-        
+        # Normalize column name: hierarchical graph uses 'fnc_id', knowledge graph expects 'func_id'
+        cg_nodes = cg_nodes.rename(columns={'fnc_id': 'func_id'})
+
         # Semantic clustering
         if semantic_clustering:
             cluster_nodes, cluster_edges, cluster_df = self.__cluster_function_nodes(cg_nodes)
@@ -220,6 +223,9 @@ class KnowledgeGraphBuilder():
         # Classes
         classes, class_edges, class_class_edges, class_name_to_id = self.__create_class_edges(classes, cg_nodes)
 
+        # Comments
+        comment_nodes, comment_function_edges, comment_class_edges, comment_file_edges = self.__create_comment_edges(comments, cg_nodes, classes, repo_files)
+
         # Return type edges
         return_type_edges = self.__create_return_type_edges(cg_nodes, class_name_to_id)
 
@@ -277,6 +283,10 @@ class KnowledgeGraphBuilder():
             "question_nodes": question_nodes,
             "question_cluster_edges": question_edges,
             "function_class_return_edges": return_type_edges,
+            "comment_nodes": comment_nodes,
+            "comment_function_edges": comment_function_edges,
+            "comment_class_edges": comment_class_edges,
+            "comment_file_edges": comment_file_edges,
         }
         
 
@@ -1145,7 +1155,7 @@ class KnowledgeGraphBuilder():
             classes = pd.DataFrame(columns=['ID', 'name', 'base_classes', 'file_ids'])
             class_edges = pd.DataFrame(columns=['source', 'target'])
             class_class_edges = pd.DataFrame(columns=['source', 'target'])
-            return classes, class_edges, class_class_edges
+            return classes, class_edges, class_class_edges, {}
         
         # Group classes by name
         classes_grouped = (
@@ -1208,6 +1218,61 @@ class KnowledgeGraphBuilder():
         classes = classes_grouped[['ID', 'name', 'base_classes', 'file_ids']]
         
         return classes, class_edges, class_class_edges, class_name_to_id
+
+    def __create_comment_edges(self, comments_df: pd.DataFrame, cg_nodes: pd.DataFrame, classes: pd.DataFrame, repo_files: pd.DataFrame):
+
+        #Create comment nodes with proper IDs and edges to functions/classes/files.
+
+        if comments_df.empty:
+            comment_nodes = pd.DataFrame(columns=['ID', 'text', 'type', 'line_start', 'line_end'])
+            return comment_nodes, pd.DataFrame(columns=['source', 'target']), pd.DataFrame(columns=['source', 'target']), pd.DataFrame(columns=['source', 'target'])
+        
+        # Assign sequential IDs
+        comments_df = comments_df.copy()
+        comments_df.insert(0, 'ID', range(1, len(comments_df) + 1))
+        
+        # Comment -> Function edges
+        comment_function_edges_list = []
+        for _, row in comments_df.iterrows():
+            if pd.notna(row.get('fnc_id')):
+                comment_function_edges_list.append({
+                    'source': int(row['ID']),
+                    'target': int(row['fnc_id'])
+                })
+        comment_function_edges = pd.DataFrame(comment_function_edges_list) if comment_function_edges_list else pd.DataFrame(columns=['source', 'target'])
+        
+        # Comment -> Class edges
+        comment_class_edges_list = []
+        for _, row in comments_df.iterrows():
+            if pd.notna(row.get('cls_id')) and pd.isna(row.get('fnc_id')):
+                
+                if not classes.empty and 'ID' in classes.columns:
+                    comment_class_edges_list.append({
+                        'source': int(row['ID']),
+                        'target': int(row['cls_id'])
+                    })
+        comment_class_edges = pd.DataFrame(comment_class_edges_list) if comment_class_edges_list else pd.DataFrame(columns=['source', 'target'])
+    
+        # Build file_id (UUID) -> fl_id (integer) mapping
+        file_id_to_fl_id = {}
+        if not repo_files.empty:
+            for _, f_row in repo_files.iterrows():
+                file_id_to_fl_id[str(f_row['file_id'])] = f_row['fl_id']
+        # Comment -> File edges (for comments not inside any function or class)
+        comment_file_edges_list = []
+        for _, row in comments_df.iterrows():
+            if pd.isna(row.get('fnc_id')) and pd.isna(row.get('cls_id')):
+                fl_id = file_id_to_fl_id.get(str(row['file_id']))
+                if fl_id is not None:
+                    comment_file_edges_list.append({
+                        'source': int(row['ID']),
+                        'target': int(fl_id)
+                    })
+        comment_file_edges = pd.DataFrame(comment_file_edges_list) if comment_file_edges_list else pd.DataFrame(columns=['source', 'target'])
+        
+        comment_nodes = comments_df[['ID', 'text', 'type', 'line_start', 'line_end']]
+        
+        return comment_nodes, comment_function_edges, comment_class_edges, comment_file_edges
 
     def __create_return_type_edges(self, cg_nodes: pd.DataFrame, class_name_to_id: dict) -> pd.DataFrame:
     #Create FUNCTION -> CLASS edges based on function return types.

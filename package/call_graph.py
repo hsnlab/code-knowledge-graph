@@ -50,6 +50,7 @@ class CallGraphBuilder:
     def __init__(self):
         self.imports = pd.DataFrame(columns=['file_id', 'imp_id', 'name', 'from', 'as_name'])
         self.classes = pd.DataFrame(columns=['file_id', 'cls_id', 'name', 'base_classes'])
+        self.comments = pd.DataFrame(columns=['file_id', 'comment_id', 'text', 'type', 'line_start', 'line_end'])
         self.functions = pd.DataFrame(columns=['file_id', 'fnc_id', 'name', 'class', 'class_base_classes', 'params'])
         self.calls = pd.DataFrame(columns=['file_id', 'cll_id', 'name', 'class', 'class_base_classes'])
         self.files = pd.DataFrame(columns=['fl_id','file_id', 'name', 'path', 'is_folder', 'directory_id'])
@@ -129,6 +130,7 @@ class CallGraphBuilder:
         self.fnc_id = 0
         self.cll_id = 0
         self.fl_id = 0
+        self.comment_id = 0
         self.config_id = 1 # separate config file id-s from project files and directories, 
         readme_found = False
         
@@ -192,18 +194,21 @@ class CallGraphBuilder:
 
                     language_adapter: LanguageAstAdapter = LanguageAstAdapterRegistry.get_adapter(language)
                     ast_processor = AstProcessor(language_adapter(), file_content)
-                    imports, classes, functions, calls, id_dict = ast_processor.process_file_ast(file_id=file_id,
+                    imports, classes, functions, calls,comments, id_dict = ast_processor.process_file_ast(file_id=file_id,
                                                                                                  id_dict={
                                                                                                      "imp_id": self.imp_id,
                                                                                                      "cls_id": self.cls_id,
                                                                                                      "fnc_id": self.fnc_id,
-                                                                                                     "cll_id": self.cll_id
+                                                                                                     "cll_id": self.cll_id,
+                                                                                                     "comment_id": self.comment_id,
                                                                                                  })
 
                     self.imports = self.__concat_df(self.imports, imports)
                     self.classes = self.__concat_df(self.classes, classes)
                     self.functions = self.__concat_df(self.functions, functions)
                     self.calls = self.__concat_df(self.calls, calls)
+                    self.comments = self.__concat_df(self.comments, comments)
+                    self.comment_id = id_dict.get("comment_id")
 
                     self.imp_id = id_dict.get("imp_id")
                     self.cls_id = id_dict.get("cls_id")
@@ -317,8 +322,8 @@ class CallGraphBuilder:
             self.edges['target_id'] = self.edges['target_id'].astype(int)
 
         if return_type == "pandas":
-            return self.nodes, self.edges, self.imports, self.classes, self.files, project_language, self.parameter_nodes, self.parameter_edges
-
+            return self.nodes, self.edges, self.imports, self.classes, self.files, project_language, self.parameter_nodes, self.parameter_edges, self.comments
+        
         elif return_type == "networkx":
             G = nx.from_pandas_edgelist(self.edges, source='source_id', target='target_id', create_using=nx.DiGraph())
             for _, row in self.nodes.iterrows():
@@ -756,7 +761,7 @@ class CallGraphBuilder:
         param_id = 0
 
         for _, func_row in self.functions.iterrows():
-            fnc_id = func_row['func_id']
+            fnc_id = func_row['fnc_id']
             params_raw = func_row.get('params', '{}')
             params = json.loads(params_raw) if isinstance(params_raw,str) else params_raw
 

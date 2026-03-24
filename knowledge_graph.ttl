@@ -17,6 +17,8 @@
 :question_nodes           a rdfs:Class .
 :clusterensemble_nodes    a rdfs:Class .
 :parameter_nodes          a rdfs:Class .
+:comment_nodes            a rdfs:Class .
+
 
 # Edge types (object properties)
 :function_edges a rdf:Property ;
@@ -98,3 +100,15 @@
 :function_class_return_edges a rdf:Property ;
   rdfs:domain :function_nodes ;
   rdfs:range :class_nodes .
+
+:comment_function_edges a rdf:Property ;
+  rdfs:domain :comment_nodes ;
+  rdfs:range  :function_nodes .
+
+:comment_class_edges a rdf:Property ;
+  rdfs:domain :comment_nodes ;
+  rdfs:range  :class_nodes .
+
+:comment_file_edges a rdf:Property ;
+  rdfs:domain :comment_nodes ;
+  rdfs:range  :file_nodes .

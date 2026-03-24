@@ -3,7 +3,7 @@ from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn import metrics
 import pandas as pd
 import torch
-from transformers import AutoTokenizer, pipeline
+from transformers import AutoTokenizer, pipeline, BitsAndBytesConfig
 import numpy as np
 import networkx as nx
 import re
@@ -17,22 +17,33 @@ class SemanticClustering():
     def __init__(self, hugging_face_token=None, llm_model="mistralai/Mistral-7B-Instruct-v0.3"):
 
         self.llm_model = llm_model
-        device = 0 if torch.cuda.is_available() else -1
 
         tokenizer = AutoTokenizer.from_pretrained(
             self.llm_model,
-            token=hugging_face_token
+            token=hugging_face_token,
+            use_fast=False
         )
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
 
-        self.pipe = pipeline(
-            "text-generation", 
-            model=self.llm_model, 
-            device=device,
-            tokenizer=tokenizer,
-            token=hugging_face_token
-        )
+        if torch.cuda.is_available():
+            quantization_config = BitsAndBytesConfig(load_in_4bit=True)
+            self.pipe = pipeline(
+                "text-generation",
+                model=self.llm_model,
+                tokenizer=tokenizer,
+                token=hugging_face_token,
+                model_kwargs={"quantization_config": quantization_config},
+                device_map="auto",
+            )
+        else:
+            self.pipe = pipeline(
+                "text-generation",
+                model=self.llm_model,
+                device=-1,
+                tokenizer=tokenizer,
+                token=hugging_face_token,
+            )
 
     def cluster_text(self, df, column, max_clusters=50):
 

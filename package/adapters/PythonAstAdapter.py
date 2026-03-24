@@ -18,6 +18,7 @@ class PythonAdapter(LanguageAstAdapter):
         "decorated_definition": NodeType.FUNCTION,
         "async_function_definition": NodeType.FUNCTION,
         "call": NodeType.CALL,
+        "comment": NodeType.COMMENT,
     })
 
     def parse_import(self, top_import_node: Node, file_id: str, imp_id: int) -> list[pd.DataFrame]:
@@ -93,6 +94,22 @@ class PythonAdapter(LanguageAstAdapter):
         classes.append(new_row)
 
         return classes
+    
+    def parse_comments(self, node: Node, file_id: str, comment_id: int) -> list[pd.DataFrame]:
+        text = node.text.decode('utf-8')
+        text = text.lstrip('#').strip()
+
+        if not text:
+            return []
+        
+        return [pd.DataFrame([{
+            'file_id': file_id,
+            'comment_id': comment_id,
+            'text': text,
+            'type': 'inline_comment',
+            'line_start': node.start_point[0] + 1,
+            'line_end': node.end_point[0] + 1,
+        }])]
 
     def should_skip_function_node(self, node: Node) -> bool:
         """Skip function_definition nodes inside decorated_definition (we process the wrapper instead)."""

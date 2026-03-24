@@ -14,6 +14,7 @@ class AstProcessor:
         self.adapter = adapter
         parser: Parser = adapter.get_tree_sitter_parser()
         self.tree: Tree = parser.parse(file_content)
+        self.comments = pd.DataFrame(columns=['file_id','comment_id','text','type','line_start','line_end'])
 
     def process_file_ast(self, file_id: str | None=None, id_dict: dict[str, int] = {}, return_dataframes: bool = True) -> None | tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, int]]:
         self.id_dict = id_dict
@@ -23,11 +24,12 @@ class AstProcessor:
 
         self.__walk_ast(root_node, file_id=file_id)
         if return_dataframes:
-            return self.imports, self.classes, self.functions, self.calls, {
+            return self.imports, self.classes, self.functions, self.calls,self.comments, {
                 "imp_id": self.id_dict.get("imp_id"),
                 "cls_id": self.id_dict.get("cls_id"),
                 "fnc_id": self.id_dict.get("fnc_id"),
-                "cll_id": self.id_dict.get("cll_id")
+                "cll_id": self.id_dict.get("cll_id"),
+                "comment_id": self.id_dict.get("comment_id")
             }
 
     def __is_not_correct_type(self, node: Node, type_expected: NodeType):
@@ -82,6 +84,18 @@ class AstProcessor:
 
         self.calls = self.__update_indexes_and_dataframe(calls, self.calls, "cll_id")
 
+    def _handle_comments(self, node: Node, file_id: str, current_comment_id: int,
+        fnc_id: int = None, class_id: int = None):
+        if self.adapter.map_node_type(node.type) != NodeType.COMMENT:
+            return
+        comments = self.adapter.parse_comments(node=node, file_id=file_id, comment_id=current_comment_id)
+        # Attach context: which function/class this comment is inside
+        for comment_df in comments:
+            comment_df['fnc_id'] = fnc_id
+            comment_df['cls_id'] = class_id
+        self.comments = self.__update_indexes_and_dataframe(comments, self.comments, "comment_id")
+    
+    
     def __walk_ast(self, node: Node, file_id: str, class_name='Global', class_base_classes=None, class_id=None,
                    fnc_id=None, func_name=None, func_params=None) -> None:
         #todo update id mapper
@@ -101,6 +115,30 @@ class AstProcessor:
             class_base_classes = current_class["base_classes"]
             class_id = current_class["cls_id"]
 
+            # Extract class docstring as a comment node
+            # Get docstring from the tree-sitter node directly
+            block = next((c for c in node.named_children if c.type == 'block'), None)
+            if block and block.named_children:
+                first = block.named_children[0]
+                if first.type == 'expression_statement':
+                    string = next((c for c in first.named_children if c.type == 'string'), None)
+                    if string:
+                        doc_text = string.text.decode('utf-8').strip('"""').strip("'''").strip('"').strip("'")
+                        if doc_text:
+                            doc_df = pd.DataFrame([{
+                                'file_id': file_id,
+                                'comment_id': self.id_dict.get("comment_id", 0),
+                                'text': doc_text,
+                                'type': 'docstring',
+                                'line_start': node.start_point[0] + 1,
+                                'line_end': node.start_point[0] + 1,
+                                'fnc_id': None,
+                                'cls_id': class_id,
+                            }])
+                            self.comments = self.__update_indexes_and_dataframe([doc_df], self.comments, "comment_id")
+
+        
+        
         # Handle functions
         current_function = self._handle_function_definitions(node, file_id=file_id, fnc_id=self.id_dict.get("fnc_id", None),
             current_class_name=class_name, current_base_classes=class_base_classes, class_id=class_id)
@@ -111,6 +149,25 @@ class AstProcessor:
             func_params = json.loads(current_function["params"])
             fnc_id = current_function["fnc_id"]
             class_name = current_function["class"]
+
+            # Extract function docstring as a comment node
+            docstring = current_function.get("docstring")
+            if docstring:
+                doc_df = pd.DataFrame([{
+                    'file_id': file_id,
+                    'comment_id': self.id_dict.get("comment_id", 0),
+                    'text': docstring,
+                    'type': 'docstring',
+                    'line_start': node.start_point[0] + 1,
+                    'line_end': node.start_point[0] + 1,
+                    'fnc_id': fnc_id,
+                    'cls_id': class_id,
+                }])
+                self.comments = self.__update_indexes_and_dataframe([doc_df], self.comments, "comment_id")
+        #Handle comments
+        self._handle_comments(node, file_id=file_id, current_comment_id=self.id_dict.get("comment_id", None),
+                      fnc_id=fnc_id, class_id=class_id)
+        
         # Handle calls (using current function context)
         self._handle_calls(node, file_id=file_id, cll_id=self.id_dict.get("cll_id", None),
                            current_class_name=class_name, current_base_classes=class_base_classes,

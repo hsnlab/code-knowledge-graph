@@ -9,6 +9,7 @@ class NodeType(Enum):
     CLASS = "Class"
     FUNCTION = "Function"
     CALL = "Call"
+    COMMENT = "Comment"
 
 class LanguageAstAdapter:
     """
@@ -33,6 +34,9 @@ class LanguageAstAdapter:
         raise NotImplementedError
 
     def parse_class(self, top_class_node: Node, file_id: str, cls_id: int) -> list[pd.DataFrame]:
+        raise NotImplementedError
+    
+    def parse_comments(self, node: Node, file_id: str, comment_id: int) -> list[pd.DataFrame]:
         raise NotImplementedError
 
     def should_skip_function_node(self, node: Node) -> bool:

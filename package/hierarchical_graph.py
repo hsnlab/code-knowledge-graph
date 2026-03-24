@@ -93,7 +93,7 @@ class HierarchicalGraphBuilder:
         """
         print("Building CG...")
         # return the project language
-        self.nodes, self.edges, self.imports, self.classes, self.files, language, self.parameter_nodes, self.parameter_edges = CallGraphBuilder().build_call_graph(path, return_type="pandas", repo_functions_only=repo_functions_only, project_language=project_language)
+        self.nodes, self.edges, self.imports, self.classes, self.files, language, self.parameter_nodes, self.parameter_edges, self.comments = CallGraphBuilder().build_call_graph(path, repo_functions_only=repo_functions_only, project_language=project_language)
 
         # Convert function IDs to integers
         self.nodes['fnc_id'] = self.nodes['fnc_id'].astype(int)
@@ -216,7 +216,8 @@ class HierarchicalGraphBuilder:
                 self.classes,
                 self.files,
                 self.parameter_nodes,
-                self.parameter_edges
+                self.parameter_edges,
+                self.comments
             )
         
         else:
