@@ -234,7 +234,10 @@ class KnowledgeGraphBuilder():
             imports, imp_edges = adapter.create_import_edges(imports, cg_nodes)
         else:
             imports, imp_edges = self.__create_import_edges(imports, cg_nodes)
-        
+
+        # Function-level import usage edges (AST-based, more precise than file-level imp_edges)
+        import_function_usage_edges = self.__create_function_level_import_edges(imports, cg_nodes)
+
         # Classes
         classes, class_edges, class_class_edges, class_name_to_id = self.__create_class_edges(classes, cg_nodes)
 
@@ -281,6 +284,7 @@ class KnowledgeGraphBuilder():
             "config_nodes": config_nodes,
             "file_config_edges": config_file_edges,
             "import_function_edges": imp_edges,
+            "import_function_usage_edges": import_function_usage_edges,
             "pr_nodes": prs,
             "pr_function_edges": pr_edges,
             "issue_nodes": issues,
@@ -624,6 +628,7 @@ class KnowledgeGraphBuilder():
 
                 edge_label_map = {
                     "function_class_return_edges": ("FUNCTION", "CLASS"),
+                    "import_function_usage_edges": ("IMPORT", "FUNCTION"),
                 }
 
                 if key in edge_label_map:
@@ -1015,6 +1020,55 @@ class KnowledgeGraphBuilder():
 
         return imports, imp_edges
 
+    def __create_function_level_import_edges(self, imports: pd.DataFrame, cg_nodes: pd.DataFrame) -> pd.DataFrame:
+        """
+        Creates precise IMPORT→FUNCTION edges based on actual import usage within
+        each function body (AST-level), unlike the file-level import_function_edges.
+
+        An edge (import_id → func_id) is created only when the import's effective
+        name (alias if set, otherwise the leaf name) appears as an AST Name node
+        inside the function's source code.
+
+        :param imports: DataFrame with import_id, import_name, import_as_name columns.
+        :param cg_nodes: DataFrame with func_id, function_code columns.
+        :return: DataFrame with columns [source=import_id, target=func_id].
+        """
+        import ast as _ast
+
+        def effective_name(row) -> str:
+            alias = row.get("import_as_name")
+            if alias and str(alias).strip() and str(alias).strip().lower() != "nan":
+                return str(alias).strip()
+            name = str(row.get("import_name", "") or "")
+            # for dotted imports like "numpy.linalg" without alias, use first component
+            return name.split(".")[0] if name else ""
+
+        name_to_imp_ids: dict[str, list[int]] = {}
+        for _, row in imports.iterrows():
+            eff = effective_name(row)
+            if eff:
+                name_to_imp_ids.setdefault(eff, []).append(int(row["import_id"]))
+
+        records = []
+        for _, func_row in cg_nodes.iterrows():
+            code = func_row.get("function_code", "")
+            if not code or not str(code).strip():
+                continue
+            try:
+                tree = _ast.parse(str(code))
+            except SyntaxError:
+                continue
+
+            used_names = {node.id for node in _ast.walk(tree) if isinstance(node, _ast.Name)}
+            func_id = int(func_row["func_id"])
+            for name, imp_ids in name_to_imp_ids.items():
+                if name in used_names:
+                    for imp_id in imp_ids:
+                        records.append({"source": imp_id, "target": func_id})
+
+        if not records:
+            return pd.DataFrame(columns=["source", "target"])
+        return pd.DataFrame(records).drop_duplicates().reset_index(drop=True)
 
 
     def __create_file_connection_edges(
