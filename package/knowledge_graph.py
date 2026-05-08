@@ -21,6 +21,8 @@ from .pr_function_collector import extract_changed_functions_from_pr
 from package.adapters import LanguageAstAdapterRegistry
 
 from tqdm import tqdm
+
+
 class KnowledgeGraphBuilder():
 
     git = None
@@ -53,6 +55,7 @@ class KnowledgeGraphBuilder():
         developer_mode: str | None = 'contributors',
         max_commits: int = 200,
         skip_artifacts: bool = True,
+        include_keys: list[str] | None = None,
     ):
         """
         Builds a knowledge graph from the given repository.
@@ -121,7 +124,10 @@ class KnowledgeGraphBuilder():
             repo_files,
             parameter_nodes,
             parameter_edges,
-            comments
+            comments,
+             dfg_nodes_df,           
+            dfg_edges_df,           
+            dfg_fn_edges_df,
         ) = hg.create_hierarchical_graph(
             repo_path,
             graph_type=graph_type,
@@ -129,6 +135,15 @@ class KnowledgeGraphBuilder():
             project_language=project_language,
             repo_functions_only=repo_functions_only
         )
+
+        # Rename DFG columns to KG convention (ID / source / target)
+        dfg_nodes_df = dfg_nodes_df.rename(columns={"dfg_id": "ID"}) \
+            if not dfg_nodes_df.empty else pd.DataFrame(columns=["ID", "func_id", "name", "node_type", "line", "code"])
+        dfg_edges_df = dfg_edges_df.rename(columns={"source_id": "source", "target_id": "target"}) \
+            if not dfg_edges_df.empty else pd.DataFrame(columns=["source", "target"])
+        dfg_fn_edges_df = dfg_fn_edges_df.rename(columns={"dfg_id": "source", "func_id": "target"}) \
+            if not dfg_fn_edges_df.empty else pd.DataFrame(columns=["source", "target"])
+
 
         # Normalize column name: hierarchical graph uses 'fnc_id', knowledge graph expects 'func_id'
         cg_nodes = cg_nodes.rename(columns={'fnc_id': 'func_id'})
@@ -287,6 +302,9 @@ class KnowledgeGraphBuilder():
             "comment_function_edges": comment_function_edges,
             "comment_class_edges": comment_class_edges,
             "comment_file_edges": comment_file_edges,
+            "dfg_nodes":          dfg_nodes_df,
+            "dfg_edges":          dfg_edges_df,
+            "dfg_function_edges": dfg_fn_edges_df,
         }
         
 
@@ -300,6 +318,9 @@ class KnowledgeGraphBuilder():
                     dev_edges_df[col] = pd.to_numeric(dev_edges_df[col], errors='coerce').astype('Int64')
             dev_edges_df = dev_edges_df.dropna(subset=['source', 'target']).astype({'source':'int','target':'int'}).reset_index(drop=True)
             self.knowledge_graph["developer_function_edges"] = dev_edges_df
+
+        if include_keys is not None:
+            self.knowledge_graph = {k: v for k, v in self.knowledge_graph.items() if k in include_keys}
 
         # Store in Neo4J or return
         if URI and user and password:
@@ -538,64 +559,87 @@ class KnowledgeGraphBuilder():
                     
         driver = GraphDatabase.driver(uri, auth=(user, password))
 
+        print("Deleting existing nodes...")
         with driver.session() as session:
-            session.run("MATCH (n) DETACH DELETE n")
+            while True:
+                result = session.run("MATCH (n) WITH n LIMIT 500 DETACH DELETE n RETURN count(n) AS deleted")
+                deleted = result.single()["deleted"]
+                if deleted == 0:
+                    break
+        print("Database cleared.")
+
+        # Create indexes on global_id for each node type
+        node_labels = [key.replace("_nodes", "").upper() for key in knowledge_graph if key.endswith("_nodes")]
+        with driver.session() as session:
+            for label in node_labels:
+                session.run(f"CREATE INDEX IF NOT EXISTS FOR (n:{label}) ON (n.global_id)")
+        with driver.session() as session:
+            session.run("CALL db.awaitIndexes(300)")
+        print("Indexes created.")
 
         # Load nodes with batching
-        for key, df in tqdm(knowledge_graph.items(), desc="Loading nodes to neo4j"):
-            if key.endswith("_nodes"):
-                label = key.replace("_nodes", "").upper()
-                if "id" in df.columns:
-                    df["id"] = df["id"].astype(int)
-                elif "ID" in df.columns:
-                    df["ID"] = df["ID"].astype(int)
+        node_keys = [k for k in knowledge_graph if k.endswith("_nodes")]
+        for idx, key in enumerate(node_keys, 1):
+            df = knowledge_graph[key]
+            label = key.replace("_nodes", "").upper()
+            print(f"[{idx}/{len(node_keys)}] Loading nodes: {label} ({len(df)} rows)")
+            if "id" in df.columns:
+                df["id"] = df["id"].astype(int)
+            elif "ID" in df.columns:
+                df["ID"] = df["ID"].astype(int)
 
-                # Prepare all node data
-                nodes_data = []
-                for _, row in df.iterrows():
-                    props = {}
-                    for k, v in row.items():
-                        if not (isinstance(v, float) and pd.isna(v)):
-                            props[k] = sanitize_for_neo4j(v)
+            nodes_data = []
+            for _, row in df.iterrows():
+                props = {}
+                for k, v in row.items():
+                    if not (isinstance(v, float) and pd.isna(v)):
+                        props[k] = sanitize_for_neo4j(v)
 
-                    local_id = props.get("id") or props.get("ID")
-                    if local_id is None:
-                        raise ValueError(f"A(z) {label} node-nak nincs id mezője.")
+                local_id = props.get("id") or props.get("ID")
+                if local_id is None:
+                    raise ValueError(f"A(z) {label} node-nak nincs id mezője.")
 
-                    props["global_id"] = f"{label}:{local_id}"
-                    nodes_data.append(props)
+                props["global_id"] = f"{label}:{local_id}"
+                nodes_data.append(props)
 
-                # Insert in batches
-                
-                for i in range(0, len(nodes_data), batch_size):
-                    batch = nodes_data[i:i + batch_size]
-                    with driver.session() as session:
-                        session.run(
-                            f"UNWIND $batch AS props MERGE (n:{label} {{global_id: props.global_id}}) SET n = props",
-                            batch=batch
-                        )
+            for i in range(0, len(nodes_data), batch_size):
+                batch = nodes_data[i:i + batch_size]
+                with driver.session() as session:
+                    session.run(
+                        f"UNWIND $batch AS props MERGE (n:{label} {{global_id: props.global_id}}) SET n = props",
+                        batch=batch
+                    )
+        print("All nodes loaded.")
 
         # Load edges with batching
-        for key, df in tqdm(knowledge_graph.items(), desc="Loading edges to neo4j"):
+        edge_keys = [k for k in knowledge_graph if k.endswith("_edges")]
+        for idx, key in enumerate(edge_keys, 1):
+            df = knowledge_graph[key]
             if key.endswith("_edges"):
                 if df.empty or 'source' not in df.columns or 'target' not in df.columns:
                     continue
-                
-                rel_type = key.replace("_edges", "").upper()
 
-                # Determine source and target node labels
-                parts = key.replace("_edges", "").split("_")
-                if len(parts) == 1:
-                    src_label = tgt_label = parts[0].upper()
-                elif len(parts) == 2:
-                    src_label, tgt_label = parts[0].upper(), parts[1].upper()
+                rel_type = key.replace("_edges", "").upper()
+                print(f"[{idx}/{len(edge_keys)}] Loading edges: {rel_type} ({len(df)} rows)")
+
+                edge_label_map = {
+                    "function_class_return_edges": ("FUNCTION", "CLASS"),
+                }
+
+                if key in edge_label_map:
+                    src_label, tgt_label = edge_label_map[key]
                 else:
-                    raise ValueError(f"Nem tudom értelmezni az edge nevet: {key}")
+                    parts = key.replace("_edges", "").split("_")
+                    if len(parts) == 1:
+                        src_label = tgt_label = parts[0].upper()
+                    elif len(parts) == 2:
+                        src_label, tgt_label = parts[0].upper(), parts[1].upper()
+                    else:
+                        raise ValueError(f"Nem tudom értelmezni az edge nevet: {key}")
 
                 df["source"] = df["source"].astype(int)
                 df["target"] = df["target"].astype(int)
 
-                # Prepare all edge data
                 edges_data = []
                 for _, row in df.iterrows():
                     start_id = f"{src_label}:{row['source']}"
@@ -604,14 +648,13 @@ class KnowledgeGraphBuilder():
                     for k, v in row.items():
                         if k not in ["source", "target"] and pd.notna(v):
                             edge_props[k] = sanitize_for_neo4j(v)
-                    
+
                     edges_data.append({
                         'start_id': start_id,
                         'end_id': end_id,
                         'props': edge_props
                     })
 
-                # Insert edges in batches
                 for i in range(0, len(edges_data), batch_size):
                     batch = edges_data[i:i + batch_size]
                     with driver.session() as session:
@@ -625,6 +668,7 @@ class KnowledgeGraphBuilder():
                             """,
                             batch=batch
                         )
+        print("All edges loaded. Done.")
 
 
 

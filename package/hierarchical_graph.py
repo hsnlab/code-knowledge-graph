@@ -31,6 +31,8 @@ from .function_graph import FunctionGraphBuilder
 from .function_versioning import FunctionVersioning
 from package.adapters import LanguageAstAdapterRegistry
 
+from .dfg_builder import DFGBuilder
+
 
 class HierarchicalGraphBuilder:
 
@@ -47,9 +49,13 @@ class HierarchicalGraphBuilder:
     version_edges = None
     functionversion_function_edges = None
 
+    _dfg_builder = DFGBuilder()
+    _dfg_node_counter = 0
 
     def __init__(self):
-        pass
+        self.all_dfg_nodes = []
+        self.all_dfg_edges = []
+        self.all_dfg_func_edges = []
 
 
     def create_hierarchical_graph(
@@ -163,6 +169,36 @@ class HierarchicalGraphBuilder:
                 self.subgraph_nodes = pd.concat([self.subgraph_nodes, subg_nodes], ignore_index=True).reset_index(drop=True)
                 self.subgraph_edges = pd.concat([self.subgraph_edges, subg_edges], ignore_index=True).reset_index(drop=True)
 
+
+                func_code = row.get("function_code", "")
+                if func_code and func_code.strip():
+                    try:
+                        dfg_n, dfg_e, dfg_fe = self._dfg_builder.build_dfg(
+                            function_code=func_code,
+                            func_id=int(row["fnc_id"]),
+                            start_node_id=self._dfg_node_counter,
+                        )
+                        if not dfg_n.empty:
+                            self._dfg_node_counter += len(dfg_n)
+                            self.all_dfg_nodes.append(dfg_n)
+                            self.all_dfg_edges.append(dfg_e)
+                            self.all_dfg_func_edges.append(dfg_fe)
+                    except Exception as exc:
+                        print(f"[DFG] skipped func_id={row['fnc_id']}: {exc}")
+            
+        self.dfg_nodes = (
+            pd.concat(self.all_dfg_nodes, ignore_index=True)
+            if self.all_dfg_nodes else pd.DataFrame(columns=["dfg_id","func_id","name","node_type","line","code"])
+        )
+        self.dfg_edges = (
+            pd.concat(self.all_dfg_edges, ignore_index=True)
+            if self.all_dfg_edges else pd.DataFrame(columns=["source_id","target_id"])
+        )
+        self.dfg_function_edges = (
+            pd.concat(self.all_dfg_func_edges, ignore_index=True)
+            if self.all_dfg_func_edges else pd.DataFrame(columns=["dfg_id","func_id"])
+        )
+
         # Convert node IDs to integers
         self.subgraph_nodes['node_id'] = self.subgraph_nodes['node_id'].astype(int)
         self.subgraph_edges['source_id'] = self.subgraph_edges['source_id'].astype(int)
@@ -217,7 +253,10 @@ class HierarchicalGraphBuilder:
                 self.files,
                 self.parameter_nodes,
                 self.parameter_edges,
-                self.comments
+                self.comments,
+                self.dfg_nodes,           
+                self.dfg_edges,           
+                self.dfg_function_edges, 
             )
         
         else:
