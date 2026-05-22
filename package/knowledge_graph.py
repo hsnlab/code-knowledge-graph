@@ -601,7 +601,7 @@ class KnowledgeGraphBuilder():
 
                 local_id = props.get("id") or props.get("ID")
                 if local_id is None:
-                    raise ValueError(f"A(z) {label} node-nak nincs id mezője.")
+                    raise ValueError(f"Node of type {label} has no id field.")
 
                 props["global_id"] = f"{label}:{local_id}"
                 nodes_data.append(props)
@@ -640,7 +640,7 @@ class KnowledgeGraphBuilder():
                     elif len(parts) == 2:
                         src_label, tgt_label = parts[0].upper(), parts[1].upper()
                     else:
-                        raise ValueError(f"Nem tudom értelmezni az edge nevet: {key}")
+                        raise ValueError(f"Cannot parse edge name: {key}")
 
                 df["source"] = df["source"].astype(int)
                 df["target"] = df["target"].astype(int)
